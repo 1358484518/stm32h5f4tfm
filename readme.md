@@ -11,6 +11,10 @@
 - 主控：STM32H573（Cortex-M33 + TrustZone）
 - 调试器：ST-Link
 
+## 代码提交 
+
+- 执行命令 ./push_to_gitee.sh
+
 ## 目录结构
 
 	.
