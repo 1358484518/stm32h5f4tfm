@@ -1,0 +1,189 @@
+使用环境 ubuntu22.04
+1.安装依赖
+	sudo apt-get update
+	sudo apt-get install -y git curl wget cmake ninja-build build-essential \
+		libssl-dev python3 python3-venv python3-pip
+
+2. 安装官方 ARM GNU 工具链 使用版本14.3.1
+	下载地址：
+	https://developer.arm.com/downloads/-/arm-gnu-toolchain-downloads
+
+3.安装编译器设定编译器路径
+	export PATH=/home/lubancat/test/tfm/arm-gnu-toolchain-14.3.rel1-x86_64-arm-none-eabi/bin:$PATH
+	
+4.下载tfm固件
+	git clone https://git.trustedfirmware.org/TF-M/trusted-firmware-m.git
+	cd trusted-firmware-m/
+	git fetch --tags
+	git checkout TF-Mv2.3.0
+	git describe --tags
+	
+5.下载tfm-test固件
+	cd ..
+	git clone https://git.trustedfirmware.org/TF-M/tf-m-tests.git
+	cd tf-m-tests/
+	git fetch --tags
+	git checkout TF-Mv2.3.0
+	git describe --tags
+	cd ..
+
+6. 安装 Python 依赖
+	cd trusted-firmware-m
+	python3 -m venv .venv
+	source .venv/bin/activate
+	pip install --upgrade pip setuptools wheel	
+	pip install -e .
+	
+	source .venv/bin/activate
+	
+	rm -rf build_s
+	
+	cmake -S ../tf-m-tests/tests_reg/spe \
+	-B build_s \
+	-GNinja \
+	-DTFM_PLATFORM=stm/stm32h573i_dk \
+	-DTFM_TOOLCHAIN_FILE=$PWD/toolchain_GNUARM.cmake \
+	-DCONFIG_TFM_SOURCE_PATH=$PWD \
+	-DTFM_PSA_API=ON \
+	-DTFM_ISOLATION_LEVEL=1 \
+	-DTEST_S=ON \
+	-DTEST_NS=ON
+
+	git config --global user.email "1358484518@qq.com"
+	git config --global user.name "klp"
+		
+	ninja -C build_s install -j$(nproc)
+
+7.非安全侧编译
+	注意：保持命令行窗口在 trusted-firmware-m 目录
+	
+7.1	清理旧构建（可选）
+	rm -rf build_ns
+	
+7.2 配置
+	cmake -S ../tf-m-tests/tests_reg \
+	-B build_ns \
+	-GNinja \
+	-DCONFIG_SPE_PATH=$PWD/build_s/api_ns \
+	-DTFM_TOOLCHAIN_FILE=$PWD/build_s/api_ns/cmake/toolchain_ns_GNUARM.cmake
+	
+7.3 编译
+	ninja -C build_ns -j$(nproc)
+
+8.学习TFM
+
+trusted-firmware-m/
+├── build_s/bin/              # S 端 + BL2 烧录文件
+│   ├── bl2.hex
+│   └── tfm_s_signed.hex
+├── build_ns/bin/             # NS 端烧录文件
+│   ├── tfm_ns_signed.hex
+│   └── tfm_s_ns_signed.hex
+└── build_s/api_ns/           # NS 开发接口（以后 CubeIDE 要用）
+    ├── interface/include/    # PSA 头文件
+    ├── platform/linker_scripts/
+    └── image_signing/        # NS 签名密钥
+
+9.烧录步骤
+	参考文档：
+	https://trustedfirmware-m.readthedocs.io/en/latest/platform/stm/stm32h573i_dk/readme.html
+	https://github.com/TrustedFirmware-M/trusted-firmware-m/tree/main/docs/platform/stm/stm32h573i_dk
+	
+	在构建文件夹/home/klp/test/tfmwork/trusted-firmware-m/platform/ext/target/stm/common/scripts中：
+	postbuild.sh根据 flash_layout.h 更新 regression.sh 和 TFM_UPDATE.sh 脚本
+	regression.sh设置平台选项字节配置并擦除平台
+	TFM_UPDATE.sh将 bl2、安全和非安全镜像写入目标磁盘
+	将开发板连接到 USB 接口，并按以下顺序执行 3 个脚本以更新平台：postbuild.sh、regression.sh、TFM_UPDATE.sh
+	
+	注意1：烧录最好不要使用 STM32CubeProgrammer ，如果要使用STM32CubeProgrammer需要使用命令行启动
+	/STMicroelectronics/STM32Cube/STM32CubeProgrammer/bin$ ./STM32CubeProgrammer
+	一定要在 .bashrc 设置好编程软件的路径：export PATH="$PATH:/home/klp/STMicroelectronics/STM32Cube/STM32CubeProgrammer/bin"
+
+	注意2：烧录前的py环境必须要在命令行设置：
+		cd /home/klp/test/tfmwork/trusted-firmware-m
+		python3 --version
+		Python 3.10.12
+		python3 -m venv .venv
+		source .venv/bin/activate
+		例如我这里的环境：(.venv) klp@klp-virtual-machine:~/test/tfmwork/trusted-firmware-m/build_s/api_ns$
+		
+	注意3：
+	项目						说明
+	postbuild.sh		必须在 build_s/api_ns 里跑，不是 common/scripts
+	TFM_UPDATE.sh		必须在 postbuild 成功之后 再跑
+	pip install -e .	在 trusted-firmware-m 根目录，编 S 前要有
+	regression.sh		会擦 Flash、改 OB，不要每次烧录都跑
+	
+实际操作步骤：
+
+	可以使用一键编译脚本:
+	./buildtfm.sh
+
+然后再烧录按照以下命令执行：	
+
+	cd ~/test/tfmwork/trusted-firmware-m
+	source .venv/bin/activate
+	cd build_s/api_ns
+	./regression.sh
+	./TFM_UPDATE.sh
+	最后注意：在stm32cubeprogrammer中把BOOT_UBE 改为 B4
+
+10.代码入门指南（入门原则（先记住 3 条））
+
+	从 NS 往 S 读，不要先看 secure_fw/spm/
+	一次只跟一条 API（建议从 psa_crypto_init / psa_hash_compute 开始）
+	每读一个文件就记：它在 Flash 哪、跑在 S 还是 NS
+
+	第 1 步：先建立「地图」（半天）
+	在你本机打开工程，按顺序看：
+
+	顺序	文件	看什么
+	1	platform/ext/target/stm/stm32h573i_dk/include/flash_layout.h	BL2 / S / NS 在 Flash 哪
+	2	platform/ext/target/stm/stm32h573i_dk/include/region_defs.h	S/NS 各占多少 RAM
+	3	build_s/api_ns/interface/include/psa/	NS 能调哪些 API
+	4	tf-m-tests/tests_reg/test_app.c	NS 程序入口
+	产出： 自己画一张表（地址 + 三个 bin 对应关系）。
+	这一步不用懂实现，只要知道「东西在哪」。
+
+	/home/klp/test/tfmwork/
+	├── trusted-firmware-m/          ← TF-M 主仓库（S 侧源码、平台移植）
+	│   ├── build_s/                 ← S 侧构建输出 + api_ns
+	│   │   ├── bin/                 ← bl2.hex, tfm_s_signed.hex
+	│   │   └── api_ns/              ← NS 应用要用的接口
+	│   ├── build_ns/                ← NS 侧构建输出
+	│   │   └── bin/                 ← tfm_ns_signed.hex, tfm_ns.axf
+	│   └── platform/ext/target/stm/stm32h573i_dk/
+	└── tf-m-tests/                  ← 测试代码（与 trusted-firmware-m 平级）
+		├── tests_reg/               ← 你用的回归测试
+		├── tests_psa_arch/        ← PSA Arch 测试（未参与你的构建）
+		└── app_broker/main_ns.c
+
+
+内容				路径
+NS main()		/home/klp/test/tfmwork/tf-m-tests/app_broker/main_ns.c
+NS 测试入口		/home/klp/test/tfmwork/tf-m-tests/tests_reg/test_app.c
+测试套件注册		/home/klp/test/tfmwork/tf-m-tests/tests_reg/test/ns_regression/non_secure_suites.c
+Crypto NS 测试	/home/klp/test/tfmwork/tf-m-tests/tests_reg/test/secure_fw/suites/crypto/non_secure/crypto_ns_interface_testsuite.c
+Flash 布局		/home/klp/test/tfmwork/trusted-firmware-m/platform/ext/target/stm/stm32h573i_dk/include/flash_layout.h
+内存区域			/home/klp/test/tfmwork/trusted-firmware-m/platform/ext/target/stm/stm32h573i_dk/partition/region_defs.h
+NS PSA 接口（编译产物）	/home/klp/test/tfmwork/trusted-firmware-m/build_s/api_ns/interface/src/tfm_crypto_api.c
+PSA 头文件		/home/klp/test/tfmwork/trusted-firmware-m/build_s/api_ns/interface/include/psa/
+烧录脚本			/home/klp/test/tfmwork/trusted-firmware-m/platform/ext/target/stm/stm32h573i_dk/regression.sh
+
+
+# 查看启用了哪些测试
+grep '^TEST_NS_\|^TEST_S_' \
+  /home/klp/test/tfmwork/trusted-firmware-m/build_s/build-spe/CMakeCache.txt \
+  | grep ':BOOL=ON'
+
+# 看 NS 固件里的测试符号
+nm /home/klp/test/tfmwork/trusted-firmware-m/build_ns/bin/tfm_ns.axf \
+  | grep -E 'ns_reg_test_start|crypto_test'
+
+# 在 tfmwork 下搜源码（不含 build 目录）
+grep -rnw ns_reg_test_start \
+  /home/klp/test/tfmwork/tf-m-tests \
+  /home/klp/test/tfmwork/trusted-firmware-m \
+  --exclude-dir=build_s --exclude-dir=build_ns
+  
+  

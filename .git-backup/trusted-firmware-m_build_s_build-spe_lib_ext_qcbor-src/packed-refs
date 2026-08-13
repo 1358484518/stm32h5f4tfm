@@ -1,0 +1,33 @@
+# pack-refs with: peeled fully-peeled sorted 
+755188f74406cd406f91d29e056d72d7d6393556 refs/remotes/origin/NaN
+e8c48f19c2eafd9a41327b94636c36bb8d92abc4 refs/remotes/origin/NaNPayloads
+f318d1745d225207ca8e2ed4f3a2c99f6e5ada94 refs/remotes/origin/arrays
+fa95d2ed9b848accb4be637746dad155b0aba796 refs/remotes/origin/dev
+ae31b5cf25a5ae96ff0f5a743de352b376df495e refs/remotes/origin/fix-win-ci
+ee480b56ac9f071e0b6d0853dd49a0477f05a95c refs/remotes/origin/fix-win-ci2
+1b76efb751e6e0734a0555581c1385f6bc97b428 refs/remotes/origin/get_tag_err_dev
+5212425b3cbab262f2f816fbfc53dd7aa68c5d99 refs/remotes/origin/limits
+7599a9e4c9828b318adc68121db64510f7527832 refs/remotes/origin/ls
+dec9eecd1a84c14a99dde6ac712fa210046d65c1 refs/remotes/origin/mappie
+025286c2ed73a82bcad537647680e01ee9df554b refs/remotes/origin/master
+2b9a9ed9b8a266efca66eb37a8a4197031f2ec53 refs/remotes/origin/msvc2
+bcdf72c149b98aacf5de79ef274a7037f3544bee refs/remotes/origin/too-many-tn
+d7efdbf4bb3ab50a65ceb01d38c8a2b4fdcb5ac7 refs/tags/v1.0
+^56b17bf9f74096774944bcac0829adcd887d391e
+07653df2bbdb2d090d98d0df514fa019ac23dff3 refs/tags/v1.1
+92d3f89030baff4af7be8396c563e6c8ef263622 refs/tags/v1.2
+1eba85dbbe78fc1938f8aba2112ba1b228caed30 refs/tags/v1.3
+6837bbf14b70b169724ef895565abb03cf254a65 refs/tags/v1.4
+4487f10e1bf258434fb8a39e4f59c29e31910ad0 refs/tags/v1.4.1
+24cd62a415161c2851327e96a023b47bb0897e64 refs/tags/v1.5
+f9175730ccd361a10a466093ce1db8231ce409e9 refs/tags/v1.5.1
+818c9059af64b04c5cbf580b192cf6804836e857 refs/tags/v1.5.2
+4ace4620d549f22c1163c5b00d3ae0c0dae1d207 refs/tags/v1.5.3
+590a23daf65af068cee81555c597063150e23539 refs/tags/v1.6
+930708bb86481e88879eb1d87fd4d664f1d69503 refs/tags/v1.6.1
+3bc24aed89c92dc5ff9482ad4a9cba6159546911 refs/tags/v2.0-alpha-1
+2530482ce32d5b9564f7a2d55fbbd57fe3048f88 refs/tags/v2.0-alpha-2
+af3a39296de8aadd1c095d10fb9621a42d5e873e refs/tags/v2.0-alpha-3
+12321d594ca2e61a79032954d288000cf0db712a refs/tags/v2.0-alpha-4
+590a23daf65af068cee81555c597063150e23539 refs/tags/v2.0-alpha-5
+2a482af174d105b157124e4b03f06f5fa5a8ede8 refs/tags/v2.0-alpha-6

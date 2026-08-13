@@ -1,0 +1,13 @@
+[core]
+	repositoryformatversion = 0
+	filemode = true
+	bare = false
+	logallrefupdates = true
+[advice]
+	detachedhead = false
+[remote "origin"]
+	url = https://git.trustedfirmware.org/TF-M/tf-m-extras.git
+	fetch = +refs/heads/*:refs/remotes/origin/*
+[branch "main"]
+	remote = origin
+	merge = refs/heads/main

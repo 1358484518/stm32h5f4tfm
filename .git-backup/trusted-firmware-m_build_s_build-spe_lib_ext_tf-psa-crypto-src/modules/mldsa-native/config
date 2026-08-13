@@ -1,0 +1,12 @@
+[core]
+	repositoryformatversion = 0
+	filemode = true
+	bare = false
+	logallrefupdates = true
+	worktree = ../../../drivers/pqcp/mldsa-native
+[remote "origin"]
+	url = https://github.com/Mbed-TLS/mldsa-native
+	fetch = +refs/heads/*:refs/remotes/origin/*
+[branch "development"]
+	remote = origin
+	merge = refs/heads/development

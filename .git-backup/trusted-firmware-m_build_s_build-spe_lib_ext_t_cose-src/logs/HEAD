@@ -1,0 +1,15 @@
+0000000000000000000000000000000000000000 98e34ed6403f01e1779fcfe84debc7c4dd6ed75f klp <1358484518@qq.com> 1786604154 +0800	clone: from https://github.com/laurencelundblade/t_cose.git
+98e34ed6403f01e1779fcfe84debc7c4dd6ed75f 3076010eeb6383f0827bd992c75b68af9311cf1d klp <1358484518@qq.com> 1786604154 +0800	checkout: moving from master to v2.0-alpha-2
+3076010eeb6383f0827bd992c75b68af9311cf1d f15e4bad9d8bef431f761b3af335ef27a27455bf klp <1358484518@qq.com> 1786604155 +0800	am: Add t_cose_key_encode API
+f15e4bad9d8bef431f761b3af335ef27a27455bf 672d68b21aaa4e8467c9693b3d7b365591aeab4b klp <1358484518@qq.com> 1786604155 +0800	am: Add t_cose_key_decode API
+672d68b21aaa4e8467c9693b3d7b365591aeab4b defe43b543cbc8037b1bd98dba24f4e2a3f8af84 klp <1358484518@qq.com> 1786604155 +0800	am: Import EC keys with ECDSA(xxx) algo rather than ECDH
+defe43b543cbc8037b1bd98dba24f4e2a3f8af84 08b63a3057be36bbaf0fd251dde150411e06d6ab klp <1358484518@qq.com> 1786604155 +0800	am: Remove unused EdDSA calls to help reduce code size
+08b63a3057be36bbaf0fd251dde150411e06d6ab cd5d0753ef867c7c31ba7cc0057dd5dbc11863f8 klp <1358484518@qq.com> 1786604155 +0800	am: Remove or disable unused functions in PSA Crypto layer
+cd5d0753ef867c7c31ba7cc0057dd5dbc11863f8 0cc63718e8b72cdca49f5c9ac3634025a555a1c0 klp <1358484518@qq.com> 1786604155 +0800	am: Disable unnecessary test cases
+0cc63718e8b72cdca49f5c9ac3634025a555a1c0 88e67dae7c143d27bcae39cb7e6efa86f29c30e5 klp <1358484518@qq.com> 1786604155 +0800	am: Refining signature buffer size
+88e67dae7c143d27bcae39cb7e6efa86f29c30e5 fbd738daa92d101a4de5f3bca7a95440e32e9eb5 klp <1358484518@qq.com> 1786604155 +0800	am: Refactor t_cose_crypto_is_algorithm_supported in PSA
+fbd738daa92d101a4de5f3bca7a95440e32e9eb5 45b1d2bde8f90fca75462f830686f41b5feb175d klp <1358484518@qq.com> 1786604155 +0800	am: Skip AEAD and ECDH tests when unsupported
+45b1d2bde8f90fca75462f830686f41b5feb175d 5071c13bccdd16c0bf5173bee6220a340a01fe7a klp <1358484518@qq.com> 1786604155 +0800	am: Add weak stubs to fix Armclang/armlink L6218E on unused test helpers
+5071c13bccdd16c0bf5173bee6220a340a01fe7a 183b4b8aab26f55b4d7e0eefd126d9d29c533f8f klp <1358484518@qq.com> 1786604155 +0800	am: Fix static analyzer warnings
+183b4b8aab26f55b4d7e0eefd126d9d29c533f8f 19a190dbc5f532140d33cc2cdd5868c721608a02 klp <1358484518@qq.com> 1786604155 +0800	am: Fix boundary checks to avoid out-of-bound memory access
+19a190dbc5f532140d33cc2cdd5868c721608a02 cbd66425f6f8bfed1abe046a508bd8d4bf77f09d klp <1358484518@qq.com> 1786604155 +0800	am: Align PSA crypto layer with TF-PSA-Crypto v1.0.0

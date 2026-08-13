@@ -1,0 +1,19 @@
+[core]
+	repositoryformatversion = 0
+	filemode = true
+	bare = false
+	logallrefupdates = true
+[advice]
+	detachedhead = false
+[remote "origin"]
+	url = https://github.com/Mbed-TLS/TF-PSA-Crypto
+	fetch = +refs/heads/*:refs/remotes/origin/*
+[branch "development"]
+	remote = origin
+	merge = refs/heads/development
+[submodule "mldsa-native"]
+	active = true
+	url = https://github.com/Mbed-TLS/mldsa-native
+[submodule "framework"]
+	active = true
+	url = https://github.com/Mbed-TLS/mbedtls-framework

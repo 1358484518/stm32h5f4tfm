@@ -1,0 +1,34 @@
+# pack-refs with: peeled fully-peeled sorted 
+ff18d2ca88ad78c29f9833b5bcc8715192579894 refs/remotes/origin/add-iop-export-pub-key-get-num-ops
+4fd370f77b1852a68b5725cd9c7d498f3bfc8265 refs/remotes/origin/dev/bensze01/jenkins
+7c44e2192012374c6f9031a6040a0a5d4b9c06c4 refs/remotes/origin/dev/bensze01/public-only-commit
+6c52bea883d3fcd89aa5190c8cb522faf3b941c1 refs/remotes/origin/dev/paul-elliott-arm/add_iop_key_agreement_negative_tests
+cb7dc5415dc26c2989056e2c9bd222566a51eaac refs/remotes/origin/dev/rc/new-2-d635ea1
+8d10857247bc6a9905fe0955604bda28a603cb79 refs/remotes/origin/development
+29160dd877d29658279fd683b2ae57b320ddcf09 refs/remotes/origin/main
+609a7064cbf8b325fe2579476f69d66ffad9d106 refs/remotes/origin/public_2/main
+56bfbbece8f8fab309a754beda96fa40e2ce0cfd refs/remotes/origin/release/tf-psa-crypto1.0.0-documentation
+9ef55c90ea632cf4a9ea9b04358097945d95b9be refs/remotes/origin/tf-psa-crypto-1.1
+46c17b20feb6ad9d1aa3697107ba813afcf21811 refs/remotes/origin/tf-psa-crypto-1.1.1_mergeback
+b4bb820041f5f4911239d42174d5537f7e96ad4b refs/remotes/origin/tf-psa-crypto-1.2.0_mergeback
+0ef26791ceb1445b0563c40b8e2c073000245a7d refs/remotes/origin/tf-psa-crypto-release-sync
+e9ca64601fe8c28dbaa4dc891d29f5bf4978c8e8 refs/tags/tf-psa-crypto-1.0.0
+^76920edddcad00ac41b248e12d937b845df7bedb
+44764e989e87616c8f2bd50a6573ba04ca2b2c5b refs/tags/tf-psa-crypto-1.0.0-beta
+^0cc63061c6bfc141d64ec8ba562b4c7bca842a6c
+b9508a217815eb7d9eb1ca206ce1fbff7d1cf12d refs/tags/tf-psa-crypto-1.1.0
+^29160dd877d29658279fd683b2ae57b320ddcf09
+25076ff1137b1589124542a1d8eaf0fe7315e68d refs/tags/tf-psa-crypto-1.1.1
+^a0632be94d883daa0295ac1eabf70359ad94f91b
+c23f0ccbca2ddcf5c08818b071c48522c0dbe9a5 refs/tags/tf-psa-crypto-1.2.0
+^73c5da561c8e5253db7b1fb440eda86fde8d8024
+28f62551450ee3b609df3e6ee4e1e866ca54ee07 refs/tags/v1.0.0
+^76920edddcad00ac41b248e12d937b845df7bedb
+b098ba41c6a82fc07de05d172143c93773c65381 refs/tags/v1.0.0-beta
+^0cc63061c6bfc141d64ec8ba562b4c7bca842a6c
+eb349fda564f06e5390ce70cc440f8b801758dc8 refs/tags/v1.1.0
+^29160dd877d29658279fd683b2ae57b320ddcf09
+7f8b585bdc151dc32e175f92e9d871eaf4d80a09 refs/tags/v1.1.1
+^a0632be94d883daa0295ac1eabf70359ad94f91b
+4cc1c6f16b8118d6f5dc4c16b035b0e629924d98 refs/tags/v1.2.0
+^73c5da561c8e5253db7b1fb440eda86fde8d8024

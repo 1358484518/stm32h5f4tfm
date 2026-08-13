@@ -1,0 +1,4 @@
+0000000000000000000000000000000000000000 025286c2ed73a82bcad537647680e01ee9df554b klp <1358484518@qq.com> 1786604052 +0800	clone: from https://github.com/laurencelundblade/QCBOR.git
+025286c2ed73a82bcad537647680e01ee9df554b 92d3f89030baff4af7be8396c563e6c8ef263622 klp <1358484518@qq.com> 1786604052 +0800	checkout: moving from master to v1.2
+92d3f89030baff4af7be8396c563e6c8ef263622 043850d9cdcca88caf8331f5865370d82ed57cb4 klp <1358484518@qq.com> 1786604052 +0800	am: Disable gcc -Wmaybe-uninitialized because of false positives (#179)
+043850d9cdcca88caf8331f5865370d82ed57cb4 d4c700f596d71348a338fe8b256e7ce18d802636 klp <1358484518@qq.com> 1786604052 +0800	am: Add missing type casts to fix compile warnings

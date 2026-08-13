@@ -1,0 +1,19 @@
+0000000000000000000000000000000000000000 8d10857247bc6a9905fe0955604bda28a603cb79 klp <1358484518@qq.com> 1786604059 +0800	clone: from https://github.com/Mbed-TLS/TF-PSA-Crypto
+8d10857247bc6a9905fe0955604bda28a603cb79 29160dd877d29658279fd683b2ae57b320ddcf09 klp <1358484518@qq.com> 1786604059 +0800	checkout: moving from development to v1.1.0
+29160dd877d29658279fd683b2ae57b320ddcf09 40373f9fb0785a0bf07af0f695786b03f3f47a2a klp <1358484518@qq.com> 1786604151 +0800	am: Add generated files to the source tree
+40373f9fb0785a0bf07af0f695786b03f3f47a2a caec6850aa73265c9ebaa363b0cc7376df454918 klp <1358484518@qq.com> 1786604151 +0800	am: Add TF-M Builtin Key Loader driver entry points
+caec6850aa73265c9ebaa363b0cc7376df454918 a6a6e31a5e95f0f72aae247abc12779467a03e08 klp <1358484518@qq.com> 1786604151 +0800	am: Enable crypto code sharing between independent binaries
+a6a6e31a5e95f0f72aae247abc12779467a03e08 9f922b02755b43caecdb17cc44faae6402cae9ae klp <1358484518@qq.com> 1786604151 +0800	am: Initialise driver wrappers as first step in psa_crypto_init()
+9f922b02755b43caecdb17cc44faae6402cae9ae 6b820306ba1ea141871fb8188bbdb4331d17ada8 klp <1358484518@qq.com> 1786604151 +0800	am: Hardcode CC3XX entry points
+6b820306ba1ea141871fb8188bbdb4331d17ada8 7a71cbdabe0122edddf8869786f27fc2f9479eb5 klp <1358484518@qq.com> 1786604151 +0800	am: P256M: Add option to force not use of asm
+7a71cbdabe0122edddf8869786f27fc2f9479eb5 a95fff1f506c6c468582ba86392ad8abdd997d8d klp <1358484518@qq.com> 1786604151 +0800	am: psa: mac: only call memset if key_length is less than block size
+a95fff1f506c6c468582ba86392ad8abdd997d8d ffe8cfbc263e656bf7b5a0c6056e380e5534d177 klp <1358484518@qq.com> 1786604151 +0800	am: Add CC3XX Opaque Key entry points
+ffe8cfbc263e656bf7b5a0c6056e380e5534d177 beb61cd8293dc667c912f7a263e446520a04ebf7 klp <1358484518@qq.com> 1786604151 +0800	am: Define base attributes and structure for SP800-108 CMAC
+beb61cd8293dc667c912f7a263e446520a04ebf7 b37e092dfe48a341ac5af4ceff454bcf0de85bbf klp <1358484518@qq.com> 1786604151 +0800	am: Add experimental LMS support as a vendor extension
+b37e092dfe48a341ac5af4ceff454bcf0de85bbf 97ee7d69332477ace41ebe8b5c639eb0a71538e2 klp <1358484518@qq.com> 1786604151 +0800	am: Exclude built-in definitions for PSA Crypto client
+97ee7d69332477ace41ebe8b5c639eb0a71538e2 39ae3a4950463243c9363a50223082f77ef84555 klp <1358484518@qq.com> 1786604151 +0800	am: Re-add psa_can_do_cipher() to public interface
+39ae3a4950463243c9363a50223082f77ef84555 04bed250a91a5e8b90e9b1160a24f088f9135435 klp <1358484518@qq.com> 1786604151 +0800	am: Implement SP800-108 Counter CMAC key derivation in PSA Crypto Core
+04bed250a91a5e8b90e9b1160a24f088f9135435 0b766ef7e329361b4e3e36c3781231136aa6a704 klp <1358484518@qq.com> 1786604151 +0800	am: Support use of cc3xx opaque keys in PSA Crypto core
+0b766ef7e329361b4e3e36c3781231136aa6a704 5b0e39bc4788bef77025ce32a2c5a7ec18820f6f klp <1358484518@qq.com> 1786604151 +0800	am: Re-add support for AES Keywrap for TF-M
+5b0e39bc4788bef77025ce32a2c5a7ec18820f6f 4f8b501b85bd30321ebcdc6b74af925fb11a810b klp <1358484518@qq.com> 1786604151 +0800	am: Do not define __STDC_WANT_LIB_EXT1__ with ATfE
+4f8b501b85bd30321ebcdc6b74af925fb11a810b d0ad7f1566dd38324f4042fae9122283fe19bcb1 klp <1358484518@qq.com> 1786604151 +0800	am: include tf_psa_crypto_platform_requirements.h in tf_psa_crypto_config.c
