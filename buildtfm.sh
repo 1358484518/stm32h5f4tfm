@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
-# STM32H573I-DK  TF-M tests_reg 一键编译
+# STM32H573I-DK  TF-M tests_reg 一键编译（纯离线，不下载依赖）
 #
-# 目录布局（buildtfm.sh 与 trusted-firmware-m、tf-m-tests 同级）:
+# 目录布局:
 #   work/
 #   ├── buildtfm.sh
 #   ├── trusted-firmware-m/
 #   └── tf-m-tests/
 #
+# 前提: 依赖已提交在 trusted-firmware-m/build_s/build-spe/lib/ext/*-src
 # 用法: ./buildtfm.sh
 #       ./buildtfm.sh --clean
 
@@ -58,6 +59,35 @@ echo ">>> WORK_ROOT: ${WORK_ROOT}"
 echo ">>> TFM_ROOT:  ${TFM_ROOT}"
 echo ">>> TFM_TESTS: ${TFM_TESTS}"
 
+LIB_EXT_S="${TFM_ROOT}/build_s/build-spe/lib/ext"
+LIB_EXT_NS="${TFM_ROOT}/build_ns/lib/ext"
+
+spe_deps_complete() {
+  local ext="${1}"
+  local lib f
+  for lib in qcbor mcuboot cmsis t_cose tf-psa-crypto tf-m-extras; do
+    [[ -d "${ext}/${lib}-src" ]] || return 1
+  done
+  for f in \
+    "${ext}/qcbor-src/src/qcbor_encode.c" \
+    "${ext}/mcuboot-src/boot/bootutil/src/bootutil_misc.c" \
+    "${ext}/tf-psa-crypto-src/CMakeLists.txt"; do
+    [[ -f "${f}" ]] || return 1
+  done
+  return 0
+}
+
+check_offline_deps() {
+  if ! spe_deps_complete "${LIB_EXT_S}"; then
+    echo ""
+    echo "错误: build_s/build-spe/lib/ext 依赖不完整，无法离线编译。"
+    echo "请在源机器先 ./buildtfm.sh，再 ./push_to_gitee.sh 推送。"
+    exit 1
+  fi
+}
+
+check_offline_deps
+
 source .venv/bin/activate 2>/dev/null || {
   python3 -m venv .venv
   source .venv/bin/activate
@@ -65,80 +95,43 @@ source .venv/bin/activate 2>/dev/null || {
   pip install -e .
 }
 
-LIB_EXT_S="${TFM_ROOT}/build_s/build-spe/lib/ext"
-LIB_EXT_NS="${TFM_ROOT}/build_ns/lib/ext"
-LIB_EXT_BACKUP_S=""
-LIB_EXT_BACKUP_NS=""
-
-backup_lib_ext() {
+clean_cmake_cache() {
+  echo ">>> 清理 CMake/Ninja 缓存（保留 lib/ext）"
+  local ext_backup="" ns_ext_backup=""
   if [[ -d "${LIB_EXT_S}" ]]; then
-    LIB_EXT_BACKUP_S="$(mktemp -d)"
-    echo ">>> 备份 build_s lib/ext"
-    cp -a "${LIB_EXT_S}" "${LIB_EXT_BACKUP_S}/"
+    ext_backup="$(mktemp -d)"
+    cp -a "${LIB_EXT_S}" "${ext_backup}/"
   fi
   if [[ -d "${LIB_EXT_NS}" ]]; then
-    LIB_EXT_BACKUP_NS="$(mktemp -d)"
-    echo ">>> 备份 build_ns lib/ext"
-    cp -a "${LIB_EXT_NS}" "${LIB_EXT_BACKUP_NS}/"
+    ns_ext_backup="$(mktemp -d)"
+    cp -a "${LIB_EXT_NS}" "${ns_ext_backup}/"
   fi
-}
-
-restore_lib_ext() {
-  if [[ -n "${LIB_EXT_BACKUP_S}" && -d "${LIB_EXT_BACKUP_S}/ext" ]]; then
-    mkdir -p "${TFM_ROOT}/build_s/build-spe/lib"
-    cp -a "${LIB_EXT_BACKUP_S}/ext" "${LIB_EXT_S}"
-    rm -rf "${LIB_EXT_BACKUP_S}"
-    LIB_EXT_BACKUP_S=""
+  rm -rf build_s build_ns
+  if [[ -n "${ext_backup}" ]]; then
+    mkdir -p build_s/build-spe/lib
+    cp -a "${ext_backup}/ext" "${LIB_EXT_S}"
+    rm -rf "${ext_backup}"
   fi
-  if [[ -n "${LIB_EXT_BACKUP_NS}" && -d "${LIB_EXT_BACKUP_NS}/ext" ]]; then
-    mkdir -p "${TFM_ROOT}/build_ns/lib"
-    cp -a "${LIB_EXT_BACKUP_NS}/ext" "${LIB_EXT_NS}"
-    rm -rf "${LIB_EXT_BACKUP_NS}"
-    LIB_EXT_BACKUP_NS=""
+  if [[ -n "${ns_ext_backup}" ]]; then
+    mkdir -p build_ns/lib
+    cp -a "${ns_ext_backup}/ext" "${LIB_EXT_NS}"
+    rm -rf "${ns_ext_backup}"
   fi
-}
-
-# build_ns 需要 qcbor-src / t_cose-src，从 build_s 拷贝避免重复下载
-seed_ns_lib_ext() {
-  local spe_ext="${LIB_EXT_S}"
-  local ns_ext="${LIB_EXT_NS}"
-  mkdir -p "${ns_ext}"
-  for lib in qcbor t_cose; do
-    if [[ -d "${spe_ext}/${lib}-src" && ! -d "${ns_ext}/${lib}-src" ]]; then
-      echo ">>> 从 build_s 拷贝 ${lib}-src -> build_ns"
-      cp -a "${spe_ext}/${lib}-src" "${ns_ext}/"
-    fi
-  done
 }
 
 need_reconfigure() {
   [[ "${FORCE_CLEAN}" -eq 1 ]] && return 0
   [[ ! -f build_s/CMakeCache.txt ]] && return 0
-
   local cached_root cached_spe
   cached_root="$(grep -m1 '^CONFIG_TFM_SOURCE_PATH:UNINITIALIZED=' build_s/CMakeCache.txt 2>/dev/null | cut -d= -f2- || true)"
   cached_spe="$(grep -m1 '^CMAKE_HOME_DIRECTORY:INTERNAL=' build_s/CMakeCache.txt 2>/dev/null | cut -d= -f2- || true)"
-
-  if [[ -n "${cached_root}" && "${cached_root}" != "${TFM_ROOT}" ]]; then
-    echo ">>> 检测到路径变更，将重新 configure"
-    return 0
-  fi
-  if [[ -n "${cached_spe}" && "${cached_spe}" != "${TFM_TESTS}/tests_reg/spe" ]]; then
-    echo ">>> 检测到 tf-m-tests 路径变更，将重新 configure"
-    return 0
-  fi
+  [[ -n "${cached_root}" && "${cached_root}" != "${TFM_ROOT}" ]] && return 0
+  [[ -n "${cached_spe}" && "${cached_spe}" != "${TFM_TESTS}/tests_reg/spe" ]] && return 0
   return 1
 }
 
-clean_build_dirs() {
-  backup_lib_ext
-  echo ">>> 清理 build_s / build_ns（保留 lib/ext 备份）"
-  rm -rf build_s build_ns
-  restore_lib_ext
-}
-
 if need_reconfigure; then
-  clean_build_dirs
+  clean_cmake_cache
 fi
 
 CMAKE_COMMON=(
@@ -154,7 +147,7 @@ CMAKE_COMMON=(
   -DFETCHCONTENT_FULLY_DISCONNECTED=ON
 )
 
-echo ">>> Configure build_s (SPE)"
+echo ">>> Configure build_s (SPE) [离线]"
 cmake -S "${TFM_TESTS}/tests_reg/spe" -B build_s -GNinja \
   -DCONFIG_TFM_SOURCE_PATH="${TFM_ROOT}" \
   "${CMAKE_COMMON[@]}"
@@ -162,19 +155,19 @@ cmake -S "${TFM_TESTS}/tests_reg/spe" -B build_s -GNinja \
 echo ">>> Build & install build_s"
 ninja -C build_s install -j"$(nproc)"
 
-# NS 侧：先 seed qcbor/t_cose，再 configure
-seed_ns_lib_ext
+mkdir -p "${LIB_EXT_NS}"
+for lib in qcbor t_cose; do
+  if [[ ! -d "${LIB_EXT_NS}/${lib}-src" ]]; then
+    echo ">>> 拷贝 ${lib}-src -> build_ns"
+    cp -a "${LIB_EXT_S}/${lib}-src" "${LIB_EXT_NS}/"
+  fi
+done
 
-NS_CMAKE_EXTRA=()
-if [[ -d "${LIB_EXT_NS}/qcbor-src" && -d "${LIB_EXT_NS}/t_cose-src" ]]; then
-  NS_CMAKE_EXTRA=(-DFETCHCONTENT_FULLY_DISCONNECTED=ON)
-fi
-
-echo ">>> Configure build_ns"
+echo ">>> Configure build_ns [离线]"
 cmake -S "${TFM_TESTS}/tests_reg" -B build_ns -GNinja \
   -DCONFIG_SPE_PATH="${TFM_ROOT}/build_s/api_ns" \
   -DTFM_TOOLCHAIN_FILE="${TFM_ROOT}/build_s/api_ns/cmake/toolchain_ns_GNUARM.cmake" \
-  "${NS_CMAKE_EXTRA[@]}"
+  -DFETCHCONTENT_FULLY_DISCONNECTED=ON
 
 echo ">>> Build build_ns"
 ninja -C build_ns -j"$(nproc)"
@@ -190,12 +183,7 @@ grep -E '^boot=|^slot0=|^slot1=' TFM_UPDATE.sh || true
 
 echo ""
 echo "=== 编译完成 ==="
-echo "烧录前（首次或换板子）:"
-echo "  cd ${TFM_ROOT}/build_s/api_ns"
-echo "  ./regression.sh"
-echo "  STM32_Programmer_CLI -c port=SWD mode=HotPlug -ob BOOT_UBE=0xB4"
-echo "  ./TFM_UPDATE.sh"
-echo ""
-echo "仅更新固件:"
-echo "  cd ${TFM_ROOT}/build_s/api_ns && ./TFM_UPDATE.sh"
+echo "烧录: cd ${TFM_ROOT}/build_s/api_ns && ./regression.sh"
+echo "      STM32_Programmer_CLI -c port=SWD mode=HotPlug -ob BOOT_UBE=0xB4"
+echo "      ./TFM_UPDATE.sh"
 
