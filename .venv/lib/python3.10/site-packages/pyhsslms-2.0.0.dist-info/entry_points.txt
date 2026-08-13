@@ -1,0 +1,2 @@
+[console_scripts]
+hsslms = pyhsslms.hsslms:main

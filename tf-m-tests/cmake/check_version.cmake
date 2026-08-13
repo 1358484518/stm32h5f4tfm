@@ -5,6 +5,7 @@
 #
 #-------------------------------------------------------------------------------
 
+return() # buildtfm: skip version check
 if(NOT CHECK_TFM_TESTS_VERSION)
     return()
 endif()

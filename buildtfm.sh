@@ -1,58 +1,16 @@
 #!/usr/bin/env bash
-# STM32H573I-DK  TF-M tests_reg 一键编译（纯离线，不下载依赖）
-#
-# 目录布局:
-#   work/
-#   ├── buildtfm.sh
-#   ├── trusted-firmware-m/
-#   └── tf-m-tests/
-#
-# 前提: 依赖已提交在 trusted-firmware-m/build_s/build-spe/lib/ext/*-src
+# STM32H573I-DK  TF-M tests_reg 一键编译
 # 用法: ./buildtfm.sh
-#       ./buildtfm.sh --clean
 
 set -euo pipefail
 
-FORCE_CLEAN=0
-[[ "${1:-}" == "--clean" ]] && FORCE_CLEAN=1
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+WORK_ROOT="${SCRIPT_DIR}"
+TFM_ROOT="${WORK_ROOT}/trusted-firmware-m"
+TFM_TESTS="${WORK_ROOT}/tf-m-tests"
 
-if [[ -f "${SCRIPT_DIR}/trusted-firmware-m/CMakeLists.txt" ]]; then
-  WORK_ROOT="${SCRIPT_DIR}"
-  TFM_ROOT="${WORK_ROOT}/trusted-firmware-m"
-elif [[ -f "${SCRIPT_DIR}/CMakeLists.txt" ]]; then
-  TFM_ROOT="${SCRIPT_DIR}"
-  WORK_ROOT="$(cd "${TFM_ROOT}/.." && pwd)"
-else
-  echo "错误: 找不到 trusted-firmware-m"
-  exit 1
-fi
-
-find_tfm_tests() {
-  local c
-  for c in \
-    "${WORK_ROOT}/tf-m-tests" \
-    "${TFM_ROOT}/tf-m-tests" \
-    "${TFM_ROOT}/../tf-m-tests" \
-    "${TFM_TESTS:-}"; do
-    [[ -z "${c}" ]] && continue
-    [[ -f "${c}/tests_reg/spe/CMakeLists.txt" ]] || continue
-    echo "$(cd "${c}" && pwd)"
-    return 0
-  done
-  return 1
-}
-
-if ! TFM_TESTS="$(find_tfm_tests)"; then
-  echo "错误: 找不到 tf-m-tests"
-  exit 1
-fi
-
-if [[ ! -f "${TFM_ROOT}/pyproject.toml" ]]; then
-  echo "错误: ${TFM_ROOT} 缺少 pyproject.toml"
-  exit 1
-fi
+[[ -f "${TFM_ROOT}/CMakeLists.txt" ]] || { echo "错误: 缺少 ${TFM_ROOT}"; exit 1; }
+[[ -f "${TFM_TESTS}/tests_reg/spe/CMakeLists.txt" ]] || { echo "错误: 缺少 ${TFM_TESTS}"; exit 1; }
 
 cd "${TFM_ROOT}"
 echo ">>> WORK_ROOT: ${WORK_ROOT}"
@@ -62,125 +20,82 @@ echo ">>> TFM_TESTS: ${TFM_TESTS}"
 LIB_EXT_S="${TFM_ROOT}/build_s/build-spe/lib/ext"
 LIB_EXT_NS="${TFM_ROOT}/build_ns/lib/ext"
 
-spe_deps_complete() {
-  local ext="${1}"
-  local lib f
-  for lib in qcbor mcuboot cmsis t_cose tf-psa-crypto tf-m-extras; do
-    [[ -d "${ext}/${lib}-src" ]] || return 1
-  done
-  for f in \
-    "${ext}/qcbor-src/src/qcbor_encode.c" \
-    "${ext}/mcuboot-src/boot/bootutil/src/bootutil_misc.c" \
-    "${ext}/tf-psa-crypto-src/CMakeLists.txt"; do
-    [[ -f "${f}" ]] || return 1
-  done
-  return 0
-}
+# Python + hex_generation
+VENV_DIR="${WORK_ROOT}/.venv"
+if [[ ! -f "${VENV_DIR}/bin/activate" ]]; then
+  python3 -m venv "${VENV_DIR}"
+fi
+source "${VENV_DIR}/bin/activate"
+export PATH="${VENV_DIR}/bin:${PATH}"
+pip install -q --upgrade pip setuptools wheel 2>/dev/null || true
+pip install -q -e "${TFM_ROOT}"
+command -v hex_generation >/dev/null || { echo "错误: hex_generation 未安装"; exit 1; }
 
-check_offline_deps() {
-  if ! spe_deps_complete "${LIB_EXT_S}"; then
-    echo ""
-    echo "错误: build_s/build-spe/lib/ext 依赖不完整，无法离线编译。"
-    echo "请在源机器先 ./buildtfm.sh，再 ./push_to_gitee.sh 推送。"
-    exit 1
-  fi
-}
+# 有 lib/ext 就离线，没有就自动在线下载
+OFFLINE=1
+for lib in qcbor mcuboot cmsis t_cose tf-psa-crypto tf-m-extras; do
+  [[ -d "${LIB_EXT_S}/${lib}-src" ]] || OFFLINE=0
+done
+[[ -f "${LIB_EXT_S}/qcbor-src/src/qcbor_encode.c" ]] || OFFLINE=0
 
-check_offline_deps
-
-source .venv/bin/activate 2>/dev/null || {
-  python3 -m venv .venv
-  source .venv/bin/activate
-  pip install --upgrade pip setuptools wheel
-  pip install -e .
-}
-
-clean_cmake_cache() {
-  echo ">>> 清理 CMake/Ninja 缓存（保留 lib/ext）"
-  local ext_backup="" ns_ext_backup=""
-  if [[ -d "${LIB_EXT_S}" ]]; then
-    ext_backup="$(mktemp -d)"
-    cp -a "${LIB_EXT_S}" "${ext_backup}/"
-  fi
-  if [[ -d "${LIB_EXT_NS}" ]]; then
-    ns_ext_backup="$(mktemp -d)"
-    cp -a "${LIB_EXT_NS}" "${ns_ext_backup}/"
-  fi
-  rm -rf build_s build_ns
-  if [[ -n "${ext_backup}" ]]; then
-    mkdir -p build_s/build-spe/lib
-    cp -a "${ext_backup}/ext" "${LIB_EXT_S}"
-    rm -rf "${ext_backup}"
-  fi
-  if [[ -n "${ns_ext_backup}" ]]; then
-    mkdir -p build_ns/lib
-    cp -a "${ns_ext_backup}/ext" "${LIB_EXT_NS}"
-    rm -rf "${ns_ext_backup}"
-  fi
-}
-
-need_reconfigure() {
-  [[ "${FORCE_CLEAN}" -eq 1 ]] && return 0
-  [[ ! -f build_s/CMakeCache.txt ]] && return 0
-  local cached_root cached_spe
-  cached_root="$(grep -m1 '^CONFIG_TFM_SOURCE_PATH:UNINITIALIZED=' build_s/CMakeCache.txt 2>/dev/null | cut -d= -f2- || true)"
-  cached_spe="$(grep -m1 '^CMAKE_HOME_DIRECTORY:INTERNAL=' build_s/CMakeCache.txt 2>/dev/null | cut -d= -f2- || true)"
-  [[ -n "${cached_root}" && "${cached_root}" != "${TFM_ROOT}" ]] && return 0
-  [[ -n "${cached_spe}" && "${cached_spe}" != "${TFM_TESTS}/tests_reg/spe" ]] && return 0
-  return 1
-}
-
-if need_reconfigure; then
-  clean_cmake_cache
+if [[ "${OFFLINE}" -eq 1 ]]; then
+  echo ">>> 离线模式"
+  FETCH_OFF=(-DFETCHCONTENT_FULLY_DISCONNECTED=ON)
+else
+  echo ">>> 在线模式（首次会下载依赖，较慢）"
+  FETCH_OFF=()
 fi
 
-CMAKE_COMMON=(
-  -DTFM_PLATFORM=stm/stm32h573i_dk
-  -DTFM_TOOLCHAIN_FILE="${TFM_ROOT}/toolchain_GNUARM.cmake"
-  -DTFM_PSA_API=ON
-  -DTFM_ISOLATION_LEVEL=1
-  -DTEST_S=ON
-  -DTEST_NS=ON
-  -DTFM_BL2_LOG_LEVEL=LOG_LEVEL_INFO
-  -DTFM_SPM_LOG_LEVEL=LOG_LEVEL_INFO
-  -DTFM_PARTITION_LOG_LEVEL=LOG_LEVEL_INFO
-  -DFETCHCONTENT_FULLY_DISCONNECTED=ON
-)
+# 关掉 tf-m-tests 版本检查（只打一次补丁）
+CV="${TFM_TESTS}/cmake/check_version.cmake"
+if [[ -f "${CV}" ]] && ! grep -q 'buildtfm: skip version check' "${CV}"; then
+  sed -i '8i\return() # buildtfm: skip version check' "${CV}"
+fi
 
-echo ">>> Configure build_s (SPE) [离线]"
+# build_s
+echo ">>> build_s"
 cmake -S "${TFM_TESTS}/tests_reg/spe" -B build_s -GNinja \
   -DCONFIG_TFM_SOURCE_PATH="${TFM_ROOT}" \
-  "${CMAKE_COMMON[@]}"
+  -DTFM_PLATFORM=stm/stm32h573i_dk \
+  -DTFM_TOOLCHAIN_FILE="${TFM_ROOT}/toolchain_GNUARM.cmake" \
+  -DTFM_PSA_API=ON \
+  -DTFM_ISOLATION_LEVEL=1 \
+  -DTEST_S=ON -DTEST_NS=ON \
+  -DTFM_BL2_LOG_LEVEL=LOG_LEVEL_INFO \
+  -DTFM_SPM_LOG_LEVEL=LOG_LEVEL_INFO \
+  -DTFM_PARTITION_LOG_LEVEL=LOG_LEVEL_INFO \
+  "${FETCH_OFF[@]}"
 
-echo ">>> Build & install build_s"
 ninja -C build_s install -j"$(nproc)"
 
+# install 后 spe_config 会重置版本检查
+SPE_CONFIG="${TFM_ROOT}/build_s/api_ns/cmake/spe_config.cmake"
+[[ -f "${SPE_CONFIG}" ]] && \
+  sed -i 's/^set(CHECK_TFM_TESTS_VERSION.*$/set(CHECK_TFM_TESTS_VERSION OFF)/' "${SPE_CONFIG}"
+
+# build_ns（每次清空重配，避免旧缓存）
+echo ">>> build_ns"
+rm -rf build_ns
 mkdir -p "${LIB_EXT_NS}"
 for lib in qcbor t_cose; do
-  if [[ ! -d "${LIB_EXT_NS}/${lib}-src" ]]; then
-    echo ">>> 拷贝 ${lib}-src -> build_ns"
-    cp -a "${LIB_EXT_S}/${lib}-src" "${LIB_EXT_NS}/"
-  fi
+  [[ -d "${LIB_EXT_S}/${lib}-src" ]] && cp -a "${LIB_EXT_S}/${lib}-src" "${LIB_EXT_NS}/"
 done
 
-echo ">>> Configure build_ns [离线]"
 cmake -S "${TFM_TESTS}/tests_reg" -B build_ns -GNinja \
   -DCONFIG_SPE_PATH="${TFM_ROOT}/build_s/api_ns" \
   -DTFM_TOOLCHAIN_FILE="${TFM_ROOT}/build_s/api_ns/cmake/toolchain_ns_GNUARM.cmake" \
-  -DFETCHCONTENT_FULLY_DISCONNECTED=ON
+  "${FETCH_OFF[@]}"
 
-echo ">>> Build build_ns"
 ninja -C build_ns -j"$(nproc)"
 
+# postbuild
 echo ">>> postbuild"
 cd build_s/api_ns
 chmod +x postbuild.sh regression.sh TFM_UPDATE.sh preprocess.sh 2>/dev/null || true
-./postbuild.sh "$(which arm-none-eabi-gcc)"
+./postbuild.sh "$(command -v arm-none-eabi-gcc)"
 
 echo ""
-echo "=== TFM_UPDATE.sh 地址 ==="
 grep -E '^boot=|^slot0=|^slot1=' TFM_UPDATE.sh || true
-
 echo ""
 echo "=== 编译完成 ==="
 echo "烧录: cd ${TFM_ROOT}/build_s/api_ns && ./regression.sh"

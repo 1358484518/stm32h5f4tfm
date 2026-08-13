@@ -1,0 +1,6 @@
+#!/home/klp/test/trusted-firmware-m/.venv/bin/python3
+import sys
+from imgtool.main import imgtool
+if __name__ == '__main__':
+    sys.argv[0] = sys.argv[0].removesuffix('.exe')
+    sys.exit(imgtool())
