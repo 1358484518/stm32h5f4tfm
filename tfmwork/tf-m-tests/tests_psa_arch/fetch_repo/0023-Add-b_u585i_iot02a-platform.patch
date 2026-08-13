@@ -1,0 +1,1299 @@
+From bf3f537deba69a2d51f260d3540133e5fc04da7a Mon Sep 17 00:00:00 2001
+From: Marc JACOB <marc.jacob@st.com>
+Date: Mon, 30 Mar 2026 14:19:05 +0200
+Subject: [PATCH 23/24] Add b_u585i_iot02a platform
+
+Signed-off-by: Marc JACOB <marc.jacob@st.com>
+---
+ .../nspe/pal_attestation_config.h             | 111 +++++
+ .../nspe/pal_config.h                         | 100 +++++
+ .../nspe/pal_crypto_config.h                  | 414 ++++++++++++++++++
+ .../nspe/pal_driver_intf.c                    | 147 +++++++
+ .../nspe/pal_storage_config.h                 |  27 ++
+ .../nspe/pal_wd_platform.h                    | 123 ++++++
+ .../nspe/pal_wd_stm.c                         |  63 +++
+ .../nspe/pal_wd_stm.h                         |  74 ++++
+ .../target.cfg                                |  45 ++
+ .../target.cmake                              | 100 +++++
+ 10 files changed, 1204 insertions(+)
+ create mode 100644 api-tests/platform/targets/tgt_dev_apis_tfm_b_u585i_iot02a/nspe/pal_attestation_config.h
+ create mode 100644 api-tests/platform/targets/tgt_dev_apis_tfm_b_u585i_iot02a/nspe/pal_config.h
+ create mode 100644 api-tests/platform/targets/tgt_dev_apis_tfm_b_u585i_iot02a/nspe/pal_crypto_config.h
+ create mode 100644 api-tests/platform/targets/tgt_dev_apis_tfm_b_u585i_iot02a/nspe/pal_driver_intf.c
+ create mode 100644 api-tests/platform/targets/tgt_dev_apis_tfm_b_u585i_iot02a/nspe/pal_storage_config.h
+ create mode 100644 api-tests/platform/targets/tgt_dev_apis_tfm_b_u585i_iot02a/nspe/pal_wd_platform.h
+ create mode 100644 api-tests/platform/targets/tgt_dev_apis_tfm_b_u585i_iot02a/nspe/pal_wd_stm.c
+ create mode 100644 api-tests/platform/targets/tgt_dev_apis_tfm_b_u585i_iot02a/nspe/pal_wd_stm.h
+ create mode 100644 api-tests/platform/targets/tgt_dev_apis_tfm_b_u585i_iot02a/target.cfg
+ create mode 100644 api-tests/platform/targets/tgt_dev_apis_tfm_b_u585i_iot02a/target.cmake
+
+diff --git a/api-tests/platform/targets/tgt_dev_apis_tfm_b_u585i_iot02a/nspe/pal_attestation_config.h b/api-tests/platform/targets/tgt_dev_apis_tfm_b_u585i_iot02a/nspe/pal_attestation_config.h
+new file mode 100644
+index 0000000..0e23f14
+--- /dev/null
++++ b/api-tests/platform/targets/tgt_dev_apis_tfm_b_u585i_iot02a/nspe/pal_attestation_config.h
+@@ -0,0 +1,111 @@
++/** @file
++ * Copyright (c) 2026, Arm Limited or its affiliates. All rights reserved.
++ * SPDX-License-Identifier : Apache-2.0
++ *
++ * Copyright (c) 2026, STMicroelectronics.
++ * SPDX-License-Identifier : Apache-2.0
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *  http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++**/
++
++#ifndef _PAL_ATTESTATION_CONFIG_H_
++#define _PAL_ATTESTATION_CONFIG_H_
++
++#define COSE_ALGORITHM_ES256             -7
++#define COSE_ALG_SHA256_PROPRIETARY      -72000
++
++#define USEFUL_BUF_MAKE_STACK_UB UsefulBuf_MAKE_STACK_UB
++
++#define COSE_SIG_CONTEXT_STRING_SIGNATURE1 "Signature1"
++
++/* Private value. Intentionally not documented for Doxygen.
++ * This is the size allocated for the encoded protected headers.  It
++ * needs to be big enough for make_protected_header() to succeed. It
++ * currently sized for one header with an algorithm ID up to 32 bits
++ * long -- one byte for the wrapping map, one byte for the label, 5
++ * bytes for the ID. If this is made accidentially too small, QCBOR will
++ * only return an error, and not overrun any buffers.
++ *
++ * 9 extra bytes are added, rounding it up to 16 total, in case some
++ * other protected header is to be added.
++ */
++#define T_COSE_SIGN1_MAX_PROT_HEADER (1+1+5+9)
++
++/**
++ * This is the size of the first part of the CBOR encoded TBS
++ * bytes. It is around 20 bytes. See create_tbs_hash().
++ */
++#define T_COSE_SIZE_OF_TBS \
++    1 + /* For opening the array */ \
++    sizeof(COSE_SIG_CONTEXT_STRING_SIGNATURE1) + /* "Signature1" */ \
++    2 + /* Overhead for encoding string */ \
++    T_COSE_SIGN1_MAX_PROT_HEADER + /* entire protected headers */ \
++    3 * (/* 3 NULL bstrs for fields not used */ \
++        1 /* size of a NULL bstr */  \
++    )
++#define NULL_USEFUL_BUF_C  NULLUsefulBufC
++
++#define ATTEST_PUBLIC_KEY_SLOT                  4
++#define ECC_CURVE_SECP256R1_PULBIC_KEY_LENGTH   (1 + 2 * PSA_BITS_TO_BYTES(256))
++
++typedef struct {
++    uint8_t  *pubx_key;
++    size_t    pubx_key_size;
++    uint8_t  *puby_key;
++    size_t    puby_key_size;
++} ecc_key_t;
++
++struct ecc_public_key_t {
++    const uint8_t a;
++    uint8_t public_key[]; /* X-coordinate || Y-coordinate */
++};
++
++static const struct ecc_public_key_t attest_public_key = {
++     /* Constant byte */
++     .a = 0x04,
++     /* X-coordinate */
++     .public_key = {
++      0x79, 0xEB, 0xA9, 0x0E, 0x8B, 0xF4, 0x50, 0xA6,
++      0x75, 0x15, 0x76, 0xAD, 0x45, 0x99, 0xB0, 0x7A,
++      0xDF, 0x93, 0x8D, 0xA3, 0xBB, 0x0B, 0xD1, 0x7D,
++      0x00, 0x36, 0xED, 0x49, 0xA2, 0xD0, 0xFC, 0x3F,
++     /* Y-coordinate */
++      0xBF, 0xCD, 0xFA, 0x89, 0x56, 0xB5, 0x68, 0xBF,
++      0xDB, 0x86, 0x73, 0xE6, 0x48, 0xD8, 0xB5, 0x8D,
++      0x92, 0x99, 0x55, 0xB1, 0x4A, 0x26, 0xC3, 0x08,
++      0x0F, 0x34, 0x11, 0x7D, 0x97, 0x1D, 0x68, 0x64},
++};
++
++static const uint8_t initial_attestation_public_x_key[] = {
++    0x79, 0xEB, 0xA9, 0x0E, 0x8B, 0xF4, 0x50, 0xA6,
++    0x75, 0x15, 0x76, 0xAD, 0x45, 0x99, 0xB0, 0x7A,
++    0xDF, 0x93, 0x8D, 0xA3, 0xBB, 0x0B, 0xD1, 0x7D,
++    0x00, 0x36, 0xED, 0x49, 0xA2, 0xD0, 0xFC, 0x3F
++};
++
++static const uint8_t initial_attestation_public_y_key[] = {
++    0xBF, 0xCD, 0xFA, 0x89, 0x56, 0xB5, 0x68, 0xBF,
++    0xDB, 0x86, 0x73, 0xE6, 0x48, 0xD8, 0xB5, 0x8D,
++    0x92, 0x99, 0x55, 0xB1, 0x4A, 0x26, 0xC3, 0x08,
++    0x0F, 0x34, 0x11, 0x7D, 0x97, 0x1D, 0x68, 0x64
++};
++
++/* Initialize the structure with given public key */
++static const ecc_key_t attest_key = {
++        (uint8_t *)initial_attestation_public_x_key,
++        sizeof(initial_attestation_public_x_key),
++        (uint8_t *)initial_attestation_public_y_key,
++        sizeof(initial_attestation_public_y_key)
++};
++
++#endif /* _PAL_ATTESTATION_CONFIG_H_ */
+diff --git a/api-tests/platform/targets/tgt_dev_apis_tfm_b_u585i_iot02a/nspe/pal_config.h b/api-tests/platform/targets/tgt_dev_apis_tfm_b_u585i_iot02a/nspe/pal_config.h
+new file mode 100644
+index 0000000..8a1af1a
+--- /dev/null
++++ b/api-tests/platform/targets/tgt_dev_apis_tfm_b_u585i_iot02a/nspe/pal_config.h
+@@ -0,0 +1,100 @@
++/** @file
++ * Copyright (c) 2026, Arm Limited or its affiliates. All rights reserved.
++ * SPDX-License-Identifier : Apache-2.0
++ *
++ * Copyright (c) 2026, STMicroelectronics.
++ * SPDX-License-Identifier : Apache-2.0
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *  http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++**/
++
++#ifndef _PAL_CONFIG_H_
++#define _PAL_CONFIG_H_
++
++#include "pal_crypto_config.h"
++#include "pal_attestation_config.h"
++#include "pal_storage_config.h"
++
++/* Define PSA test suite dependent macros for non-cmake build */
++#if !defined(PSA_CMAKE_BUILD)
++
++/* Print verbosity = TEST */
++#define VERBOSE 3
++
++/* NSPE or SPE VAL build? */
++#define VAL_NSPE_BUILD
++
++/* NSPE or SPE TEST build? */
++#define NONSECURE_TEST_BUILD
++
++/* If not defined, skip watchdog programming */
++#define WATCHDOG_AVAILABLE
++
++/* Are Dynamic memory APIs available to secure partition? */
++#define SP_HEAP_MEM_SUPP
++
++/* PSA Isolation level supported by platform */
++#define PLATFORM_PSA_ISOLATION_LEVEL 3
++#endif /* PSA_CMAKE_BUILD */
++
++/* Version of crypto spec used in attestation */
++#define CRYPTO_VERSION_BETA3
++
++#ifndef PLATFORM_HAS_ATTEST_PK
++/* Use hardcoded public key */
++#define PLATFORM_OVERRIDE_ATTEST_PK
++#endif
++
++/*
++ * Include of PSA defined Header files
++ */
++#ifdef IPC
++/* psa/client.h: Contains the PSA Client API elements */
++#include "psa/client.h"
++
++/*
++ * psa_manifest/sid.h:  Macro definitions derived from manifest files that map from RoT Service
++ * names to Service IDs (SIDs). Partition manifest parse build tool must provide the implementation
++ * of this file.
++*/
++#include "psa_manifest/sid.h"
++
++/*
++ * psa_manifest/pid.h: Secure Partition IDs
++ * Macro definitions that map from Secure Partition names to Secure Partition IDs.
++ * Partition manifest parse build tool must provide the implementation of this file.
++*/
++#include "psa_manifest/pid.h"
++#endif
++
++#ifdef CRYPTO
++/* psa/crypto.h: Contains the PSA Crypto API elements */
++#include "psa/crypto.h"
++#endif
++
++#if defined(INTERNAL_TRUSTED_STORAGE) || defined(STORAGE)
++/* psa/internal_trusted_storage.h: Contains the PSA ITS API elements */
++#include "psa/internal_trusted_storage.h"
++#endif
++
++#if defined(PROTECTED_STORAGE) || defined(STORAGE)
++/* psa/protected_storage.h: Contains the PSA PS API elements */
++#include "psa/protected_storage.h"
++#endif
++
++#ifdef INITIAL_ATTESTATION
++/* psa/initial_attestation.h: Contains the PSA Initial Attestation API elements */
++#include "psa/initial_attestation.h"
++#endif
++
++#endif /* _PAL_CONFIG_H_ */
+diff --git a/api-tests/platform/targets/tgt_dev_apis_tfm_b_u585i_iot02a/nspe/pal_crypto_config.h b/api-tests/platform/targets/tgt_dev_apis_tfm_b_u585i_iot02a/nspe/pal_crypto_config.h
+new file mode 100644
+index 0000000..d6b9920
+--- /dev/null
++++ b/api-tests/platform/targets/tgt_dev_apis_tfm_b_u585i_iot02a/nspe/pal_crypto_config.h
+@@ -0,0 +1,414 @@
++/** @file
++ * Copyright (c) 2026, Arm Limited or its affiliates. All rights reserved.
++ * SPDX-License-Identifier : Apache-2.0
++ *
++ * Copyright (c) 2026, STMicroelectronics.
++ * SPDX-License-Identifier : Apache-2.0
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *  http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++**/
++
++/*
++ * \file pal_crypto_config.h
++ *
++ * \brief Configuration options for crypto tests (set of defines)
++ *
++ *  This set of compile-time options may be used to enable
++ *  or disable features selectively for crypto test suite
++ */
++
++#ifndef _PAL_CRYPTO_CONFIG_H_
++#define _PAL_CRYPTO_CONFIG_H_
++/**
++ * \def ARCH_TEST_RSA
++ *
++ * Enable the RSA public-key cryptosystem.
++ * By default all supported keys are enabled.
++ *
++ * Comment macros to disable the types
++ */
++#ifndef TF_M_PROFILE_SMALL
++#ifndef TF_M_PROFILE_MEDIUM
++#define ARCH_TEST_RSA
++#define ARCH_TEST_RSA_1024
++#define ARCH_TEST_RSA_2048
++#define ARCH_TEST_RSA_3072
++#endif
++#endif
++
++/**
++ * \def  ARCH_TEST_ECC
++ * \def  ARCH_TEST_ECC_CURVE_SECPXXXR1
++ *
++ * Enable the elliptic curve
++ * Enable specific curves within the Elliptic Curve
++ * module.  By default all supported curves are enabled.
++ *
++ * Requires: ARCH_TEST_ECC
++ * Comment macros to disable the curve
++ */
++#ifndef TF_M_PROFILE_SMALL
++#define ARCH_TEST_ECC
++#define ARCH_TEST_ECC_CURVE_SECP192R1
++#ifndef TF_M_PROFILE_MEDIUM
++#define ARCH_TEST_ECC_CURVE_SECP224R1
++#endif
++#define ARCH_TEST_ECC_CURVE_SECP256R1
++#ifndef TF_M_PROFILE_MEDIUM
++#define ARCH_TEST_ECC_CURVE_SECP384R1
++#endif
++#endif
++/* curves of size <255 are obsolete algorithms, should be disabled. */
++#undef ARCH_TEST_ECC_CURVE_SECP192R1
++#undef ARCH_TEST_ECC_CURVE_SECP224R1
++
++/**
++ * \def ARCH_TEST_AES
++ *
++ * Enable the AES block cipher.
++ * By default all supported keys are enabled.
++ *
++ * Comment macros to disable the types
++ */
++#define ARCH_TEST_AES
++#define ARCH_TEST_AES_128
++#define ARCH_TEST_AES_192
++#define ARCH_TEST_AES_256
++#define ARCH_TEST_AES_512
++
++/**
++ * \def  ARCH_TEST_DES
++ *
++ * Enable the DES block cipher.
++ * By default all supported keys are enabled.
++ *
++ * Comment macros to disable the types
++ */
++//#define ARCH_TEST_DES
++//#define ARCH_TEST_DES_1KEY
++//#define ARCH_TEST_DES_2KEY
++//#define ARCH_TEST_DES_3KEY
++
++/**
++ * \def  ARCH_TEST_RAW
++ *
++ * A "key" of this type cannot be used for any cryptographic operation.
++ * Applications may use this type to store arbitrary data in the keystore.
++ */
++#define ARCH_TEST_RAW
++
++/**
++ * \def ARCH_TEST_CIPHER
++ *
++ * Enable the generic cipher layer.
++ */
++
++#define ARCH_TEST_CIPHER
++
++/**
++ * \def ARCH_TEST_ARC4
++ *
++ * Enable the ARC4 key type.
++ */
++//#define ARCH_TEST_ARC4
++
++/**
++ * \def ARCH_TEST_CIPHER_MODE_CTR
++ *
++ * Enable Counter Block Cipher mode (CTR) for symmetric ciphers.
++ *
++ * Requires: ARCH_TEST_CIPHER
++ */
++#ifndef TF_M_PROFILE_SMALL
++#ifndef TF_M_PROFILE_MEDIUM
++#define ARCH_TEST_CIPHER_MODE_CTR
++#endif
++#endif
++
++/**
++ * \def ARCH_TEST_CIPHER_MODE_CFB
++ *
++ * Enable Cipher Feedback mode (CFB) for symmetric ciphers.
++ *
++ * Requires: ARCH_TEST_CIPHER
++ */
++#define ARCH_TEST_CIPHER_MODE_CFB
++
++/**
++ * \def ARCH_TEST_CIPHER_MODE_CBC
++ *
++ * Enable Cipher Block Chaining mode (CBC) for symmetric ciphers.
++ *
++ * Requires: ARCH_TEST_CIPHER
++ */
++#define ARCH_TEST_CIPHER_MODE_CBC
++
++/**
++ * \def ARCH_TEST_CTR_AES
++ *
++ * Requires: ARCH_TEST_CIPHER, ARCH_TEST_AES, ARCH_TEST_CIPHER_MODE_CTR
++ */
++#ifndef TF_M_PROFILE_SMALL
++#ifndef TF_M_PROFILE_MEDIUM
++#define ARCH_TEST_CTR_AES
++#endif
++#endif
++
++/**
++ * \def ARCH_TEST_CBC_AES
++ *
++ * Requires: ARCH_TEST_CIPHER, ARCH_TEST_AES, ARCH_TEST_CIPHER_MODE_CBC
++ *
++ * Comment macros to disable the types
++ */
++#define ARCH_TEST_CBC_AES
++#define ARCH_TEST_CBC_AES_NO_PADDING
++
++/**
++ * \def ARCH_TEST_CBC_NO_PADDING
++ *
++ * Requires: ARCH_TEST_CIPHER, ARCH_TEST_CIPHER_MODE_CBC
++ *
++ * Comment macros to disable the types
++ */
++#ifndef TF_M_PROFILE_SMALL
++#ifndef TF_M_PROFILE_MEDIUM
++#define ARCH_TEST_CBC_NO_PADDING
++#endif
++#endif
++
++/**
++ * \def ARCH_TEST_CFB_AES
++ *
++ * Requires: ARCH_TEST_CIPHER, ARCH_TEST_AES, ARCH_TEST_CIPHER_MODE_CFB
++ */
++#define ARCH_TEST_CFB_AES
++
++/**
++ * \def ARCH_TEST_PKCS1V15_*
++ *
++ * Enable support for PKCS#1 v1.5 encoding.
++ * Enable support for PKCS#1 v1.5 operations.
++ * Enable support for RSA-OAEP
++ *
++ * Requires: ARCH_TEST_RSA, ARCH_TEST_PKCS1V15
++ *
++ * Comment macros to disable the types
++ */
++#ifndef TF_M_PROFILE_SMALL
++#ifndef TF_M_PROFILE_MEDIUM
++#define ARCH_TEST_PKCS1V15
++#define ARCH_TEST_RSA_PKCS1V15_SIGN
++#define ARCH_TEST_RSA_PKCS1V15_SIGN_RAW
++#define ARCH_TEST_RSA_PKCS1V15_CRYPT
++#define ARCH_TEST_RSA_OAEP
++#endif
++#endif
++
++/**
++ * \def ARCH_TEST_CBC_PKCS7
++ *
++ * Requires: ARCH_TEST_CIPHER_MODE_CBC
++ *
++ * Comment macros to disable the types
++ */
++#ifndef TF_M_PROFILE_SMALL
++#ifndef TF_M_PROFILE_MEDIUM
++#define ARCH_TEST_CBC_PKCS7
++#endif
++#endif
++
++/**
++ * \def ARCH_TEST_ASYMMETRIC_ENCRYPTION
++ *
++ * Enable support for Asymmetric encryption algorithms
++ */
++#define ARCH_TEST_ASYMMETRIC_ENCRYPTION
++
++/**
++ * \def ARCH_TEST_HASH
++ *
++ * Enable the hash algorithm.
++ */
++#define ARCH_TEST_HASH
++
++/**
++ * \def  ARCH_TEST_HMAC
++ *
++ * The key policy determines which underlying hash algorithm the key can be
++ * used for.
++ *
++ * Requires: ARCH_TEST_HASH
++ */
++#define ARCH_TEST_HMAC
++
++/**
++ * \def ARCH_TEST_MDX
++ * \def ARCH_TEST_SHAXXX
++ *
++ * Enable the MDX algorithm.
++ * Enable the SHAXXX algorithm.
++ *
++ * Requires: ARCH_TEST_HASH
++ *
++ * Comment macros to disable the types
++ */
++//#define ARCH_TEST_MD2
++//#define ARCH_TEST_MD4
++//#define ARCH_TEST_MD5
++//#define ARCH_TEST_RIPEMD160
++//#define ARCH_TEST_SHA1
++#ifndef TF_M_PROFILE_SMALL
++#define ARCH_TEST_SHA224
++#endif
++#define ARCH_TEST_SHA256
++#ifndef TF_M_PROFILE_SMALL
++#ifndef TF_M_PROFILE_MEDIUM
++#define ARCH_TEST_SHA384
++#define ARCH_TEST_SHA512
++#endif
++#endif
++//#define ARCH_TEST_SHA512_224
++//#define ARCH_TEST_SHA512_256
++//#define ARCH_TEST_SHA3_224
++//#define ARCH_TEST_SHA3_256
++//#define ARCH_TEST_SHA3_384
++//#define ARCH_TEST_SHA3_512
++
++/**
++ * \def ARCH_TEST_HKDF
++ *
++ * Enable the HKDF algorithm (RFC 5869).
++ *
++ * Requires: ARCH_TEST_HASH
++*/
++#define ARCH_TEST_HKDF
++
++/**
++ * \def ARCH_TEST_TLS12_PRF
++ *
++ * Enable the TLS-1.2 PRF algorithm (RFC 5246).
++ *
++ * Requires: ARCH_TEST_HASH
++*/
++#define ARCH_TEST_TLS12_PRF
++
++/**
++ * \def ARCH_TEST_xMAC
++ *
++ * Enable the xMAC (Cipher/Hash/G-based Message Authentication Code) mode for block
++ * ciphers.
++ * Requires: ARCH_TEST_AES or ARCH_TEST_DES
++ *
++ * Comment macros to disable the types
++ */
++#ifndef TF_M_PROFILE_SMALL
++#ifndef TF_M_PROFILE_MEDIUM
++#define ARCH_TEST_CMAC
++#endif
++#endif
++//#define ARCH_TEST_GMAC
++#define ARCH_TEST_HMAC
++
++/**
++ * \def ARCH_TEST_CCM
++ *
++ * Enable the Counter with CBC-MAC (CCM) mode for 128-bit block cipher.
++ *
++ * Requires: ARCH_TEST_AES
++ */
++#define ARCH_TEST_CCM
++
++/**
++ * \def ARCH_TEST_GCM
++ *
++ * Enable the Galois/Counter Mode (GCM) for AES.
++ *
++ * Requires: ARCH_TEST_AES
++ *
++ */
++#ifndef TF_M_PROFILE_SMALL
++#ifndef TF_M_PROFILE_MEDIUM
++#define ARCH_TEST_GCM
++#endif
++#endif
++
++/**
++ * \def ARCH_TEST_TRUNCATED_MAC
++ *
++ * Enable support for RFC 6066 truncated HMAC in SSL.
++ *
++ * Comment this macro to disable support for truncated HMAC in SSL
++ */
++#define ARCH_TEST_TRUNCATED_MAC
++
++
++/**
++ * \def ARCH_TEST_ECDH
++ *
++ * Enable the elliptic curve Diffie-Hellman library.
++ *
++ * Requires: ARCH_TEST_ECC
++ */
++#ifndef TF_M_PROFILE_SMALL
++#define ARCH_TEST_ECDH
++#endif
++
++/**
++ * \def ARCH_TEST_ECDSA
++ *
++ * Enable the elliptic curve DSA library.
++ * Requires: ARCH_TEST_ECC
++ */
++#ifndef TF_M_PROFILE_SMALL
++#define ARCH_TEST_ECDSA
++#endif
++
++/**
++ * \def ARCH_TEST_DETERMINISTIC_ECDSA
++ *
++ * Enable deterministic ECDSA (RFC 6979).
++*/
++#define ARCH_TEST_DETERMINISTIC_ECDSA
++
++/**
++ * \def ARCH_TEST_ECC_ASYMMETRIC_API_SUPPORT
++ *
++ * Enable ECC support for asymmetric API.
++*/
++//#define ARCH_TEST_ECC_ASYMMETRIC_API_SUPPORT
++
++/**
++ * \def ARCH_TEST_HASH_SUSPEND
++ *
++ * Enable has suspend.
++*/
++//#define ARCH_TEST_HASH_SUSPEND
++
++/**
++ * \def ARCH_TEST_HASH_RESUME
++ *
++ * Enable has resume.
++*/
++//#define ARCH_TEST_HASH_RESUME
++
++/**
++ * \def ARCH_TEST_PBKDF2
++ *
++ * Enable the Password-based Key derivation functions - 2.
++*/
++#define ARCH_TEST_PBKDF2
++
++#include "pal_crypto_config_check.h"
++
++#endif /* _PAL_CRYPTO_CONFIG_H_ */
+diff --git a/api-tests/platform/targets/tgt_dev_apis_tfm_b_u585i_iot02a/nspe/pal_driver_intf.c b/api-tests/platform/targets/tgt_dev_apis_tfm_b_u585i_iot02a/nspe/pal_driver_intf.c
+new file mode 100644
+index 0000000..77b7a1c
+--- /dev/null
++++ b/api-tests/platform/targets/tgt_dev_apis_tfm_b_u585i_iot02a/nspe/pal_driver_intf.c
+@@ -0,0 +1,147 @@
++/** @file
++ * Copyright (c) 2026, Arm Limited or its affiliates. All rights reserved.
++ * SPDX-License-Identifier : Apache-2.0
++ *
++ * Copyright (c) 2026, STMicroelectronics.
++ * SPDX-License-Identifier : Apache-2.0
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *  http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++**/
++
++#include "pal_common.h"
++#include "pal_uart.h"
++#include "pal_nvmem.h"
++#include "pal_wd_stm.h"
++
++/**
++    @brief    - This function initializes the UART
++    @param    - uart base addr
++    @return   - SUCCESS/FAILURE
++**/
++int pal_uart_init_ns(uint32_t uart_base_addr)
++{
++    pal_uart_stm_init(uart_base_addr);
++    return PAL_STATUS_SUCCESS;
++}
++
++/**
++    @brief    - This function parses the input string and writes bytes into UART TX FIFO
++    @param    - str      : Input String
++              - data     : Value for format specifier
++    @return   - SUCCESS/FAILURE
++**/
++
++int pal_print_ns(const char *str, int32_t data)
++{
++    pal_uart_stm_print(str, data);
++    return PAL_STATUS_SUCCESS;
++}
++
++/**
++    @brief           - Initializes an hardware watchdog timer
++    @param           - base_addr       : Base address of the watchdog module
++                     - time_us         : Time in micro seconds
++                     - timer_tick_us   : Number of ticks per micro second
++    @return          - SUCCESS/FAILURE
++**/
++int pal_wd_timer_init_ns(addr_t base_addr, uint32_t time_us, uint32_t timer_tick_us)
++{
++    return pal_wd_stm_init(base_addr, time_us, timer_tick_us);
++}
++
++/**
++    @brief           - Enables a hardware watchdog timer
++    @param           - base_addr       : Base address of the watchdog module
++    @return          - SUCCESS/FAILURE
++**/
++int pal_wd_timer_enable_ns(addr_t base_addr)
++{
++    return pal_wd_stm_enable(base_addr);
++}
++
++/**
++    @brief           - Disables a hardware watchdog timer
++    @param           - base_addr  : Base address of the watchdog module
++    @return          - SUCCESS/FAILURE
++**/
++int pal_wd_timer_disable_ns(addr_t base_addr)
++{
++    return pal_wd_stm_disable(base_addr);
++}
++
++/**
++    @brief    - Reads from given non-volatile address.
++    @param    - base    : Base address of nvmem
++                offset  : Offset
++                buffer  : Pointer to source address
++                size    : Number of bytes
++    @return   - SUCCESS/FAILURE
++**/
++int pal_nvmem_read_ns(addr_t base, uint32_t offset, void *buffer, int size)
++{
++    if (nvmem_read(base, offset, buffer, size))
++    {
++        return PAL_STATUS_SUCCESS;
++    }
++    else
++    {
++        return PAL_STATUS_ERROR;
++    }
++}
++
++/**
++    @brief    - Writes into given non-volatile address.
++    @param    - base    : Base address of nvmem
++                offset  : Offset
++                buffer  : Pointer to source address
++                size    : Number of bytes
++    @return   - SUCCESS/FAILURE
++**/
++int pal_nvmem_write_ns(addr_t base, uint32_t offset, void *buffer, int size)
++{
++    if (nvmem_write(base, offset, buffer, size))
++    {
++        return PAL_STATUS_SUCCESS;
++    }
++    else
++    {
++        return PAL_STATUS_ERROR;
++    }
++}
++
++/**
++ *   @brief    - Terminates the simulation at the end of all tests completion.
++ *               By default, it put cpus into power down mode.
++ *   @param    - void
++ *   @return   - void
++**/
++void pal_terminate_simulation(void)
++{
++    /* Add logic to terminate the simluation */
++
++    while (1)
++    {
++        __asm volatile("WFI");
++    }
++}
++
++/**
++ *   @brief    - Resets the system.
++ *   @param    - void
++ *   @return   - SUCCESS/FAILURE
++**/
++int pal_system_reset(void)
++{
++    /* Reset functionality is not functional */
++    return PAL_STATUS_UNSUPPORTED_FUNC;
++}
+diff --git a/api-tests/platform/targets/tgt_dev_apis_tfm_b_u585i_iot02a/nspe/pal_storage_config.h b/api-tests/platform/targets/tgt_dev_apis_tfm_b_u585i_iot02a/nspe/pal_storage_config.h
+new file mode 100644
+index 0000000..8d5eaf7
+--- /dev/null
++++ b/api-tests/platform/targets/tgt_dev_apis_tfm_b_u585i_iot02a/nspe/pal_storage_config.h
+@@ -0,0 +1,27 @@
++/** @file
++ * Copyright (c) 2026, Arm Limited or its affiliates. All rights reserved.
++ * SPDX-License-Identifier : Apache-2.0
++ *
++ * Copyright (c) 2026, STMicroelectronics.
++ * SPDX-License-Identifier : Apache-2.0
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *  http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++**/
++
++#ifndef _PAL_STORAGE_CONFIG_H_
++#define _PAL_STORAGE_CONFIG_H_
++
++/* Platform specific max UID's size */
++#define ARCH_TEST_STORAGE_UID_MAX_SIZE 512
++
++#endif /* _PAL_STORAGE_CONFIG_H_ */
+diff --git a/api-tests/platform/targets/tgt_dev_apis_tfm_b_u585i_iot02a/nspe/pal_wd_platform.h b/api-tests/platform/targets/tgt_dev_apis_tfm_b_u585i_iot02a/nspe/pal_wd_platform.h
+new file mode 100644
+index 0000000..71e9a73
+--- /dev/null
++++ b/api-tests/platform/targets/tgt_dev_apis_tfm_b_u585i_iot02a/nspe/pal_wd_platform.h
+@@ -0,0 +1,123 @@
++/** @file
++ * Copyright (c) 2026, STMicroelectronics.
++ * SPDX-License-Identifier : Apache-2.0
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *  http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++**/
++#ifndef _PAL_WD_PLATFORM_H_
++#define _PAL_WD_PLATFORM_H_
++
++#pragma once
++
++#include <stdint.h>
++#include "pal_common.h"
++
++#define PAL_WD_COUNTER_MIN           (0x40u)
++#define PAL_WD_COUNTER_MAX           (0x7Fu)
++#define PAL_WD_CAN_BE_DISABLED       0u
++
++#define __IO volatile
++typedef struct {
++    __IO uint32_t CR;   /* Control register */
++    __IO uint32_t CFR;  /* Configuration register */
++    __IO uint32_t SR;   /* Status register */
++} WWDG_TypeDef;
++
++/* Addresses & masks */
++#define WWDG_BASE_ADDR       ((addr_t)0x40002C00u) /* WWDG register Base address (from Reference Manual) */
++#define WWDG                 ((WWDG_TypeDef *)WWDG_BASE_ADDR)
++
++/* Bits, prescaler, etc... */
++#define WWDG_CR_T_Pos        (0U)
++#define WWDG_CR_T_Msk        (0x7FUL << WWDG_CR_T_Pos)
++#define WWDG_CR_T            WWDG_CR_T_Msk
++#define WWDG_CR_WDGA_Pos     (7U)
++#define WWDG_CR_WDGA_Msk     (0x1UL << WWDG_CR_WDGA_Pos)
++#define WWDG_CR_WDGA         WWDG_CR_WDGA_Msk
++
++#define WWDG_CFR_W_Pos       (0U)
++#define WWDG_CFR_W_Msk       (0x7FUL << WWDG_CFR_W_Pos)
++#define WWDG_CFR_W           WWDG_CFR_W_Msk
++
++#define WWDG_CFR_WDGTB_Pos   (11U)
++#define WWDG_CFR_WDGTB_Msk   (0x7UL << WWDG_CFR_WDGTB_Pos)
++#define WWDG_CFR_WDGTB       WWDG_CFR_WDGTB_Msk
++
++#define LL_WWDG_PRESCALER_128    ((0x4UL | 0x2UL | 0x1UL) << WWDG_CFR_WDGTB_Pos)
++
++#ifndef MODIFY_REG
++#define MODIFY_REG(REG, CLEARMASK, SETMASK)  \
++    do {                                     \
++        (REG) = (((REG) & ~(CLEARMASK)) | (SETMASK)); \
++    } while (0)
++#endif
++
++static inline void PAL_WD_ENABLE_CLOCK(void)
++{
++    /* clock WWDG */
++    #define RCC_APB1ENR1_WWDGEN_Pos  (11U) /* WWDG ENABLE = bit 11 */
++    #define RCC_APB1ENR1_WWDGEN_Msk  (0x1UL << RCC_APB1ENR1_WWDGEN_Pos)
++    #define RCC_APB1ENR1_WWDGEN      RCC_APB1ENR1_WWDGEN_Msk
++
++    volatile uint32_t *reg = (uint32_t *)0x46020C9C; /* = RCC register Base address (0x46020C9C) + RCC_APB1ENR1 offest (0x9C) */
++    *reg |= RCC_APB1ENR1_WWDGEN;
++}
++
++static inline void PAL_WD_CONFIGURE_PRESCALER(addr_t base_addr)
++{
++    WWDG_TypeDef *wd = (WWDG_TypeDef *)base_addr;
++    MODIFY_REG(wd->CFR, WWDG_CFR_WDGTB, LL_WWDG_PRESCALER_128);
++}
++
++static inline void PAL_WD_SET_COUNTER(addr_t base_addr, uint32_t value)
++{
++    WWDG_TypeDef *wd = (WWDG_TypeDef *)base_addr;
++    MODIFY_REG(wd->CR, WWDG_CR_T, (value & 0x7Fu));
++}
++
++static inline void PAL_WD_CONFIGURE_WINDOW(addr_t base_addr, uint32_t value)
++{
++    WWDG_TypeDef *wd = (WWDG_TypeDef *)base_addr;
++    MODIFY_REG(wd->CFR, WWDG_CFR_W, (value & 0x7Fu));
++}
++
++static inline void PAL_WD_EXTRA_HW_CONFIG(addr_t base_addr)
++{
++    (void)base_addr;
++    /* nothing for now */
++}
++
++static inline void PAL_WD_START(addr_t base_addr)
++{
++#if 0
++   WWDG_TypeDef *wd = (WWDG_TypeDef *)base_addr;
++   wd->CR |= WWDG_CR_WDGA;
++#else
++    (void)base_addr;
++    /* nothing for now */
++#endif
++}
++
++static inline void PAL_WD_STOP(addr_t base_addr)
++{
++    (void)base_addr;
++    /* not supported */
++}
++
++static inline int PAL_WD_IS_ENABLED(addr_t base_addr)
++{
++    WWDG_TypeDef *wd = (WWDG_TypeDef *)base_addr;
++    return ((wd->CR & WWDG_CR_WDGA) != 0u);
++}
++
++#endif /* _PAL_WD_PLATFORM_H_ */
+\ No newline at end of file
+diff --git a/api-tests/platform/targets/tgt_dev_apis_tfm_b_u585i_iot02a/nspe/pal_wd_stm.c b/api-tests/platform/targets/tgt_dev_apis_tfm_b_u585i_iot02a/nspe/pal_wd_stm.c
+new file mode 100644
+index 0000000..673e8d6
+--- /dev/null
++++ b/api-tests/platform/targets/tgt_dev_apis_tfm_b_u585i_iot02a/nspe/pal_wd_stm.c
+@@ -0,0 +1,63 @@
++/** @file
++ * Copyright (c) 2026, STMicroelectronics.
++ * SPDX-License-Identifier : Apache-2.0
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *  http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++**/
++#include "pal_wd_stm.h"
++#include "pal_wd_platform.h"
++#include "pal_common.h"
++
++int pal_wd_stm_init(addr_t base_addr, uint32_t time_us, uint32_t timer_tick_us)
++{
++    if ((time_us == 0u) || (timer_tick_us == 0u) ||
++        (time_us > WDOG_TIMER_MAX_VALUE)) {
++        return PAL_STATUS_ERROR;
++    }
++
++    uint32_t ticks = time_us / timer_tick_us;
++    if (ticks == 0u) {
++        ticks = 1u;
++    }
++
++    if (ticks < PAL_WD_COUNTER_MIN) {
++        ticks = PAL_WD_COUNTER_MIN;
++    } else if (ticks > PAL_WD_COUNTER_MAX) {
++        ticks = PAL_WD_COUNTER_MAX;
++    }
++
++    PAL_WD_ENABLE_CLOCK();
++    PAL_WD_CONFIGURE_PRESCALER(base_addr);
++    PAL_WD_SET_COUNTER(base_addr, ticks);
++    PAL_WD_CONFIGURE_WINDOW(base_addr, ticks);
++    PAL_WD_EXTRA_HW_CONFIG(base_addr);
++
++    return PAL_STATUS_SUCCESS;
++}
++
++int pal_wd_stm_enable(addr_t base_addr)
++{
++    PAL_WD_START(base_addr);
++    return PAL_STATUS_SUCCESS;
++}
++
++int pal_wd_stm_disable(addr_t base_addr)
++{
++    (void)base_addr;
++    return PAL_STATUS_SUCCESS;
++}
++
++int pal_wd_stm_is_enabled(addr_t base_addr)
++{
++    return PAL_WD_IS_ENABLED(base_addr) ? PAL_STATUS_SUCCESS : PAL_STATUS_ERROR;
++}
+\ No newline at end of file
+diff --git a/api-tests/platform/targets/tgt_dev_apis_tfm_b_u585i_iot02a/nspe/pal_wd_stm.h b/api-tests/platform/targets/tgt_dev_apis_tfm_b_u585i_iot02a/nspe/pal_wd_stm.h
+new file mode 100644
+index 0000000..1553958
+--- /dev/null
++++ b/api-tests/platform/targets/tgt_dev_apis_tfm_b_u585i_iot02a/nspe/pal_wd_stm.h
+@@ -0,0 +1,74 @@
++/** @file
++ * Copyright (c) 2026, STMicroelectronics.
++ * SPDX-License-Identifier : Apache-2.0
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *  http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++**/
++#ifndef _PAL_WD_STM_H_
++#define _PAL_WD_STM_H_
++
++#include "pal_common.h"
++
++#define WDOG_TIMER_MAX_VALUE           0xFFFFFFFFu
++
++/*
++ * Initializes the watchdog timer for a requested timeout.
++ *
++ * Parameters:
++ *  - base_addr:      watchdog base address (platform-specific).
++ *  - time_us:        requested timeout in microseconds.
++ *  - timer_tick_us:  watchdog clock tick period in microseconds.
++ *
++ * Returns:
++ *  - PAL_STATUS_SUCCESS on success
++ *  - PAL_STATUS_ERROR   on invalid parameters or configuration failure
++ */
++int pal_wd_stm_init(addr_t base_addr, uint32_t time_us, uint32_t timer_tick_us);
++
++/*
++ * Starts/enables the watchdog.
++ *
++ * Parameters:
++ *  - base_addr: watchdog base address (platform-specific).
++ *
++ * Returns:
++ *  - PAL_STATUS_SUCCESS on success
++ *  - PAL_STATUS_ERROR   on failure
++ */
++int pal_wd_stm_enable(addr_t base_addr);
++
++/*
++ * Disables the watchdog, if supported by the underlying IP.
++ *
++ * Parameters:
++ *  - base_addr: watchdog base address (platform-specific).
++ *
++ * Returns:
++ *  - PAL_STATUS_SUCCESS if the watchdog was disabled
++ *  - PAL_STATUS_ERROR   if disable is not supported or failed
++ */
++int pal_wd_stm_disable(addr_t base_addr);
++
++/*
++ * Checks whether the watchdog is currently enabled.
++ *
++ * Parameters:
++ *  - base_addr: watchdog base address (platform-specific).
++ *
++ * Returns:
++ *  - PAL_STATUS_SUCCESS if the watchdog is enabled
++ *  - PAL_STATUS_ERROR   otherwise
++ */
++int pal_wd_stm_is_enabled(addr_t base_addr);
++
++#endif /* _PAL_WD_STM_H_ */
+\ No newline at end of file
+diff --git a/api-tests/platform/targets/tgt_dev_apis_tfm_b_u585i_iot02a/target.cfg b/api-tests/platform/targets/tgt_dev_apis_tfm_b_u585i_iot02a/target.cfg
+new file mode 100644
+index 0000000..ee7e174
+--- /dev/null
++++ b/api-tests/platform/targets/tgt_dev_apis_tfm_b_u585i_iot02a/target.cfg
+@@ -0,0 +1,45 @@
++///** @file
++// * Copyright (c) 2026, Arm Limited or its affiliates. All rights reserved.
++// * SPDX-License-Identifier : Apache-2.0
++// *
++// * Copyright (c) 2026, STMicroelectronics.
++// * SPDX-License-Identifier : Apache-2.0
++// *
++// * Licensed under the Apache License, Version 2.0 (the "License");
++// * you may not use this file except in compliance with the License.
++// * You may obtain a copy of the License at
++// *
++// *  http://www.apache.org/licenses/LICENSE-2.0
++// *
++// * Unless required by applicable law or agreed to in writing, software
++// * distributed under the License is distributed on an "AS IS" BASIS,
++// * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// * See the License for the specific language governing permissions and
++// * limitations under the License.
++//**/
++
++// UART device info
++uart.num=1;
++uart.0.base = 0x40013800; // UART1_NS
++uart.0.size = 0x400;
++uart.0.intr_id = 0xFF;
++uart.0.permission = TYPE_READ_WRITE;
++
++// Watchdog device info
++watchdog.num = 1;
++watchdog.0.base = 0x40002C00;
++watchdog.0.size = 0x400;
++watchdog.0.intr_id = 0xFF;
++watchdog.0.permission = TYPE_READ_WRITE;
++watchdog.0.num_of_tick_per_micro_sec = 0x3;         //(sys_feq/1000000)
++watchdog.0.timeout_in_micro_sec_low = 0xF4240;      //1.0  sec :  1 * 1000 * 1000
++watchdog.0.timeout_in_micro_sec_medium = 0x1E8480;  //2.0  sec :  2 * 1000 * 1000
++watchdog.0.timeout_in_micro_sec_high = 0x4C4B40;    //5.0  sec :  5 * 1000 * 1000
++watchdog.0.timeout_in_micro_sec_crypto = 0x1312D00; //18.0 sec : 18 * 1000 * 1000
++
++// Range of 1Kb Non-volatile memory to preserve data over reset. Ex, NVRAM and FLASH
++nvmem.num = 1;
++nvmem.0.start = 0x2001F400;
++nvmem.0.end = 0x2001F7FF;
++nvmem.0.permission = TYPE_READ_WRITE;
++
+diff --git a/api-tests/platform/targets/tgt_dev_apis_tfm_b_u585i_iot02a/target.cmake b/api-tests/platform/targets/tgt_dev_apis_tfm_b_u585i_iot02a/target.cmake
+new file mode 100644
+index 0000000..2d5b0aa
+--- /dev/null
++++ b/api-tests/platform/targets/tgt_dev_apis_tfm_b_u585i_iot02a/target.cmake
+@@ -0,0 +1,100 @@
++#/** @file
++# * Copyright (c) 2026, Arm Limited or its affiliates. All rights reserved.
++# * SPDX-License-Identifier : Apache-2.0
++# *
++# * Copyright (c) 2026, STMicroelectronics.
++# * SPDX-License-Identifier : Apache-2.0
++# *
++# * Licensed under the Apache License, Version 2.0 (the "License");
++# * you may not use this file except in compliance with the License.
++# * You may obtain a copy of the License at
++# *
++# *  http://www.apache.org/licenses/LICENSE-2.0
++# *
++# * Unless required by applicable law or agreed to in writing, software
++# * distributed under the License is distributed on an "AS IS" BASIS,
++# * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++# * See the License for the specific language governing permissions and
++# * limitations under the License.
++#**/
++
++# PAL C source files part of NSPE library
++list(APPEND PAL_SRC_C_NSPE )
++
++# PAL ASM source files part of NSPE library
++list(APPEND PAL_SRC_ASM_NSPE )
++
++# PAL C source files part of SPE library - driver partition
++list(APPEND PAL_SRC_C_DRIVER_SP )
++
++# PAL ASM source files part of SPE library - driver partition
++list(APPEND PAL_SRC_ASM_DRIVER_SP )
++
++# Listing all the sources required for given target
++if(${SUITE} STREQUAL "IPC")
++	message(FATAL_ERROR "For IPC - use -DTARGET=tgt_ff_tfm_b_u585i_iot02a instead")
++else()
++	list(APPEND PAL_SRC_C_NSPE
++		# driver files will be compiled as part of NSPE
++		${PSA_ROOT_DIR}/platform/targets/${TARGET}/nspe/pal_driver_intf.c
++		${PSA_ROOT_DIR}/platform/drivers/nvmem/pal_nvmem.c
++		${PSA_ROOT_DIR}/platform/drivers/uart/stm/pal_uart.c
++		${PSA_ROOT_DIR}/platform/targets/${TARGET}/nspe/pal_wd_stm.c
++	)
++endif()
++
++if(${SUITE} STREQUAL "CRYPTO")
++	list(APPEND PAL_SRC_C_NSPE
++		${PSA_ROOT_DIR}/platform/targets/common/nspe/crypto/pal_crypto_intf.c
++	)
++endif()
++if((${SUITE} STREQUAL "PROTECTED_STORAGE") OR (${SUITE} STREQUAL "STORAGE"))
++	list(APPEND PAL_SRC_C_NSPE
++		${PSA_ROOT_DIR}/platform/targets/common/nspe/protected_storage/pal_protected_storage_intf.c
++	)
++endif()
++if((${SUITE} STREQUAL "INTERNAL_TRUSTED_STORAGE") OR (${SUITE} STREQUAL "STORAGE"))
++	list(APPEND PAL_SRC_C_NSPE
++		${PSA_ROOT_DIR}/platform/targets/common/nspe/internal_trusted_storage/pal_internal_trusted_storage_intf.c
++	)
++endif()
++if(${SUITE} STREQUAL "INITIAL_ATTESTATION")
++	list(APPEND PAL_SRC_C_NSPE
++		${PSA_ROOT_DIR}/platform/targets/common/nspe/initial_attestation/pal_attestation_intf.c
++		${PSA_ROOT_DIR}/platform/targets/common/nspe/initial_attestation/pal_attestation_crypto.c
++                ${PSA_TARGET_QCBOR}/src/UsefulBuf.c
++                ${PSA_TARGET_QCBOR}/src/ieee754.c
++                ${PSA_TARGET_QCBOR}/src/qcbor_decode.c
++                ${PSA_TARGET_QCBOR}/src/qcbor_encode.c
++	)
++endif()
++
++# Create NSPE library
++add_library(${PSA_TARGET_PAL_NSPE_LIB} STATIC ${PAL_SRC_C_NSPE} ${PAL_SRC_ASM_NSPE})
++
++# PSA Include directories
++foreach(psa_inc_path ${PSA_INCLUDE_PATHS})
++	target_include_directories(${PSA_TARGET_PAL_NSPE_LIB} PRIVATE ${psa_inc_path})
++endforeach()
++
++list(APPEND PAL_DRIVER_INCLUDE_PATHS
++	${PSA_ROOT_DIR}/platform/drivers/nvmem
++	${PSA_ROOT_DIR}/platform/drivers/uart/stm
++	${PSA_ROOT_DIR}/platform/targets/${TARGET}/nspe
++)
++
++target_include_directories(${PSA_TARGET_PAL_NSPE_LIB} PRIVATE
++	${PAL_DRIVER_INCLUDE_PATHS}
++	${PSA_ROOT_DIR}/platform/targets/common/nspe
++	${PSA_ROOT_DIR}/platform/targets/common/nspe/crypto
++	${PSA_ROOT_DIR}/platform/targets/common/nspe/protected_storage
++	${PSA_ROOT_DIR}/platform/targets/common/nspe/internal_trusted_storage
++	${PSA_ROOT_DIR}/platform/targets/common/nspe/initial_attestation
++	${PSA_ROOT_DIR}/platform/targets/${TARGET}/nspe
++)
++
++if(${SUITE} STREQUAL "INITIAL_ATTESTATION")
++target_include_directories(${PSA_TARGET_PAL_NSPE_LIB} PRIVATE
++	${PSA_QCBOR_INCLUDE_PATH}
++)
++endif()
+-- 
+2.31.1.windows.1
+

@@ -1,0 +1,42 @@
+From ea62a03ad2f5f2f0c209f072a3df07d4ebc4c4a5 Mon Sep 17 00:00:00 2001
+From: Waleed Elmelegy <waleed.elmelegy@arm.com>
+Date: Mon, 3 Mar 2025 16:23:11 +0000
+Subject: [PATCH 08/24] Fix buffer overflow in test_c061/63.c
+
+Signed-off-by: Waleed Elmelegy <waleed.elmelegy@arm.com>
+---
+ api-tests/dev_apis/crypto/test_c061/test_c061.c | 3 ++-
+ api-tests/dev_apis/crypto/test_c063/test_c063.c | 3 ++-
+ 2 files changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/api-tests/dev_apis/crypto/test_c061/test_c061.c b/api-tests/dev_apis/crypto/test_c061/test_c061.c
+index f3b9b6a..f109877 100644
+--- a/api-tests/dev_apis/crypto/test_c061/test_c061.c
++++ b/api-tests/dev_apis/crypto/test_c061/test_c061.c
+@@ -97,7 +97,8 @@ int32_t psa_aead_finish_test(caller_security_t caller __UNUSED)
+ 
+         /* Finish encrypting a message in an AEAD operation */
+         status = val->crypto_function(VAL_CRYPTO_AEAD_FINISH, &operation, output + length,
+-                 check1[i].output_size, &finish_length, tag, check1[i].tag_size, &tag_length);
++                 check1[i].output_size > length ? check1[i].output_size-length : check1[i].output_size,
++                 &finish_length, tag, check1[i].tag_size, &tag_length);
+         TEST_ASSERT_EQUAL(status, check1[i].expected_status, TEST_CHECKPOINT_NUM(9));
+ 
+         if (check1[i].expected_status != PSA_SUCCESS)
+diff --git a/api-tests/dev_apis/crypto/test_c063/test_c063.c b/api-tests/dev_apis/crypto/test_c063/test_c063.c
+index 18b9789..948d902 100644
+--- a/api-tests/dev_apis/crypto/test_c063/test_c063.c
++++ b/api-tests/dev_apis/crypto/test_c063/test_c063.c
+@@ -96,7 +96,8 @@ int32_t psa_aead_verify_test(caller_security_t caller __UNUSED)
+ 
+         /* Finish authenticating and decrypting a message in an AEAD operation */
+         status = val->crypto_function(VAL_CRYPTO_AEAD_VERIFY, &operation, output + length,
+-                 check1[i].output_size, &verify_length, check1[i].tag, check1[i].tag_length);
++                check1[i].output_size > length ? check1[i].output_size - length : check1[i].output_size,
++                &verify_length, check1[i].tag, check1[i].tag_length);
+         TEST_ASSERT_DUAL(status,
+                          check1[i].expected_status[0],
+                          check1[i].expected_status[1],
+-- 
+2.34.1
+
