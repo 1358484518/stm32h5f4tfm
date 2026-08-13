@@ -13,7 +13,7 @@
 
 ## 代码提交 
 
-- 执行命令 ./push_to_gitee.sh
+- 执行命令: ./push_to_gitee.sh [提交说明]
 
 ## 目录结构
 
