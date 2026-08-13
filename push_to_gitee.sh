@@ -7,7 +7,7 @@ set -euo pipefail
 
 GITEE_URL="https://gitee.com/already_use/trusted-firmware-m.git"
 GITEE_REMOTE="gitee"
-BRANCH="main"
+BRANCH="master"
 COMMIT_MSG="${1:-Update workspace}"
 
 WORK_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
