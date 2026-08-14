@@ -15,6 +15,8 @@
 
 - 执行命令: ./push_to_gitee.sh [提交说明]
 
+- 增加非安全测试代码 nsdev.tar.xz ，在 ubuntu22.04 解压后执行make即可运行。
+
 ## 目录结构
 
 	.
