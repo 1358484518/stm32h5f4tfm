@@ -25,4 +25,5 @@ OBJCOPY_BIN :=
 SUBDIRS := \
 ns_app \
 ns_app/tfm_src \
+sign_kit/layout \
 
