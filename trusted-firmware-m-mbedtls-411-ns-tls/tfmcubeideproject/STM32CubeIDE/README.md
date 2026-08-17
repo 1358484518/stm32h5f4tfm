@@ -67,3 +67,9 @@ ST-Link VCP CN10：115200 8N1，**不要插 JP1**。UBE 保持 OEM-iRoT `0xB4`�
 ## 多任务
 
 本工程仍是 `tfm_ns_interface_bare_metal.c`。上 RTOS 前应改用官方 `tfm_ns_interface_rtos.c`，并实现 4 个 `os_wrapper_mutex_*` / `os_wrapper_is_kernel_started`。不要给 bare-metal 接口打补丁互斥锁。FreeRTOS 请设 `configENABLE_TRUSTZONE = 0`；每个任务独立 `mbedtls_ssl_context`；ISR 里不要调 PSA / Mbed TLS。
+
+
+文件					下载地址												执行地址（向量表 / VTOR）	谁跳进去
+bl2.bin				0x0C00E000											0x0C010000				复位。Option Bytes SECBOOTADD = 0xC0100（即 0x0C010000 >> 8）
+tfm_s_signed.bin	0x0C038000											0x0C038400				BL2 验签通过后跳 SPE
+tfm_ns_signed.bin	0x0C088000（安全别名，和 0x08088000 同一块 Flash）	0x08088400				SPE 切到 NS 后跳 NS 应用
