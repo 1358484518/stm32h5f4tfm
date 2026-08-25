@@ -28,6 +28,8 @@
 
 - 增加 tfmcubeideproject.7z 非安全侧工程可以使用stm32cubeide开发，包含.o链接，因为git会忽略链接文件，所以压缩上传。
 
+- 增加 windows-tfm-tools 该工具是windows系统的使用的回归脚本和烧录工具。
+
 ## 文件统计
 
 3956 directories, 12622 files
