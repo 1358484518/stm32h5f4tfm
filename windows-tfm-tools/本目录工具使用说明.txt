@@ -5,3 +5,4 @@
 
 	2.tfm_update.bat 该工具是一键回归烧录工具，它会自动调用 regression.bat 烧写选项字节，然后烧录 bl2.hex tfm_s_ns_signed.hex tfm_ns_signed.bin 程序文件到相应位置。
 
+注意：jlink开头的脚本文件的使用方法跟不带jlink的脚本使用方法一致，只是硬件需要换为jlink。
