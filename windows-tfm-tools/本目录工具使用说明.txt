@@ -1,0 +1,7 @@
+一.使用说明
+	双击 tfm_update.bat 即可。
+二.工具说明
+	1.regression.bat 是windows使用的回归脚本，用来配置TF-M的寄存器，对应linux下的 /trusted-firmware-m/trusted-firmware-m/build_s/api_ns/regression.sh ,regression.bat可以放在任意目录双击执行即可，注意需要插stlink和安装stm32cubeprogrammer。
+
+	2.tfm_update.bat 该工具是一键回归烧录工具，它会自动调用 regression.bat 烧写选项字节，然后烧录 bl2.hex tfm_s_ns_signed.hex tfm_ns_signed.bin 程序文件到相应位置。
+
