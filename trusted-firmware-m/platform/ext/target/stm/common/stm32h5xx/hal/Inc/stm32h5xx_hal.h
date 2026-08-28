@@ -161,6 +161,7 @@ extern HAL_TickFreqTypeDef      uwTickFreq;
   */
 #endif /* SBS_PMCR_ETH_SEL_PHY */
 
+#if defined(SBS_PMCR_BOOSTVDDSEL)
 /** @defgroup SBS_Boostvddsel_Selection  Boost VDD Selection
   * @{
   */
@@ -175,6 +176,7 @@ extern HAL_TickFreqTypeDef      uwTickFreq;
 /**
   * @}
   */
+#endif /* SBS_PMCR_BOOSTVDDSEL */
 
 
 /** @defgroup SBS_Memories_Erase_Flag_Status  Memory Erase Flags Status
