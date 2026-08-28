@@ -466,7 +466,13 @@ typedef struct
   __IO uint32_t SR;              /*!< RNG status register,  Address offset: 0x04 */
   __IO uint32_t DR;              /*!< RNG data register,    Address offset: 0x08 */
   __IO uint32_t NSCR;            /*!< RNG noise source control register ,     Address offset: 0x0C */
-  __IO uint32_t HTCR[4];         /*!< RNG health test configuration register,    Address offset: 0x10-0x1C */
+  union {
+    __IO uint32_t HTCR;          /*!< Alias for current STM32H5 HAL (HTCR0)      Address offset: 0x10 */
+    __IO uint32_t HTCR0;
+  };
+  __IO uint32_t HTCR1;           /*!< RNG health test configuration register 1,  Address offset: 0x14 */
+  __IO uint32_t HTCR2;           /*!< RNG health test configuration register 2,  Address offset: 0x18 */
+  __IO uint32_t HTCR3;           /*!< RNG health test configuration register 3,  Address offset: 0x1C */
   __IO uint32_t HTSR[2];         /*!< RNG health test status register,           Address offset: 0x20-0x24 */
        uint32_t RESERVED1[2];    /*!< Reserved,                                  Address offset: 0x28-0x2C */
   __IO uint32_t NSMR;            /*!< RNG health test status register,           Address offset: 0x30      */
@@ -20321,6 +20327,10 @@ typedef struct
 #define PWR_IORETR_IORETEN_Pos           (0U)
 #define PWR_IORETR_IORETEN_Msk           (0x1UL << PWR_IORETR_IORETEN_Pos)
 #define PWR_IORETR_IORETEN               PWR_IORETR_IORETEN_Msk
+/* Compatibility with current STM32H5 HAL (H573 name) */
+#define PWR_IORETR_IORETREN_Pos          PWR_IORETR_IORETEN_Pos
+#define PWR_IORETR_IORETREN_Msk          PWR_IORETR_IORETEN_Msk
+#define PWR_IORETR_IORETREN              PWR_IORETR_IORETEN
 #define PWR_IORETR_JTAGIORETEN_Pos       (16U)
 #define PWR_IORETR_JTAGIORETEN_Msk       (0x1UL << PWR_IORETR_JTAGIORETEN_Pos)
 #define PWR_IORETR_JTAGIORETEN           PWR_IORETR_JTAGIORETEN_Msk
@@ -31884,6 +31894,58 @@ typedef struct
                                        ((INSTANCE) == MDF1_Filter5_S) || ((INSTANCE) == MDF1_Filter5_NS) || \
                                        ((INSTANCE) == ADF1_Filter0_S) || ((INSTANCE) == ADF1_Filter0_NS))
 
+
+
+/* Compatibility aliases for the existing STM32H5 HAL (originally written for STM32H573). */
+#ifndef FLASH_OPTSR2_SRAM1_3_RST
+#define FLASH_OPTSR2_SRAM1_3_RST            FLASH_OPTSR2_SRAM1_3_4_5_RST
+#endif
+#ifndef PWR_PMCR_SRAM2_16SO
+#define PWR_PMCR_SRAM2_16SO                 (PWR_PMCR_SRAM2_16LSO | PWR_PMCR_SRAM2_16HSO)
+#define PWR_PMCR_SRAM2_48SO                 (PWR_PMCR_SRAM2_48LSO | PWR_PMCR_SRAM2_48HSO)
+#endif
+#ifndef RCC_AHB2ENR_ADC12EN
+#define RCC_AHB2ENR_ADC12EN                 RCC_AHB2ENR_ADCEN
+#define RCC_AHB2RSTR_ADC12RST               RCC_AHB2RSTR_ADCRST
+#define RCC_AHB2LPENR_ADC12LPEN             RCC_AHB2LPENR_ADCLPEN
+#endif
+#ifndef RCC_AHB2ENR_DAC12EN
+#define RCC_AHB2ENR_DAC12EN                 RCC_AHB2ENR_DAC1EN
+#define RCC_AHB2RSTR_DAC12RST               RCC_AHB2RSTR_DAC1RST
+#define RCC_AHB2LPENR_DAC12LPEN             RCC_AHB2LPENR_DAC1LPEN
+#endif
+#ifndef RCC_APB1HENR_FDCAN12EN
+#define RCC_APB1HENR_FDCAN12EN              RCC_APB1HENR_FDCANEN
+#define RCC_APB1HRSTR_FDCAN12RST            RCC_APB1HRSTR_FDCANRST
+#define RCC_APB1HLPENR_FDCAN12LPEN          RCC_APB1HLPENR_FDCANLPEN
+#endif
+#ifndef RCC_CCIPR5_FDCAN12SEL
+#define RCC_CCIPR5_FDCAN12SEL               RCC_CCIPR5_FDCANSEL
+#define RCC_CCIPR5_FDCAN12SEL_0             RCC_CCIPR5_FDCANSEL_0
+#define RCC_CCIPR5_FDCAN12SEL_1             RCC_CCIPR5_FDCANSEL_1
+#define RCC_CCIPR5_FDCAN1SEL                RCC_CCIPR5_FDCANSEL
+#define RCC_CCIPR5_FDCAN1SEL_0              RCC_CCIPR5_FDCANSEL_0
+#define RCC_CCIPR5_FDCAN1SEL_1              RCC_CCIPR5_FDCANSEL_1
+#endif
+#ifndef RCC_CCIPR4_USBSEL
+#define RCC_CCIPR4_USBSEL                   RCC_CCIPR4_OTGFSSEL
+#define RCC_CCIPR4_USBSEL_0                 RCC_CCIPR4_OTGFSSEL_0
+#define RCC_CCIPR4_USBSEL_1                 RCC_CCIPR4_OTGFSSEL_1
+#endif
+/* USB clock/reset bits moved from APB2 USB to AHB2 OTG_FS; HAL still names APB2 USB*.
+   Provide no-op masks so unused USB HAL macros compile without touching other APB2 bits. */
+#ifndef RCC_APB2ENR_USBEN
+#define RCC_APB2ENR_USBEN                   (0U)
+#define RCC_APB2RSTR_USBRST                 (0U)
+#define RCC_APB2LPENR_USBLPEN               (0U)
+#endif
+/* GTZC/SBS reset bits are not present on H5F4 AHB1RSTR/APB3RSTR. */
+#ifndef RCC_AHB1RSTR_TZSC1RST
+#define RCC_AHB1RSTR_TZSC1RST               (0U)
+#endif
+#ifndef RCC_APB3RSTR_SBSRST
+#define RCC_APB3RSTR_SBSRST                 (0U)
+#endif
 
 /** @} */ /* End of group STM32H5xx_Peripheral_Exported_macros */
 
