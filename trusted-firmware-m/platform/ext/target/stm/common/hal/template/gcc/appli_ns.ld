@@ -25,6 +25,9 @@
 MEMORY
 {
   FLASH (rx)  : ORIGIN = NS_CODE_START, LENGTH = NS_CODE_SIZE
+#if defined(NS_FLASH_DATA_SIZE) && (NS_FLASH_DATA_SIZE > 0)
+  FLASH_DATA (r) : ORIGIN = NS_FLASH_DATA_START, LENGTH = NS_FLASH_DATA_SIZE
+#endif
   RAM   (rwx) : ORIGIN = NS_DATA_START, LENGTH = NS_DATA_SIZE
 }
 
@@ -176,4 +179,16 @@ SECTIONS
     } > RAM
 
     PROVIDE(__stack = __StackTop);
+
+#if defined(NS_FLASH_DATA_SIZE) && (NS_FLASH_DATA_SIZE > 0)
+    /* NS user flash (not part of the signed image). Place with .ns_flash_data. */
+    .ns_flash_data (NOLOAD) :
+    {
+        __ns_flash_data_start__ = .;
+        KEEP(*(.ns_flash_data*))
+        . = NS_FLASH_DATA_SIZE;
+        __ns_flash_data_end__ = .;
+        __ns_flash_data_size__ = SIZEOF(.ns_flash_data);
+    } > FLASH_DATA
+#endif
 }

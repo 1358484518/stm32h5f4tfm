@@ -24,8 +24,8 @@
  * with comment.
  */
  /* Flash layout for stm32h5f4 with BL2 (multiple image boot).
-  * Partition sizes match stm32h573i_dk (images stay in the first 2 MB).
-  * Hardware flash is 4 MB dual-bank (2 MB per bank).
+  * Hardware flash is 4 MB dual-bank (2 MB per bank, 8 KB sectors).
+  * NS application slot is 1200 KB; leftover flash is NS user data.
  *
  * 0x0000_0000 SCRATCH (48 KB)
  * 0x0000_C000 BL2 - counters(16 KB)
@@ -35,10 +35,10 @@
  * 0x0003_0000 Secure Storage Area (16 KB)
  * 0x0003_4000 Internal Trusted Storage Area (16 KB)
  * 0x0003_8000 Secure image     primary slot (320 KB)
- * 0x0008_8000 Non-secure image primary slot (576 KB)
- * 0x0011_8000 Secure image     secondary slot (320 KB)
- * 0x0016_8000 Non-secure image secondary slot (576 KB)
- * 0x001f_8000 Non-secure free data (32 KB)
+ * 0x0008_8000 Non-secure image primary slot (1200 KB)
+ * 0x001B_4000 Secure image     secondary slot (320 KB)
+ * 0x0020_4000 Non-secure image secondary slot (1200 KB)
+ * 0x0033_0000 Non-secure user flash data (832 KB, to end of 4 MB)
  *
  * Bl2 binary is written at 0x1_0000:
  * it contains bl2_counter init value, OTP write protect, NV counters area init.
@@ -141,8 +141,8 @@
 #error "FLASH_ITS_AREA_OFFSET not aligned on FLASH_AREA_IMAGE_SECTOR_SIZE"
 #endif /*  (FLASH_ITS_AREA_OFFSET % FLASH_AREA_IMAGE_SECTOR_SIZE) != 0 */
 
-#define FLASH_S_PARTITION_SIZE          (0x50000) /* 320 KB for S partition */
-#define FLASH_NS_PARTITION_SIZE         (0x90000) /* 576 KB for NS partition */
+#define FLASH_S_PARTITION_SIZE          (0x50000)   /* 320 KB for S partition */
+#define FLASH_NS_PARTITION_SIZE         (0x12C000)  /* 1200 KB (1.2 MB) for NS partition */
 
 #define FLASH_PARTITION_SIZE            (FLASH_S_PARTITION_SIZE+FLASH_NS_PARTITION_SIZE)
 
@@ -196,6 +196,19 @@
 #define FLASH_AREA_END_OFFSET           (FLASH_AREA_3_OFFSET + FLASH_AREA_3_SIZE)
 #define FLASH_AREA_SCRATCH_ID           (FLASH_AREA_3_ID + 1)
 #define FLASH_AREA_SCRATCH_DEVICE_ID    (FLASH_AREA_3_DEVICE_ID)
+
+/* Remaining flash after MCUBoot slots: NS-side user data (not an image slot). */
+#define FLASH_NS_USER_DATA_OFFSET       (FLASH_AREA_END_OFFSET)
+#define FLASH_NS_USER_DATA_SIZE         (FLASH_TOTAL_SIZE - FLASH_NS_USER_DATA_OFFSET)
+#if (FLASH_NS_USER_DATA_OFFSET % FLASH_AREA_IMAGE_SECTOR_SIZE) != 0
+#error "FLASH_NS_USER_DATA_OFFSET not aligned on FLASH_AREA_IMAGE_SECTOR_SIZE"
+#endif
+#if (FLASH_NS_USER_DATA_SIZE % FLASH_AREA_IMAGE_SECTOR_SIZE) != 0
+#error "FLASH_NS_USER_DATA_SIZE not aligned on FLASH_AREA_IMAGE_SECTOR_SIZE"
+#endif
+#if (FLASH_NS_USER_DATA_SIZE == 0)
+#error "No flash left for NS user data"
+#endif
 
 
 /*
