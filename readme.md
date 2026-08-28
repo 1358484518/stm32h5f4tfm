@@ -1,6 +1,6 @@
 # Trusted Firmware-M 项目
 
-基于 STM32H573 的 TF-M（Trusted Firmware-M）移植与开发项目。
+基于 STM32H5F4 的 TF-M（Trusted Firmware-M）移植与开发项目（由 STM32H573 平台最小改动移植）。
 
 ## 文档
 
@@ -9,8 +9,10 @@
 
 ## 硬件平台
 
-- 主控：STM32H573（Cortex-M33 + TrustZone）
+- 主控：STM32H5F4（Cortex-M33 + TrustZone，4 MB Flash / 1536 KB SRAM）
 - 调试器：ST-Link
+- 平台名：`stm/stm32h5f4`（`./buildtfm.sh` 已指向该平台）
+- 控制台：USART1 PA9/PA10，115200
 
 ## 代码提交 
 

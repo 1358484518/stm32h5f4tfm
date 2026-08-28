@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# STM32H573I-DK  TF-M 一键编译（硬件浮点）
+# STM32H5F4  TF-M 一键编译（硬件浮点）
 #
 # 用法:
 #   ./buildtfm.sh              # 交互选择 测试版 / 正式版
@@ -13,7 +13,7 @@ set -euo pipefail
 
 usage() {
     cat <<'EOF'
-STM32H573I-DK TF-M 编译脚本（已启用硬件浮点 FPv5-SP-D16）
+STM32H5F4 TF-M 编译脚本（已启用硬件浮点 FPv5-SP-D16）
 
 用法:
   ./buildtfm.sh              交互选择构建类型
@@ -168,7 +168,7 @@ fi
 echo ">>> build_s (${BUILD_LABEL})"
 cmake -S "${TFM_TESTS}/tests_reg/spe" -B build_s -GNinja \
     -DCONFIG_TFM_SOURCE_PATH="${TFM_ROOT}" \
-    -DTFM_PLATFORM=stm/stm32h573i_dk \
+    -DTFM_PLATFORM=stm/stm32h5f4 \
     -DTFM_TOOLCHAIN_FILE="${TFM_ROOT}/toolchain_GNUARM.cmake" \
     -DTFM_PSA_API=ON \
     -DTFM_ISOLATION_LEVEL=1 \

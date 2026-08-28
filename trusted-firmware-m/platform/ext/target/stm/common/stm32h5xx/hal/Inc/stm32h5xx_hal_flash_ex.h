@@ -540,7 +540,7 @@ byte configuration */
 /** @defgroup FLASH_OB_Write_Protection_Sectors FLASH Option Bytes Write Protection Sectors
   * @{
   */
-#if (FLASH_SECTOR_NB == 128)
+#if (FLASH_SECTOR_NB == 128) || (FLASH_SECTOR_NB == 256)
 #define OB_WRP_SECTOR_0TO3       0x00000001U /*!< Write protection of Sector0  to Sector3    */
 #define OB_WRP_SECTOR_4TO7       0x00000002U /*!< Write protection of Sector4  to Sector7    */
 #define OB_WRP_SECTOR_8TO11      0x00000004U /*!< Write protection of Sector8  to Sector11   */
@@ -584,7 +584,7 @@ byte configuration */
 #define OB_WRP_SECTOR_6          0x00000040U /*!< Write protection of Sector6                */
 #define OB_WRP_SECTOR_7          0x00000080U /*!< Write protection of Sector7                */
 #define OB_WRP_SECTOR_ALL        0x000000FFU /*!< Write protection of all Sectors            */
-#endif /* (FLASH_SECTOR_NB == 128) */
+#endif /* (FLASH_SECTOR_NB == 128) || (FLASH_SECTOR_NB == 256) */
 /**
   * @}
   */

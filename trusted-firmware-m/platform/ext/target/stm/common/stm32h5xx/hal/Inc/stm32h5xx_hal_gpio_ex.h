@@ -69,9 +69,9 @@ extern "C" {
 #if defined(TIM17)
 #define GPIO_AF1_TIM17         ((uint8_t)0x01)  /* TIM17 Alternate Function mapping                          */
 #endif /* TIM17 */
-#if (defined(STM32H573xx) || defined(STM32H563xx) || defined(STM32H562xx))
+#if (defined(STM32H573xx) || defined(STM32H563xx) || defined(STM32H562xx) || defined(STM32H5F4xx))
 #define GPIO_AF1_LPTIM1        ((uint8_t)0x01)  /* LPTIM1 Alternate Function mapping                         */
-#endif /* defined(STM32H573xx) || defined(STM32H563xx) || defined(STM32H562xx) */
+#endif /* defined(STM32H573xx) || defined(STM32H563xx) || defined(STM32H562xx) || defined(STM32H5F4xx) */
 
 /**
   * @brief   AF 2 selection
@@ -113,9 +113,9 @@ extern "C" {
 #if defined(OCTOSPI1)
 #define GPIO_AF3_OCTOSPI1      ((uint8_t)0x03)  /* OCTOSPI1 Alternate Function mapping                       */
 #endif /* OCTOSPI1 */
-#if (defined(STM32H573xx) || defined(STM32H563xx) || defined(STM32H562xx))
+#if (defined(STM32H573xx) || defined(STM32H563xx) || defined(STM32H562xx) || defined(STM32H5F4xx))
 #define GPIO_AF3_TIM1          ((uint8_t)0x03)  /* TIM1 Alternate Function mapping                           */
-#endif /* defined(STM32H573xx) || defined(STM32H563xx) || defined(STM32H562xx) */
+#endif /* defined(STM32H573xx) || defined(STM32H563xx) || defined(STM32H562xx) || defined(STM32H5F4xx) */
 #if defined(TIM8)
 #define GPIO_AF3_TIM8          ((uint8_t)0x03)  /* TIM8 Alternate Function mapping                           */
 #endif /* TIM8 */
@@ -155,10 +155,10 @@ extern "C" {
 #if defined(CEC)
 #define GPIO_AF5_CEC           ((uint8_t)0x05)  /* CEC Alternate Function mapping                            */
 #endif /* CEC */
-#if (defined(STM32H573xx) || defined(STM32H563xx) || defined(STM32H562xx))
+#if (defined(STM32H573xx) || defined(STM32H563xx) || defined(STM32H562xx) || defined(STM32H5F4xx))
 #define GPIO_AF5_I3C1          ((uint8_t)0x05)  /* I3C1 Alternate Function mapping                           */
 #define GPIO_AF5_SPI3          ((uint8_t)0x05)  /* SPI3 Alternate Function mapping                           */
-#endif /* defined(STM32H573xx) || defined(STM32H563xx) || defined(STM32H562xx) */
+#endif /* defined(STM32H573xx) || defined(STM32H563xx) || defined(STM32H562xx) || defined(STM32H5F4xx) */
 #define GPIO_AF5_LPTIM1        ((uint8_t)0x05)  /* LPTIM1 Alternate Function mapping                         */
 #define GPIO_AF5_SPI1          ((uint8_t)0x05)  /* SPI1 Alternate Function mapping                           */
 #define GPIO_AF5_SPI2          ((uint8_t)0x05)  /* SPI2 Alternate Function mapping                           */
@@ -404,9 +404,9 @@ extern "C" {
 #if defined(LPTIM6)
 #define GPIO_AF14_LPTIM6       ((uint8_t)0x0E)  /* LPTIM6 Alternate Function mapping                         */
 #endif /* LPTIM6 */
-#if (defined(STM32H573xx) || defined(STM32H563xx) || defined(STM32H562xx))
+#if (defined(STM32H573xx) || defined(STM32H563xx) || defined(STM32H562xx) || defined(STM32H5F4xx))
 #define GPIO_AF14_TIM2         ((uint8_t)0x0E)  /* TIM2 Alternate Function mapping                           */
-#endif /* defined(STM32H573xx) || defined(STM32H563xx) || defined(STM32H562xx) */
+#endif /* defined(STM32H573xx) || defined(STM32H563xx) || defined(STM32H562xx) || defined(STM32H5F4xx) */
 #if defined(UART5)
 #define GPIO_AF14_UART5        ((uint8_t)0x0E)  /* UART5 Alternate Function mapping                          */
 #endif /* UART5 */
@@ -439,9 +439,9 @@ extern "C" {
 
 /* GPIO_Peripheral_Memory_Mapping Peripheral Memory Mapping */
 
-#if (defined(STM32H573xx) || defined(STM32H563xx) || defined(STM32H562xx) || defined(STM32H503xx))
+#if (defined(STM32H573xx) || defined(STM32H563xx) || defined(STM32H562xx) || defined(STM32H503xx) || defined(STM32H5F4xx))
 #define GPIO_GET_INDEX(__GPIOx__)           (((uint32_t )(__GPIOx__) & (~GPIOA_BASE)) >> 10)
-#endif /* (defined(STM32H573xx) || defined(STM32H563xx) || defined(STM32H562xx) || defined(STM32H503xx)) */
+#endif /* (defined(STM32H573xx) || defined(STM32H563xx) || defined(STM32H562xx) || defined(STM32H503xx) || defined(STM32H5F4xx)) */
 
 
 

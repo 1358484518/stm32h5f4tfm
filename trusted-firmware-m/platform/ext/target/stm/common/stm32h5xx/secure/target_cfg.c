@@ -358,9 +358,15 @@ void sau_and_idau_cfg(void)
 #define FLAG_NSEC (1<<1)
 #define PAGE_SIZE FLASH_AREA_IMAGE_SECTOR_SIZE
 
+#if defined(STM32H5F4xx)
+#define MPCBB_LOCK_SRAM2_SIZE 0xff
+#define MPCBB_LOCK_SRAM1_SIZE 0xfff
+#define MPCBB_LOCK_SRAM3_SIZE 0x00ffffff
+#else
 #define MPCBB_LOCK_SRAM2_SIZE 0xf
 #define MPCBB_LOCK_SRAM1_SIZE 0xfff
 #define MPCBB_LOCK_SRAM3_SIZE 0x000fffff
+#endif
 #define MPCBB_LOCK(A) MPCBB_LOCK_##A
 
 static void gtzc_config_sram(uint32_t base, uint32_t max_size, uint32_t off_start, uint32_t off_end, uint32_t flag);
