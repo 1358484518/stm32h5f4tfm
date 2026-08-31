@@ -339,12 +339,18 @@ def cmd_self_test():
         "tfm_update.bat",
         "jlink_regression.bat",
         "jlink_tfm_update.bat",
+        "erase_flash.bat",
+        "jlink_erase_flash.bat",
     ):
         text = open(os.path.join(script_dir, name), encoding="utf-8", errors="ignore").read()
         assert "WRPSG11" in text, name
         assert "WRPSGn1=" not in text, name
         assert "0x08088000" not in text, name
         assert "STM32H573I-DK" not in text, name
+    erase = open(os.path.join(script_dir, "erase_flash.bat"), encoding="utf-8").read()
+    assert " -e all" in erase
+    assert "SECWM1_STRT=255" in erase
+    assert "H5F4_SECWM_FULL" not in erase
     print("h5f4_win_images.py self-test OK")
 
 

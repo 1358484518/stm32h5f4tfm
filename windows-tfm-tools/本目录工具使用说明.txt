@@ -10,6 +10,12 @@ STM32H5F4 Windows 烧录（ST-Link / J-Link）
   3. 安装 Python 3（用来校验 BL2 标记；J-Link 烧 hex 时还要做 0x0C→0x08 映射）
   4. 用同一份仓库（或把 build_s\api_ns\bin 和 build_ns\bin 拷到这台 Windows）
 
+一键擦除 Flash（只擦，不烧 TF-M）
+  双击  erase_flash.bat            ST-Link
+  双击  jlink_erase_flash.bat      J-Link
+  会先解开 WRPSG11/12/21/22 和 SECWM，再整片 -e all。
+  擦完芯片是空的；要下程序再跑 tfm_update.bat / jlink_tfm_update.bat。
+
 ST-Link（板载调试器，推荐）
   双击  tfm_update.bat
   或     flash_h5f4.bat

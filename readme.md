@@ -69,6 +69,7 @@ git pull origin stm32h5f4
 2. 安装 STM32CubeProgrammer 和 Python 3。
 3. ST-Link：双击 `windows-tfm-tools\tfm_update.bat`（或 `flash_h5f4.bat`）。第一次会整片擦除。只重烧镜像：`tfm_update.bat images-only`。
 4. J-Link：双击 `jlink_tfm_update.bat`（走 `0x08` 窗口，烧完恢复 SECWM）。
+5. 只擦 Flash、不烧程序：双击 `erase_flash.bat`（ST-Link）或 `jlink_erase_flash.bat`（J-Link）。
 
 说明见 `windows-tfm-tools/本目录工具使用说明.txt`。
 
