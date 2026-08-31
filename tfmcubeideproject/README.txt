@@ -16,5 +16,11 @@ NS 槽 1200 KB @ 0x0C090000；S 槽 352 KB @ 0x0C038000。USART1 PA9/PA10，1152
 工程已带 mbedtls 4.1.1（ns_app/mbedtls-4.1.1）：编 TLS/X.509 辅助模块，不编第二套 PSA crypto core。
 密码仍走 SPE 的 PSA（s_veneers.o）。配置见 ns_app/ns_crypto_user.h、ns_mbedtls_user.h。
 不要把 net_sockets.c、ssl_*_server.c、builtin aes/ecp 等排除文件加回源文件列表，除非同步改配置。
+core/ 只编 psa_util.c（ECDSA raw/DER），不要把 PSA crypto core 的其它 .c 加进来。
 
-NS smoke（main.c）会跑 mbedtls_md SHA-256，以及 AES-128-CBC / AES-128-GCM 加解密（NIST 向量，经 PSA 进 SPE）。串口日志里搜 `mbedtls AES`。
+NS 侧是 TLS 1.3 客户端：mbedtls_ssl_set_bio() 接到 ns_mbedtls_bio.c（send/recv）。
+没有 POSIX mbedtls_net_*；有真实 TCP 时替换这两个回调即可。
+动态内存走 mbedtls 自带的 memory_buffer_alloc（MBEDTLS_MEMORY_BUFFER_ALLOC_C），
+不经过 newlib malloc/_sbrk。ssl_setup 前调用 mbedtls_memory_buffer_alloc_init()。
+
+串口日志里搜 `TLS 1.3 + bio`。无对端时握手应停在 WANT_READ（ClientHello 已从 bio send 打出）。
