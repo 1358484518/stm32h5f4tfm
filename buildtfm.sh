@@ -144,63 +144,24 @@ if ! command -v hex_generation >/dev/null 2>&1; then
 fi
 command -v hex_generation >/dev/null || { echo "错误: hex_generation 未安装"; exit 1; }
 
-# cmake FetchContent 增量配置可能把已拉取的 MCUBoot 重置回 tag，冲掉 0002。
-# 必须在 cmake 之后、ninja 之前打补丁，并 touch 源文件逼 ninja 重编 bootutil。
+# cmake FetchContent 增量配置可能把已拉取的 MCUBoot 重置回 tag。
+# 不要用 git apply 打 format-patch：可能返回 0 却不改文件。
 apply_mcuboot_0002() {
-    local patch="${TFM_ROOT}/lib/ext/mcuboot/0002-bootutil-Bound-scratch-swap-sector-walk.patch"
+    local helper="${TFM_ROOT}/lib/ext/mcuboot/apply_h5f4_swap_guard.py"
     local src misc
     local found=0
-    [[ -f "${patch}" ]] || { echo "错误: 缺少 ${patch}"; exit 1; }
+    [[ -f "${helper}" ]] || { echo "错误: 缺少 ${helper}"; exit 1; }
     while IFS= read -r src; do
         misc="${src}/boot/bootutil/src/swap_misc.c"
         [[ -f "${misc}" ]] || continue
         found=1
-        if grep -q 'H5F4SWP2' "${misc}"; then
-            echo ">>> MCUBoot 0002 已在 ${src}"
-            continue
-        fi
-        echo ">>> 给 ${src} 打 MCUBoot 0002"
-        if grep -q "Dropping invalid swap status" "${misc}"; then
-            # 旧 0002 已打上，只补不依赖日志、且能抗 --gc-sections 的标记
-            python3 - "${misc}" <<'PY'
-from pathlib import Path
-import sys
-p = Path(sys.argv[1])
-t = p.read_text()
-if "H5F4SWP2" in t:
-    raise SystemExit(0)
-needle = "BOOT_LOG_MODULE_DECLARE(mcuboot);"
-insert = needle + """
-#if defined(MCUBOOT_SWAP_USING_SCRATCH)
-__attribute__((used)) static const char mcuboot_h5f4_swap_guard[] = "H5F4SWP2";
-#endif
-"""
-if needle not in t:
-    raise SystemExit("insert point missing")
-t = t.replace(needle, insert, 1)
-use = "    bs->source = swap_status_source(state);"
-use_ins = """#if defined(MCUBOOT_SWAP_USING_SCRATCH)
-    (void)mcuboot_h5f4_swap_guard[0];
-#endif
-""" + use
-if use in t:
-    t = t.replace(use, use_ins, 1)
-p.write_text(t)
-PY
-        elif git -C "${src}" apply "${patch}"; then
-            :
-        elif (cd "${src}" && patch -p1 < "${patch}"); then
-            :
-        else
-            echo "错误: MCUBoot 0002 补丁失败。请: rm -rf ${TFM_ROOT}/build_s && $0 ${BUILD_TYPE}"
-            exit 1
-        fi
-        grep -q 'H5F4SWP2' "${misc}" || { echo "错误: 打补丁后仍没有 H5F4SWP2"; exit 1; }
+        python3 "${helper}" "${src}"
+        grep -q 'H5F4SWP2' "${misc}" || { echo "错误: ${misc} 仍没有 H5F4SWP2"; exit 1; }
         touch "${misc}" "${src}/boot/bootutil/src/swap_scratch.c"
         find "${TFM_ROOT}/build_s" \( -name 'swap_misc.c.o' -o -name 'swap_scratch.c.o' \) -delete 2>/dev/null || true
     done < <(find "${TFM_ROOT}/build_s" -type d -name 'mcuboot-src' 2>/dev/null)
     if [[ "${found}" -eq 0 ]]; then
-        echo "错误: 找不到 mcuboot-src，无法打 0002"
+        echo "错误: 找不到 mcuboot-src，无法打 MCUBoot swap 防护"
         exit 1
     fi
 }
