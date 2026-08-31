@@ -78,8 +78,8 @@ grep -a -F -q "Starting bootloader S-sec=" "${BL2_BIN}" \
     || die "${BL2_BIN} 没有 S-sec 标记。这是旧产物，请先在仓库根目录执行: ./buildtfm.sh test"
 grep -a -F -q "H5F4BL2" "${BL2_BIN}" \
     || die "${BL2_BIN} 没有 H5F4BL2 标记。这是旧产物，请先: git pull && ./buildtfm.sh test"
-grep -a -F -q "Dropping invalid swap status" "${BL2_BIN}" \
-    || die "${BL2_BIN} 没有 MCUBoot 0002 补丁（image 0 会在 0x30180000 BusFault）。请: git pull && ./buildtfm.sh test"
+grep -a -F -q "H5F4SWP2" "${BL2_BIN}" \
+    || die "${BL2_BIN} 没有 MCUBoot 0002 标记 H5F4SWP2（image 0 会 BusFault）。请: git pull && ./buildtfm.sh test"
 grep -q '^slot2=0xc200000$' "${API_NS}/TFM_UPDATE.sh" \
     || die "${API_NS}/TFM_UPDATE.sh 的 slot2 不是 0xc200000"
 

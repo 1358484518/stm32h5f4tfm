@@ -144,19 +144,66 @@ if ! command -v hex_generation >/dev/null 2>&1; then
 fi
 command -v hex_generation >/dev/null || { echo "错误: hex_generation 未安装"; exit 1; }
 
-# 已下载的 MCUBoot 不会自动再打新补丁。缺 0002 时当场补上，避免整目录重拉。
-MCUBOOT_SRC="${LIB_EXT_S}/mcuboot-src"
-MCUBOOT_PATCH2="${TFM_ROOT}/lib/ext/mcuboot/0002-bootutil-Bound-scratch-swap-sector-walk.patch"
-if [[ -d "${MCUBOOT_SRC}" && -f "${MCUBOOT_PATCH2}" ]]; then
-    if ! grep -q "Dropping invalid swap status" \
-            "${MCUBOOT_SRC}/boot/bootutil/src/swap_misc.c" 2>/dev/null; then
-        echo ">>> 给已有 MCUBoot 打 0002（限制 find_last_sector_idx）"
-        if ! git -C "${MCUBOOT_SRC}" apply "${MCUBOOT_PATCH2}"; then
-            echo "错误: MCUBoot 补丁失败。请: rm -rf ${TFM_ROOT}/build_s && $0 ${BUILD_TYPE}"
+# cmake FetchContent 增量配置可能把已拉取的 MCUBoot 重置回 tag，冲掉 0002。
+# 必须在 cmake 之后、ninja 之前打补丁，并 touch 源文件逼 ninja 重编 bootutil。
+apply_mcuboot_0002() {
+    local patch="${TFM_ROOT}/lib/ext/mcuboot/0002-bootutil-Bound-scratch-swap-sector-walk.patch"
+    local src misc
+    local found=0
+    [[ -f "${patch}" ]] || { echo "错误: 缺少 ${patch}"; exit 1; }
+    while IFS= read -r src; do
+        misc="${src}/boot/bootutil/src/swap_misc.c"
+        [[ -f "${misc}" ]] || continue
+        found=1
+        if grep -q 'H5F4SWP2' "${misc}"; then
+            echo ">>> MCUBoot 0002 已在 ${src}"
+            continue
+        fi
+        echo ">>> 给 ${src} 打 MCUBoot 0002"
+        if grep -q "Dropping invalid swap status" "${misc}"; then
+            # 旧 0002 已打上，只补不依赖日志、且能抗 --gc-sections 的标记
+            python3 - "${misc}" <<'PY'
+from pathlib import Path
+import sys
+p = Path(sys.argv[1])
+t = p.read_text()
+if "H5F4SWP2" in t:
+    raise SystemExit(0)
+needle = "BOOT_LOG_MODULE_DECLARE(mcuboot);"
+insert = needle + """
+#if defined(MCUBOOT_SWAP_USING_SCRATCH)
+__attribute__((used)) static const char mcuboot_h5f4_swap_guard[] = "H5F4SWP2";
+#endif
+"""
+if needle not in t:
+    raise SystemExit("insert point missing")
+t = t.replace(needle, insert, 1)
+use = "    bs->source = swap_status_source(state);"
+use_ins = """#if defined(MCUBOOT_SWAP_USING_SCRATCH)
+    (void)mcuboot_h5f4_swap_guard[0];
+#endif
+""" + use
+if use in t:
+    t = t.replace(use, use_ins, 1)
+p.write_text(t)
+PY
+        elif git -C "${src}" apply "${patch}"; then
+            :
+        elif (cd "${src}" && patch -p1 < "${patch}"); then
+            :
+        else
+            echo "错误: MCUBoot 0002 补丁失败。请: rm -rf ${TFM_ROOT}/build_s && $0 ${BUILD_TYPE}"
             exit 1
         fi
+        grep -q 'H5F4SWP2' "${misc}" || { echo "错误: 打补丁后仍没有 H5F4SWP2"; exit 1; }
+        touch "${misc}" "${src}/boot/bootutil/src/swap_scratch.c"
+        find "${TFM_ROOT}/build_s" \( -name 'swap_misc.c.o' -o -name 'swap_scratch.c.o' \) -delete 2>/dev/null || true
+    done < <(find "${TFM_ROOT}/build_s" -type d -name 'mcuboot-src' 2>/dev/null)
+    if [[ "${found}" -eq 0 ]]; then
+        echo "错误: 找不到 mcuboot-src，无法打 0002"
+        exit 1
     fi
-fi
+}
 
 # 有 lib/ext 就离线，没有就自动在线下载
 OFFLINE=1
@@ -190,6 +237,8 @@ cmake -S "${TFM_TESTS}/tests_reg/spe" -B build_s -GNinja \
     "${FP_FLAGS[@]}" \
     "${LOG_FLAGS[@]}" \
     "${FETCH_OFF[@]}"
+
+apply_mcuboot_0002
 
 ninja -C build_s install -j"$(nproc)"
 mkdir -p "$(dirname "${STAMP}")"
@@ -232,9 +281,9 @@ if ! grep -a -F -q "H5F4BL2" "${BL2_BIN}"; then
     strings "${BL2_BIN}" | grep -E "Starting bootloader|H5F4BL2" || true
     exit 1
 fi
-if ! grep -a -F -q "Dropping invalid swap status" "${BL2_BIN}"; then
-    echo "错误: ${BL2_BIN} 没有 MCUBoot 0002 补丁（会在 image 0 的 find_last_sector_idx 里 BusFault）"
-    echo "请确认 lib/ext/mcuboot/0002-bootutil-Bound-scratch-swap-sector-walk.patch 已打进 mcuboot-src"
+if ! grep -a -F -q "H5F4SWP2" "${BL2_BIN}"; then
+    echo "错误: ${BL2_BIN} 没有 MCUBoot 0002 标记 H5F4SWP2（image 0 会在 0x30180000 BusFault）"
+    echo "cmake 可能冲掉了补丁。请再跑一次 ./buildtfm.sh ${BUILD_TYPE}；仍失败则: rm -rf ${TFM_ROOT}/build_s && ./buildtfm.sh ${BUILD_TYPE}"
     exit 1
 fi
 if ! grep -q '^slot2=0xc200000$' TFM_UPDATE.sh; then

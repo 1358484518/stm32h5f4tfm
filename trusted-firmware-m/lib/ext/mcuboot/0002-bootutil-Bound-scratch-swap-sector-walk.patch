@@ -1,4 +1,4 @@
-From a46ebcaee2b09ff4041cf2dc8fb862d3cd9b89bf Mon Sep 17 00:00:00 2001
+From 69d0be75894191143b62c2a193ba278e5b3fd669 Mon Sep 17 00:00:00 2001
 From: STM32H5F4 port <stm32h5f4@local>
 Date: Mon, 31 Aug 2026 09:22:12 +0000
 Subject: [PATCH] bootutil: Bound scratch swap sector walk on invalid swap_size
@@ -10,15 +10,39 @@ walks past the sector table and BusFaults.
 
 Refuse that status and stop the sector walk at num_sectors.
 ---
- boot/bootutil/src/swap_misc.c    | 34 +++++++++++++++++++++++++
- boot/bootutil/src/swap_scratch.c | 43 ++++++++++++++++++++++++++++++--
- 2 files changed, 75 insertions(+), 2 deletions(-)
+ boot/bootutil/src/swap_misc.c    | 44 ++++++++++++++++++++++++++++++++
+ boot/bootutil/src/swap_scratch.c | 43 +++++++++++++++++++++++++++++--
+ 2 files changed, 85 insertions(+), 2 deletions(-)
 
 diff --git a/boot/bootutil/src/swap_misc.c b/boot/bootutil/src/swap_misc.c
-index c00f281..5217c1d 100644
+index c00f281..b1cada1 100644
 --- a/boot/bootutil/src/swap_misc.c
 +++ b/boot/bootutil/src/swap_misc.c
-@@ -200,6 +200,40 @@ swap_read_status(struct boot_loader_state *state, struct boot_status *bs)
+@@ -31,6 +31,11 @@
+ 
+ BOOT_LOG_MODULE_DECLARE(mcuboot);
+ 
++/* Linked into BL2 so buildtfm.sh can prove this swap-status guard is present. */
++#if defined(MCUBOOT_SWAP_USING_SCRATCH)
++__attribute__((used)) static const char mcuboot_h5f4_swap_guard[] = "H5F4SWP2";
++#endif
++
+ #if defined(MCUBOOT_SWAP_USING_SCRATCH) || defined(MCUBOOT_SWAP_USING_MOVE) || defined(MCUBOOT_SWAP_USING_OFFSET)
+ int
+ swap_erase_trailer_sectors(const struct boot_loader_state *state,
+@@ -162,6 +167,11 @@ swap_read_status(struct boot_loader_state *state, struct boot_status *bs)
+     uint8_t swap_info;
+     int rc;
+ 
++#if defined(MCUBOOT_SWAP_USING_SCRATCH)
++    /* Keep H5F4SWP2 in the BL2 image despite --gc-sections. */
++    (void)mcuboot_h5f4_swap_guard[0];
++#endif
++
+     bs->source = swap_status_source(state);
+     switch (bs->source) {
+     case BOOT_STATUS_SOURCE_NONE:
+@@ -200,6 +210,40 @@ swap_read_status(struct boot_loader_state *state, struct boot_status *bs)
  
          /* Extract the swap type info */
          bs->swap_type = BOOT_GET_SWAP_TYPE(swap_info);
