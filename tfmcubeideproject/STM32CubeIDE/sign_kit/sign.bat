@@ -1,6 +1,6 @@
 echo === Starting signing process ===
 @echo off
-rem Standalone MCUboot signer for TF-M Secure / Non-Secure binaries (STM32H573I-DK).
+rem Standalone MCUboot signer for TF-M Secure / Non-Secure binaries (STM32H5F4).
 rem Drop the unsigned .bin into this folder and run:
 rem   sign.bat tfm_ns.bin
 rem   sign.bat sapp.bin
@@ -80,7 +80,7 @@ if /I "%KIND%"=="ns" (
     set "VERSION=%MCUBOOT_IMAGE_VERSION_NS%"
     set "SEC_CNT=%MCUBOOT_SECURITY_COUNTER_NS%"
     set "DEP=(0, %MCUBOOT_S_IMAGE_MIN_VER%)"
-    set "SLOT_HINT=NS  576KB @ 0x0C088000"
+    set "SLOT_HINT=NS  1200KB @ 0x0C090000"
     set "KIND_UP=NS"
 ) else (
     set "LAYOUT=%KIT%\layout\signing_layout_s.o"
@@ -88,7 +88,7 @@ if /I "%KIND%"=="ns" (
     set "VERSION=%MCUBOOT_IMAGE_VERSION_S%"
     set "SEC_CNT=%MCUBOOT_SECURITY_COUNTER_S%"
     set "DEP=(1, %MCUBOOT_NS_IMAGE_MIN_VER%)"
-    set "SLOT_HINT=S   320KB @ 0x0C038000"
+    set "SLOT_HINT=S   352KB @ 0x0C038000"
     set "KIND_UP=S"
 )
 

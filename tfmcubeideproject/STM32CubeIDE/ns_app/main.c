@@ -1,5 +1,5 @@
 /*
- * Bare-metal NS smoke test for STM32H573I-DK + TF-M SPE.
+ * Bare-metal NS smoke test for STM32H5F4 + TF-M SPE.
  *
  * Bring-up follows tf-m-tests/app_broker/main_ns.c (without RTX):
  *   tfm_ns_platform_init() -> stdio_init()
@@ -12,7 +12,7 @@
  * All other C files come from TF-M or tf-m-tests (or the SPE api_ns export).
  *
  * Requires the matching flashed tfm_s.bin (s_veneers.o addresses must match).
- * USART1 / ST-Link VCP: 115200 8N1, JP1 not fitted.
+ * USART1 PA9/PA10: 115200 8N1.
  *
  * If SPE was built with TEST_S=ON, colored "PASSED" / "*** End of Secure
  * test suites ***" prints first. This app then prints NS-SMOKE.

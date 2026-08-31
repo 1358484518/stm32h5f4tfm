@@ -6,8 +6,8 @@
 
 ## 编译与烧录
 
-只使用仓库根目录的 `./buildtfm.sh` 编译。烧录用 Linux 的 `./flash_stm32h5f4.sh`，或 Windows 的 `windows-tfm-tools\tfm_update.bat`。  
-**不要**用 `tfmcubeideproject/`、`tfmmakeproject/` 里的旧工程 hex 烧这颗 H5F4。
+SPE / BL2 / 官方 NS 测试固件只使用仓库根目录的 `./buildtfm.sh` 编译。烧录用 Linux 的 `./flash_stm32h5f4.sh`，或 Windows 的 `windows-tfm-tools\tfm_update.bat`。  
+`tfmcubeideproject/` 是 STM32H5F4 非安全侧 CubeIDE 工程（签完的 `tfm_ns_signed.bin` 可用上述脚本烧）。**不要**用 `tfmmakeproject/` 里的旧 H573 hex，也不要用 CubeIDE 工程里的 `TFM_UPDATE.sh` / `regression.sh` 烧片。
 
 ### 依赖
 
@@ -108,9 +108,7 @@ NS 大缓冲可放到 `.ram2` / `.bss.ram2`，或使用 `__ns_ram2_start__` / `_
 
 - 增加 makefile 编译的非安全侧工程 tfmmakeproject ，可以使用make编译生成代码，正式版本关闭非安全侧测试，开启硬件浮点，使用内部晶振 PLL 240 MHZ
 
-- 增加 tfmcubeideproject 非安全侧工程可以使用stm32cubeide开发，这是基于make工程 tfmmakeproject 移植而来。
-
-- 增加 tfmcubeideproject.7z 非安全侧工程可以使用stm32cubeide开发，包含.o链接，因为git会忽略链接文件，所以压缩上传。
+- 增加 tfmcubeideproject 非安全侧 CubeIDE 工程（已改为 STM32H5F4）。打开 `tfmcubeideproject/STM32CubeIDE` 下的 `tfmminiproject`。`s_veneers.o` 与 `signing_layout_*.o` 已纳入仓库。签完的 NS 镜像用 `windows-tfm-tools` 或 `./flash_stm32h5f4.sh` 烧，不要跑工程里的 `TFM_UPDATE.sh`。
 
 - 增加 windows-tfm-tools：Windows 上给 STM32H5F4 用的回归/烧录脚本（ST-Link：`tfm_update.bat`；J-Link：`jlink_tfm_update.bat`）。必须先 `./buildtfm.sh test`，不要用旧 H573 hex。
 

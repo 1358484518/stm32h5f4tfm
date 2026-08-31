@@ -1,6 +1,7 @@
-# STM32H573 独立签名工具包
+# STM32H5F4 独立签名工具包
 
 把未签名的 Secure / Non-Secure `.bin` 放进本目录，执行脚本并给出文件名即可。
+必须和当前板上的 H5F4 BL2 / SPE 配套（`H5F4BL2` / `H5F4SWP2`）。
 
 ## 用法
 
@@ -31,30 +32,13 @@ sign.bat sapp.bin
 ./sign.sh s   app.bin
 ```
 
-```bat
-sign.bat ns  app.bin
-sign.bat s   app.bin
-```
-
-## 首次依赖
-
-```bash
-python3 -m pip install -r requirements.txt
-```
-
-Windows：
-
-```bat
-py -3 -m pip install -r requirements.txt
-```
-
-已有 `.venv` 时脚本会自动用它。
-
-## 烧录地址（STM32H573I-DK）
+## 烧录地址（STM32H5F4）
 
 | 镜像 | 地址 | 签完大小 |
 |---|---|---|
-| `*_s_signed.bin` | `0x0C038000` | 320 KB |
-| `*_ns_signed.bin` | `0x0C088000` | 576 KB |
+| `*_s_signed.bin` | `0x0C038000` | 352 KB |
+| `*_ns_signed.bin` | `0x0C090000` | 1200 KB |
+
+签完把 `tfm_ns_signed.bin` 放到 `windows-tfm-tools`，双击 `tfm_update.bat` 下载（会自动烧）。不要用本工程 `spe/api_ns` 里的旧脚本烧片。
 
 本目录的密钥是 TF-M 开发用 dummy RSA-3072，和当前 SPE/BL2 配套。量产请替换 `keys/` 并同步更新板上 ROTPK。

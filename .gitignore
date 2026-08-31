@@ -3,6 +3,16 @@
 
 # Object files
 *.o
+# Re-include SPE veneers + MCUboot layout objects for the CubeIDE NS project.
+# A slash-containing negation does not override *.o; basename globs do.
+!s_veneers.o
+!signing_layout_s.o
+!signing_layout_ns.o
+
+# CubeIDE / make NS build trees (keep SPE veneers + signing layouts above)
+tfmcubeideproject/STM32CubeIDE/build/
+tfmcubeideproject/STM32CubeIDE/Debug/
+tfmcubeideproject/STM32CubeIDE/Release/
 *.ko
 *.obj
 *.elf

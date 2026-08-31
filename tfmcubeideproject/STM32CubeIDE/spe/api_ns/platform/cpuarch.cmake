@@ -16,6 +16,6 @@ set(TFM_SYSTEM_PROCESSOR cortex-m33)
 set(TFM_SYSTEM_ARCHITECTURE armv8-m.main)
 set(CRYPTO_HW_ACCELERATOR_TYPE stm)
 add_compile_definitions(
-    STM32H573xx
+    STM32H5F4xx
     USE_HAL_DRIVER
 )
