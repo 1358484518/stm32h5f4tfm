@@ -2,10 +2,77 @@
 
 基于 STM32H5F4 的 TF-M（Trusted Firmware-M）移植与开发项目（由 STM32H573 平台最小改动移植）。
 
+当前开发分支：`stm32h5f4`。平台名：`stm/stm32h5f4`。
+
+## 编译与烧录
+
+只使用仓库根目录的 `./buildtfm.sh` 和 `./flash_stm32h5f4.sh`。  
+**不要**用 `tfmcubeideproject/`、`tfmmakeproject/`、`windows-tfm-tools/` 里的旧脚本和 hex 烧这颗 H5F4。
+
+### 依赖
+
+- Ubuntu：`cmake`、`ninja-build`、`python3-venv`、`python3-pip`
+- ARM GNU 工具链（`arm-none-eabi-gcc`）在 `PATH` 里
+- 烧录：`STM32_Programmer_CLI`（STM32CubeProgrammer）
+- 串口：USART1 PA9/PA10，**115200**
+
+脚本会在仓库根目录自动创建 `.venv`。如果签名步骤报 `mcuboot_imagesign_wrapper: not found`，删掉 `.venv` 再编一次。
+
+### 编译
+
+在仓库根目录：
+
+```bash
+git checkout stm32h5f4
+git pull origin stm32h5f4
+
+# 测试版：TEST_S + TEST_NS，INFO 日志（硬件回归用这个）
+./buildtfm.sh test
+
+# 正式版：SPE 不带 S 测试分区，NS 测试程序仍可烧可跑，ERROR 日志
+# ./buildtfm.sh prod
+```
+
+成功结尾应有 `=== 编译完成（测试版，硬件浮点 ON）===`，并且检查：
+
+- `bl2.bin` 含 `H5F4BL2`、`H5F4SWP2`
+- `TFM_UPDATE.sh`：`boot=0xc00e000` `slot0=0xc038000` `slot1=0xc090000` `slot2=0xc200000` `slot3=0xc258000`
+
+产物目录：`trusted-firmware-m/build_s/api_ns`（BL2 / S / 更新脚本）和 `trusted-firmware-m/build_ns/bin`（NS 测试镜像）。
+
+### 烧录
+
+板子接好 ST-Link 后，仍在仓库根目录：
+
+```bash
+./flash_stm32h5f4.sh
+```
+
+片上若还有旧 BL2 的 HDP（盖住 `0x0C00E000`），脚本会整片擦除再烧。需要强制擦除：
+
+```bash
+./flash_stm32h5f4.sh erase
+```
+
+烧完复位，串口第一行必须有 **`H5F4BL2`**（测试版常见 `[INF] H5F4BL2`）。  
+如果仍是 `Starting bootloader` 且没有 `H5F4BL2`，说明 BL2 没写进去，不要继续用旧工程脚本补烧。
+
+开发镜像用 dummy RSA-3072 密钥，启动日志里的 `NOT SECURE` 是预期现象。
+
+### SRAM（当前 `stm32h5f4`）
+
+| 块 | 谁用 | 地址 | 大小 |
+|----|------|------|------|
+| SRAM1 | NS | `0x20000000` | 256 KB |
+| SRAM2 | S / BL2 | `0x30040000` | 127 KB + 1 KB 共享 |
+| SRAM3+4+5 | NS（链接脚本 `RAM2`） | `0x20060000` | 1152 KB |
+
+NS 大缓冲可放到 `.ram2` / `.bss.ram2`，或使用 `__ns_ram2_start__` / `__ns_ram2_end__`。
+
 ## 文档
 
-- [TF-M 编译笔记](./tfmwork/tfm编译笔记.txt) — 编译环境搭建、编译命令与踩坑记录
-- 注意：如果编译不通过可以删除 .venv 重新创建py环境。
+- [TF-M 编译笔记](./tfmwork/tfm编译笔记.txt) — 环境搭建与踩坑记录（烧录请以上面脚本为准）
+- 编译不通过时可以删除 `.venv` 后重新执行 `./buildtfm.sh`
 
 ## 硬件平台
 
