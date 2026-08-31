@@ -65,6 +65,11 @@ __asm("  .global __use_no_semihosting\n");
 static uint8_t mbedtls_mem_buf[BL2_MBEDTLS_MEM_BUF_LEN];
 struct boot_rsp rsp;
 
+/* Always linked so flash_stm32h5f4.sh can identify this BL2 even if
+ * BOOT_LOG_INF is compiled out (prod / LOG_LEVEL_ERROR).
+ */
+__attribute__((used)) static const char bl2_ident[] = "H5F4BL2";
+
 static void do_boot(struct boot_rsp *rsp)
 {
     struct boot_arm_vector_table *vt;
@@ -127,7 +132,7 @@ int main(void)
 #if (LOG_LEVEL > LOG_LEVEL_NONE) || defined(TEST_BL2)
     stdio_init();
     /* First UART line. If this is missing, the chip is not running this BL2. */
-    BOOT_LOG_INF("H5F4BL2");
+    BOOT_LOG_ERR("%s", bl2_ident);
 #if defined(TEST_BL2)
     for (int i = 0; i < 0xFFFFF; i++) {
         if ((i & 0xFFF) == 0x0) {
@@ -145,6 +150,7 @@ int main(void)
         boot_platform_error_state(err);
     }
 
+    (void)bl2_ident;
     BOOT_LOG_INF("Starting bootloader S-sec=0x%x", (unsigned)FLASH_AREA_2_OFFSET);
 
     plat_err = tfm_plat_otp_init();

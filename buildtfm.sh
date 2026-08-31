@@ -212,7 +212,7 @@ if ! strings "${BL2_BIN}" | grep -q "Starting bootloader S-sec="; then
     exit 1
 fi
 if ! strings "${BL2_BIN}" | grep -q "H5F4BL2"; then
-    echo "错误: ${BL2_BIN} 没有 H5F4BL2 标记"
+    echo "错误: ${BL2_BIN} 没有 H5F4BL2 标记（编译产物不是当前源码）"
     exit 1
 fi
 if ! grep -q '^slot2=0xc200000$' TFM_UPDATE.sh; then
