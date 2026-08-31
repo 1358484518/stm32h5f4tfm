@@ -331,6 +331,7 @@ def cmd_self_test():
     assert "WRPSG11=0xffffffff" in env
     assert 'set "H5F4_SECWM_FULL=SECWM1_STRT=0 SECWM1_END=255' in env
     assert "WRPSGn1=" not in env
+    assert "STM32_Programmer_CLI.exe" in env
     for name in (
         "regression.bat",
         "tfm_update.bat",
@@ -344,6 +345,25 @@ def cmd_self_test():
         assert "WRPSGn1=" not in text, name
         assert "0x08088000" not in text, name
         assert "STM32H573I-DK" not in text, name
+        if name in ("regression.bat", "jlink_regression.bat", "erase_flash.bat"):
+            assert "call :run_cli %" not in text, (
+                "%s still uses call :run_cli %%args%% which strips '='" % name
+            )
+            assert "h5f4_run_cli.bat" in text, name
+            assert "CLI_ARGS=" in text, name
+    run_cli = open(os.path.join(script_dir, "h5f4_run_cli.bat"), encoding="utf-8").read()
+    assert "CLI_ARGS" in run_cli
+    assert "STM32_Programmer_CLI %CLI_ARGS%" in run_cli
+    assert "call :" not in run_cli
+    setup = open(os.path.join(script_dir, "h5f4_setup.bat"), encoding="utf-8").read()
+    assert "h5f4_win_images.py" in setup
+    assert "h5f4_win_images.ps1" in setup
+    assert "LOCATE_OUT" in setup
+    ps1 = open(os.path.join(script_dir, "h5f4_win_images.ps1"), encoding="utf-8").read()
+    assert "0xc090000" in ps1
+    assert "H5F4BL2" in ps1
+    assert "H5F4SWP2" in ps1
+    assert "Encoding Ascii" in ps1
     erase = open(os.path.join(script_dir, "erase_flash.bat"), encoding="utf-8").read()
     assert " -e all" in erase
     assert "SECWM1_STRT=255" in erase

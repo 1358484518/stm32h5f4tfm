@@ -14,7 +14,7 @@ SPE / BL2 / 官方 NS 测试固件只使用仓库根目录的 `./buildtfm.sh` �
 - Ubuntu：`cmake`、`ninja-build`、`python3-venv`、`python3-pip`
 - ARM GNU 工具链（`arm-none-eabi-gcc`）在 `PATH` 里
 - 烧录：`STM32_Programmer_CLI`（STM32CubeProgrammer）
-- Windows 烧录另外需要 Python 3（校验 `H5F4BL2` 标记；J-Link 还要做 hex 地址映射）
+- Windows 烧录另外需要 Python 3（校验 `H5F4BL2` 标记；J-Link 还要做 hex 地址映射）。没有 Python 时 `tfm_update.bat` 会改用系统自带的 PowerShell 找镜像。
 - 串口：USART1 PA9/PA10，**115200**
 
 脚本会在仓库根目录自动创建 `.venv`。如果签名步骤报 `mcuboot_imagesign_wrapper: not found`，删掉 `.venv` 再编一次。

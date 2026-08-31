@@ -35,23 +35,6 @@ echo ============================================================
 echo.
 
 echo [1/8] Locate STM32_Programmer_CLI
-set "CUBEPROG="
-if exist "D:\ST\STM32CubeProgrammer\bin\STM32_Programmer_CLI.exe" (
-    set "CUBEPROG=D:\ST\STM32CubeProgrammer\bin"
-)
-if not defined CUBEPROG if exist "%ProgramFiles%\STMicroelectronics\STM32Cube\STM32CubeProgrammer\bin\STM32_Programmer_CLI.exe" (
-    set "CUBEPROG=%ProgramFiles%\STMicroelectronics\STM32Cube\STM32CubeProgrammer\bin"
-)
-if not defined CUBEPROG if exist "%ProgramFiles(x86)%\STMicroelectronics\STM32Cube\STM32CubeProgrammer\bin\STM32_Programmer_CLI.exe" (
-    set "CUBEPROG=%ProgramFiles(x86)%\STMicroelectronics\STM32Cube\STM32CubeProgrammer\bin"
-)
-if defined CUBEPROG (
-    echo [info] CubeProgrammer bin = %CUBEPROG%
-    set "PATH=%CUBEPROG%;%PATH%"
-)
-for /d %%D in ("%ProgramFiles%\SEGGER\JLink*") do (
-    if exist "%%~D\JLinkARM.dll" set "PATH=%%~D;%PATH%"
-)
 where STM32_Programmer_CLI >nul 2>&1
 if errorlevel 1 (
     echo [FAIL] STM32_Programmer_CLI not found
@@ -89,57 +72,65 @@ echo.
 echo [2/8] PRODUCT_STATE=0xED  TZEN=0xB4 ^(TrustZone ON^)
 set "STEP_ID=2/8"
 set "STEP_NAME=PRODUCT_STATE / TZEN"
-call :run_cli %connect% %product_state%
-if errorlevel 1 goto :finish
+set "CLI_ARGS=%connect% %product_state%"
+call "%~dp0h5f4_run_cli.bat"
+if errorlevel 1 goto :cli_fail
 
 echo.
 echo [3/8] Remove bank1 protection and erase all
 set "STEP_ID=3/8"
 set "STEP_NAME=Remove bank1 protect + erase"
-call :run_cli %connect% %remove_bank1_protect% %erase_all%
-if errorlevel 1 goto :finish
+set "CLI_ARGS=%connect% %remove_bank1_protect% %erase_all%"
+call "%~dp0h5f4_run_cli.bat"
+if errorlevel 1 goto :cli_fail
 
 echo.
 echo [4/8] Remove bank2 protection and erase all
 set "STEP_ID=4/8"
 set "STEP_NAME=Remove bank2 protect + erase"
-call :run_cli %connect% %remove_bank2_protect% %erase_all%
-if errorlevel 1 goto :finish
+set "CLI_ARGS=%connect% %remove_bank2_protect% %erase_all%"
+call "%~dp0h5f4_run_cli.bat"
+if errorlevel 1 goto :cli_fail
 
 echo.
 echo [5/8] Remove HDP protection
 set "STEP_ID=5/8"
 set "STEP_NAME=Remove HDP"
-call :run_cli %connect_no_reset% %remove_hdp_protection%
-if errorlevel 1 goto :finish
+set "CLI_ARGS=%connect_no_reset% %remove_hdp_protection%"
+call "%~dp0h5f4_run_cli.bat"
+if errorlevel 1 goto :cli_fail
 
 echo.
 echo [6/8] Default OB1 : SECBOOTADD=0xC0100 ^(BL2^)
 set "STEP_ID=6/8"
 set "STEP_NAME=Default OB1 SECBOOTADD"
-call :run_cli %connect_no_reset% %default_ob1%
-if errorlevel 1 goto :finish
+set "CLI_ARGS=%connect_no_reset% %default_ob1%"
+call "%~dp0h5f4_run_cli.bat"
+if errorlevel 1 goto :cli_fail
 
 echo.
 echo [7/8] Leave SECWM open so J-Link can program 0x08 flash
 set "STEP_ID=7/8"
 set "STEP_NAME=SECWM open for J-Link"
-call :run_cli %connect_no_reset% %default_ob2%
-if errorlevel 1 goto :finish
+set "CLI_ARGS=%connect_no_reset% %default_ob2%"
+call "%~dp0h5f4_run_cli.bat"
+if errorlevel 1 goto :cli_fail
 
 echo.
 echo [8/8] BOOT_UBE=0xB4 ^(OEM-iRoT^)
 set "STEP_ID=8/8"
 set "STEP_NAME=BOOT_UBE OEM-iRoT"
-call :run_cli %connect_no_reset% %boot_ube%
-if errorlevel 1 goto :finish
+set "CLI_ARGS=%connect_no_reset% %boot_ube%"
+call "%~dp0h5f4_run_cli.bat"
+if errorlevel 1 goto :cli_fail
 
 echo.
 echo [extra] Read option bytes
 set "STEP_ID=extra"
 set "STEP_NAME=Display option bytes"
-call :run_cli %connect_no_reset% -ob displ
-if errorlevel 1 goto :finish
+set "CLI_ARGS=%connect_no_reset% -ob displ"
+call "%~dp0h5f4_run_cli.bat"
+if errorlevel 1 goto :cli_fail
 
 echo.
 echo ============================================================
@@ -156,22 +147,10 @@ echo H5F4: WRPSG11/12/21/22, SECWM 0-255.
 pause
 exit /b 0
 
-:run_cli
-echo ------------------------------------------------------------
-echo STEP %STEP_ID%  %STEP_NAME%
-echo CMD: STM32_Programmer_CLI %*
-echo ------------------------------------------------------------
-STM32_Programmer_CLI %*
-if errorlevel 1 (
-    echo.
-    echo [FAIL] step %STEP_ID% : %STEP_NAME%
-    echo        command: STM32_Programmer_CLI %*
-    set "FAILED_STEP=%STEP_ID% %STEP_NAME%"
-    set "EXIT_CODE=1"
-    exit /b 1
-)
-echo [ok]   step %STEP_ID% done
-exit /b 0
+:cli_fail
+set "FAILED_STEP=%STEP_ID% %STEP_NAME%"
+set "EXIT_CODE=1"
+goto :finish
 
 :finish
 echo.

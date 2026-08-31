@@ -14,31 +14,12 @@ set "TFM_STATUS="
 set "TFM_UPDATE_SH="
 set "TFM_REPO="
 set "PYCMD="
-set "CUBEPROG="
+set "LOCATE_OUT=%TEMP%\h5f4_locate.txt"
 
 if not defined H5F4_PORT set "H5F4_PORT=SWD"
 set "H5F4_SN_OPT="
 if defined H5F4_SN set "H5F4_SN_OPT=sn=%H5F4_SN%"
 
-if exist "D:\ST\STM32CubeProgrammer\bin\STM32_Programmer_CLI.exe" (
-    set "CUBEPROG=D:\ST\STM32CubeProgrammer\bin"
-)
-if not defined CUBEPROG if exist "%ProgramFiles%\STMicroelectronics\STM32Cube\STM32CubeProgrammer\bin\STM32_Programmer_CLI.exe" (
-    set "CUBEPROG=%ProgramFiles%\STMicroelectronics\STM32Cube\STM32CubeProgrammer\bin"
-)
-if not defined CUBEPROG if exist "%ProgramFiles(x86)%\STMicroelectronics\STM32Cube\STM32CubeProgrammer\bin\STM32_Programmer_CLI.exe" (
-    set "CUBEPROG=%ProgramFiles(x86)%\STMicroelectronics\STM32Cube\STM32CubeProgrammer\bin"
-)
-if not defined CUBEPROG if exist "C:\Program Files\STMicroelectronics\STM32Cube\STM32CubeProgrammer\bin\STM32_Programmer_CLI.exe" (
-    set "CUBEPROG=C:\Program Files\STMicroelectronics\STM32Cube\STM32CubeProgrammer\bin"
-)
-if defined CUBEPROG (
-    echo [info] CubeProgrammer bin = %CUBEPROG%
-    set "PATH=%CUBEPROG%;%PATH%"
-)
-for /d %%D in ("%ProgramFiles%\SEGGER\JLink*") do (
-    if exist "%%~D\JLinkARM.dll" set "PATH=%%~D;%PATH%"
-)
 where STM32_Programmer_CLI >nul 2>&1
 if errorlevel 1 (
     echo [FAIL] STM32_Programmer_CLI not found
@@ -52,18 +33,48 @@ for /f "delims=" %%I in ('where STM32_Programmer_CLI') do (
 )
 :cli_found
 
-where python >nul 2>&1 && set "PYCMD=python"
-if not defined PYCMD where python3 >nul 2>&1 && set "PYCMD=python3"
-if not defined PYCMD where py >nul 2>&1 && set "PYCMD=py -3"
+call :pick_python
 if not defined PYCMD (
-    echo [FAIL] Python 3 not found. Add python to PATH ^(needed to verify H5F4BL2 markers^).
+    echo [info] Python 3 not on PATH, try PowerShell to locate images
+    goto :locate_ps
+)
+
+echo [ok]   python = %PYCMD%
+echo [info] locate H5F4 images
+del "%LOCATE_OUT%" >nul 2>&1
+%PYCMD% "%~dp0h5f4_win_images.py" locate > "%LOCATE_OUT%" 2> "%LOCATE_OUT%.err"
+if errorlevel 1 (
+    rem locate() also returns 1 when STATUS=FAIL; still parse the file
+    if not exist "%LOCATE_OUT%" (
+        echo [FAIL] python locate failed to write output
+        type "%LOCATE_OUT%.err" 2>nul
+        set "H5F4_SETUP_RC=1"
+        exit /b 1
+    )
+)
+goto :parse_locate
+
+:locate_ps
+where powershell >nul 2>&1
+if errorlevel 1 (
+    echo [FAIL] Python 3 not found. Install Python 3 and add it to PATH
+    echo        ^(needed to verify H5F4BL2 / H5F4SWP2 in bl2.bin^).
     set "H5F4_SETUP_RC=1"
     exit /b 1
 )
-echo [ok]   python = %PYCMD%
+echo [ok]   python missing, using PowerShell
+del "%LOCATE_OUT%" >nul 2>&1
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0h5f4_win_images.ps1" locate "%LOCATE_OUT%" 2> "%LOCATE_OUT%.err"
+goto :parse_locate
 
-echo [info] locate H5F4 images
-for /f "usebackq tokens=1* delims==" %%A in (`%PYCMD% "%~dp0h5f4_win_images.py" locate`) do (
+:parse_locate
+if not exist "%LOCATE_OUT%" (
+    echo [FAIL] image locate produced no output
+    type "%LOCATE_OUT%.err" 2>nul
+    set "H5F4_SETUP_RC=1"
+    exit /b 1
+)
+for /f "usebackq tokens=1* delims==" %%A in ("%LOCATE_OUT%") do (
     if /i "%%A"=="STATUS" set "TFM_STATUS=%%B"
     if /i "%%A"=="ERROR" set "TFM_ERROR=%%B"
     if /i "%%A"=="BL2" set "TFM_BL2=%%B"
@@ -75,6 +86,9 @@ for /f "usebackq tokens=1* delims==" %%A in (`%PYCMD% "%~dp0h5f4_win_images.py" 
 )
 if /i not "%TFM_STATUS%"=="OK" (
     echo [FAIL] %TFM_ERROR%
+    type "%LOCATE_OUT%.err" 2>nul
+    echo        Put bl2.bin / tfm_s_signed.bin / tfm_ns_signed.bin next to this bat,
+    echo        or keep trusted-firmware-m\build_s\api_ns\bin from ./buildtfm.sh
     set "H5F4_SETUP_RC=1"
     exit /b 1
 )
@@ -88,3 +102,27 @@ set "H5F4_CONNECT=-c port=%H5F4_PORT% ap=1 %H5F4_SN_OPT% mode=UR"
 set "H5F4_CONNECT_HP=-c port=%H5F4_PORT% ap=1 %H5F4_SN_OPT% mode=HotPlug"
 echo [info] connect = %H5F4_CONNECT%
 exit /b 0
+
+:pick_python
+set "PYCMD="
+call :try_python python
+if defined PYCMD goto :eof
+call :try_python python3
+if defined PYCMD goto :eof
+call :try_python py -3
+goto :eof
+
+:try_python
+set "H5F4_PY_OK="
+for /f "delims=" %%I in ('where %1 2^>nul') do (
+    echo %%I | findstr /i "WindowsApps" >nul
+    if errorlevel 1 set "H5F4_PY_OK=1"
+)
+if not defined H5F4_PY_OK goto :eof
+%* -c "import sys; raise SystemExit(0 if sys.version_info[0]>=3 else 1)" >nul 2>&1
+if errorlevel 1 (
+    echo [warn] %* exists but is not a working Python 3 ^(Windows Store stub?^)
+    goto :eof
+)
+set "PYCMD=%*"
+goto :eof

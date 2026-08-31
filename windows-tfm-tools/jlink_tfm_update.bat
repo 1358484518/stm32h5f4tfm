@@ -201,6 +201,12 @@ call :check_download
 exit /b %ERRORLEVEL%
 
 :remap_hex
+if not defined PYCMD (
+    echo [FAIL] J-Link hex remap needs Python 3. Use .bin files or install Python.
+    set "FAILED_STEP=remap needs Python"
+    set "EXIT_CODE=1"
+    exit /b 1
+)
 set "HEX_BIN=%TEMP%\tfm_jlink_%~n1.bin"
 set "HEX_ADDR_FILE=%HEX_BIN%.addr"
 echo [info] hex -^> bin on 0x08 alias ^(4 MB remap^)

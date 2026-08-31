@@ -41,8 +41,16 @@ STM32H5F4 Windows 烧录（ST-Link / J-Link）
 ST-Link（板载调试器，推荐）
   双击  tfm_update.bat
   或     flash_h5f4.bat
+  窗口第一行 rev 应为 h5f4-20260831-cli（或更新）。如果还是旧 rev，说明跑的不是这份脚本。
   第一次 / 片上还有旧 HDP 时会整片擦除（regression.bat），然后自动下载 BL2/S/NS。
   已经是新 BL2、只想重烧镜像：  tfm_update.bat images-only
+
+  若一打开就失败：
+    - 需要 STM32CubeProgrammer（STM32_Programmer_CLI）。脚本会搜常见安装目录。
+    - 需要能读 bl2 标记：装 Python 3，或用系统自带的 PowerShell。
+    - 把编译产物放到仓库的 build_s\api_ns\bin 和 build_ns\bin，或和 bat 放同一目录。
+    - 旧版 bat 会把 option bytes 里的 `=` 吃掉（PRODUCT_STATE 变成 PRODUCT_STATE 0xED），
+      regression 第一步就会失败。请用本目录修好后的脚本。
 
 J-Link
   双击  jlink_tfm_update.bat
