@@ -29,6 +29,10 @@ MEMORY
   FLASH_DATA (r) : ORIGIN = NS_FLASH_DATA_START, LENGTH = NS_FLASH_DATA_SIZE
 #endif
   RAM   (rwx) : ORIGIN = NS_DATA_START, LENGTH = NS_DATA_SIZE
+#if defined(STM32H5F4xx) && defined(NS_DATA_SIZE_2) && (NS_DATA_SIZE_2 > 0)
+  /* SRAM3+SRAM4+SRAM5. SRAM2 sits between SRAM1 and SRAM3, so this is a second bank. */
+  RAM2  (rwx) : ORIGIN = NS_DATA_START_2, LENGTH = NS_DATA_SIZE_2
+#endif
 }
 
 __heap_size__  = NS_HEAP_SIZE;
@@ -179,6 +183,23 @@ SECTIONS
     } > RAM
 
     PROVIDE(__stack = __StackTop);
+
+#if defined(STM32H5F4xx) && defined(NS_DATA_SIZE_2) && (NS_DATA_SIZE_2 > 0)
+    /* NS SRAM3/4/5 pool (0x20060000, 1152 KB). Place objects with .ram2 / .bss.ram2. */
+    .ram2 (NOLOAD) :
+    {
+        __ns_ram2_start__ = .;
+        __bss2_start__ = .;
+        KEEP(*(.ram2*))
+        *(.bss.ram2*)
+        . = ALIGN(8);
+        __bss2_end__ = .;
+        __ns_ram2_heap_start__ = .;
+        . = ORIGIN(RAM2) + LENGTH(RAM2);
+        __ns_ram2_heap_end__ = .;
+        __ns_ram2_end__ = .;
+    } > RAM2
+#endif
 
 #if defined(NS_FLASH_DATA_SIZE) && (NS_FLASH_DATA_SIZE > 0)
     /* NS user flash (not part of the signed image). Place with .ns_flash_data. */
