@@ -1,8 +1,14 @@
-一.使用说明
-	双击 tfm_update.bat 即可。
-二.工具说明
-	1.regression.bat 是windows使用的回归脚本，用来配置TF-M的寄存器，对应linux下的 /trusted-firmware-m/trusted-firmware-m/build_s/api_ns/regression.sh ,regression.bat可以放在任意目录双击执行即可，注意需要插stlink和安装stm32cubeprogrammer。
+禁止使用本目录烧 STM32H5F4。
 
-	2.tfm_update.bat 该工具是一键回归烧录工具，它会自动调用 regression.bat 烧写选项字节，然后烧录 bl2.hex tfm_s_ns_signed.hex tfm_ns_signed.bin 程序文件到相应位置。
+这里的 bl2.hex / tfm_s_ns_signed.hex 以及 bat 脚本是旧的 STM32H573 布局。
+用它们烧 H5F4 会把旧 BL2 写进去，串口只会打印 Starting bootloader（没有 S-sec），
+然后卡在第二张镜像的 Boot source: primary slot。
 
-注意：jlink开头的脚本文件的使用方法跟不带jlink的脚本使用方法一致，只是硬件需要换为jlink。
+正确步骤（Ubuntu）:
+  ./buildtfm.sh test
+  cd trusted-firmware-m/build_s/api_ns
+  ./regression.sh
+  STM32_Programmer_CLI -c port=SWD mode=HotPlug -ob BOOT_UBE=0xB4
+  ./TFM_UPDATE.sh
+
+烧完串口必须出现: Starting bootloader S-sec=0x200000

@@ -1,4 +1,10 @@
 @echo off
+echo ERROR: windows-tfm-tools 里的 bl2.hex 是旧 H573 固件，禁止用来烧 STM32H5F4。
+echo 请在 Ubuntu 仓库根目录执行: ./buildtfm.sh test
+echo 然后只烧 trusted-firmware-m\build_s\api_ns 下的 regression.sh 和 TFM_UPDATE.sh
+echo 烧完串口必须出现: Starting bootloader S-sec=0x200000
+pause
+exit /b 1
 rem ****************************************************************************
 rem  * STM32H573I-DK TF-M flash after regression (Windows)
 rem  *

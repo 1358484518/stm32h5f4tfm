@@ -205,13 +205,34 @@ cd build_s/api_ns
 chmod +x postbuild.sh regression.sh TFM_UPDATE.sh preprocess.sh 2>/dev/null || true
 ./postbuild.sh "$(command -v arm-none-eabi-gcc)"
 
+BL2_BIN="${TFM_ROOT}/build_s/api_ns/bin/bl2.bin"
+[[ -f "${BL2_BIN}" ]] || { echo "错误: 找不到 ${BL2_BIN}"; exit 1; }
+if ! strings "${BL2_BIN}" | grep -q "Starting bootloader S-sec="; then
+    echo "错误: ${BL2_BIN} 没有 S-sec 标记，这不是当前源码编出来的 BL2，禁止烧录"
+    exit 1
+fi
+if ! grep -q '^slot2=0xc200000$' TFM_UPDATE.sh; then
+    echo "错误: TFM_UPDATE.sh 的 slot2 必须是 0xc200000（S secondary 在 bank 2）"
+    grep -E '^slot[0-3]=' TFM_UPDATE.sh || true
+    exit 1
+fi
+
 echo ""
-grep -E '^boot=|^slot0=|^slot1=' TFM_UPDATE.sh || true
+grep -E '^boot=|^slot0=|^slot1=|^slot2=|^slot3=' TFM_UPDATE.sh || true
 echo ""
 echo "=== 编译完成（${BUILD_LABEL}，硬件浮点 ON）==="
-echo "烧录: cd ${TFM_ROOT}/build_s/api_ns && ./regression.sh"
-echo "      STM32_Programmer_CLI -c port=SWD mode=HotPlug -ob BOOT_UBE=0xB4"
-echo "      ./TFM_UPDATE.sh"
+echo "************************************************************"
+echo "* 只能烧下面这个目录，不要用 tfmcubeideproject /"
+echo "* tfmmakeproject / windows-tfm-tools 里的旧脚本和 hex"
+echo "* ${TFM_ROOT}/build_s/api_ns"
+echo "*"
+echo "* cd ${TFM_ROOT}/build_s/api_ns"
+echo "* ./regression.sh"
+echo "* STM32_Programmer_CLI -c port=SWD mode=HotPlug -ob BOOT_UBE=0xB4"
+echo "* ./TFM_UPDATE.sh"
+echo "*"
+echo "* 烧完串口第一行必须有: Starting bootloader S-sec=0x200000"
+echo "* 如果仍是 Starting bootloader（没有 S-sec），BL2 没写进去"
+echo "************************************************************"
 echo "NS 测试程序: ${TFM_ROOT}/build_ns/bin/tfm_ns_signed.bin  地址 0x0C088000"
 echo "NS 用户 Flash 数据区: 0x0C37C000  大小 528 KB（到 4 MB 末尾）"
-echo "烧录后会上电自动跑回归测试（串口 115200 看 PASSED/FAILED）。"

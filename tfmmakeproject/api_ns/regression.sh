@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+echo "ERROR: 这是旧 H573 布局快照，禁止用来烧 STM32H5F4。" >&2
+echo "请只使用: trusted-firmware-m/build_s/api_ns/regression.sh" >&2
+exit 1
 #******************************************************************************
 #  * @attention
 #  *

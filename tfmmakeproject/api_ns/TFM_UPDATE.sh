@@ -1,4 +1,10 @@
 #!/usr/bin/env bash
+echo "ERROR: 这是旧 H573 布局快照（slot2=0xc118000），禁止用来烧 STM32H5F4。" >&2
+echo "请只使用编译产物:" >&2
+echo "  trusted-firmware-m/build_s/api_ns/regression.sh" >&2
+echo "  trusted-firmware-m/build_s/api_ns/TFM_UPDATE.sh" >&2
+echo "烧完串口必须出现: Starting bootloader S-sec=0x200000" >&2
+exit 1
 #******************************************************************************
 #  * @attention
 #  *

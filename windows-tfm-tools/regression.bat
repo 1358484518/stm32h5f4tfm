@@ -1,4 +1,8 @@
 @echo off
+echo ERROR: windows-tfm-tools 是旧 H573 脚本，禁止用来烧 STM32H5F4。
+echo 请只使用 trusted-firmware-m\build_s\api_ns\regression.sh
+pause
+exit /b 1
 rem ****************************************************************************
 rem  * STM32H573I-DK TF-M option-byte regression (Windows)
 rem  * Wipe protections, erase flash, restore default secure OBs,
