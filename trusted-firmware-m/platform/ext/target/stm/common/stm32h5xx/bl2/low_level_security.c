@@ -702,7 +702,14 @@ void LL_SECU_CheckStaticProtections(void)
   uint32_t start;
   uint32_t end;
   uint32_t i;
+  static uint32_t map_logged;
 
+  /* Unconditional so a rebuilt BL2 is obvious even when option bytes already match. */
+  if (map_logged == 0U) {
+    map_logged = 1U;
+    BOOT_LOG_INF("BL2 flash map S-secondary=0x%x",
+                 (unsigned)S_IMAGE_SECONDARY_PARTITION_OFFSET);
+  }
 
   /* Get bank1 OB  */
   flash_option_bytes_bank1.Banks = FLASH_BANK_1;

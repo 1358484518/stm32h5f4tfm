@@ -143,7 +143,7 @@ int main(void)
         boot_platform_error_state(err);
     }
 
-    BOOT_LOG_INF("Starting bootloader");
+    BOOT_LOG_INF("Starting bootloader S-sec=0x%x", (unsigned)FLASH_AREA_2_OFFSET);
 
     plat_err = tfm_plat_otp_init();
     if (plat_err != TFM_PLAT_ERR_SUCCESS) {
