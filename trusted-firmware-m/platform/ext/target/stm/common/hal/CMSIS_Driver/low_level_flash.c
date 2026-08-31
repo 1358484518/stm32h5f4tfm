@@ -252,8 +252,17 @@ static uint32_t bank_number(struct arm_flash_dev_t *flash_dev,
 static uint32_t page_number(struct arm_flash_dev_t *flash_dev,
                             uint32_t param)
 {
-  uint32_t page = param / flash_dev->data->page_size ;
+  uint32_t page = param / flash_dev->data->page_size;
+#if defined(FLASH_BANK_2) && defined(FLASH_B_SIZE)
+  /* HAL sector index is per-bank. Subtract bank 1's page count for bank 2. */
+  uint32_t pages_per_bank = FLASH_B_SIZE / flash_dev->data->page_size;
+  if (page >= pages_per_bank)
+  {
+    page -= pages_per_bank;
+  }
+#else
   page = ((page > (flash_dev->data->sector_count))) ? page - ((flash_dev->data->sector_count)) : page;
+#endif
 #ifdef DEBUG_FLASH_ACCESS
   printf("page = %x \r\n", page);
 #endif /* DEBUG_FLASH_ACCESS */
@@ -843,7 +852,7 @@ __attribute__((always_inline)) __STATIC_INLINE uint32_t __get_LR(void)
 /**/
 #endif /*__ARMCC_VERSION */
 
-#if defined (STM32H573xx) || defined(STM32H5F4xx)
+#if defined (STM32H573xx)
 void NMI_Handler(void)
 {
   if (__HAL_FLASH_GET_FLAG(FLASH_FLAG_ECCD))
@@ -917,4 +926,4 @@ void NMI_Handler(void)
     while (1U);
   }
 }
-#endif /* STM32H573xx || STM32H5F4xx */
+#endif /* STM32H573xx */

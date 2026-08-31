@@ -26,6 +26,12 @@
  /* Flash layout for stm32h5f4 with BL2 (multiple image boot).
   * Hardware flash is 4 MB dual-bank (2 MB per bank, 8 KB sectors).
   * NS application slot is 1200 KB; leftover flash is NS user data.
+  *
+  * A MCUBoot slot must not cross a bank boundary. After a 320 KB S primary
+  * and 1200 KB NS primary, the next byte is 0x1B4000, still in bank 1.
+  * Placing the 320 KB S secondary there would span into bank 2 at 0x200000
+  * and BL2 hangs when it first reads that slot (image 0, after NS).
+  * S secondary therefore starts at bank 2; 0x1B4000-0x1FFFFF is unused.
  *
  * 0x0000_0000 SCRATCH (48 KB)
  * 0x0000_C000 BL2 - counters(16 KB)
@@ -36,9 +42,10 @@
  * 0x0003_4000 Internal Trusted Storage Area (16 KB)
  * 0x0003_8000 Secure image     primary slot (320 KB)
  * 0x0008_8000 Non-secure image primary slot (1200 KB)
- * 0x001B_4000 Secure image     secondary slot (320 KB)
- * 0x0020_4000 Non-secure image secondary slot (1200 KB)
- * 0x0033_0000 Non-secure user flash data (832 KB, to end of 4 MB)
+ * 0x001B_4000 unused (304 KB, remainder of bank 1)
+ * 0x0020_0000 Secure image     secondary slot (320 KB, bank 2)
+ * 0x0025_0000 Non-secure image secondary slot (1200 KB)
+ * 0x0037_C000 Non-secure user flash data (528 KB, to end of 4 MB)
  *
  * Bl2 binary is written at 0x1_0000:
  * it contains bl2_counter init value, OTP write protect, NV counters area init.
@@ -174,14 +181,17 @@
 #endif /* (FLASH_AREA_1_OFFSET  % FLASH_AREA_IMAGE_SECTOR_SIZE) != 0  */
 #define FLASH_AREA_1_SIZE               (FLASH_NS_PARTITION_SIZE)
 
-/* Secure image secondary slot */
+/* Secure image secondary slot: start of bank 2 so the slot stays in one bank. */
 #define FLASH_AREA_2_ID                 (FLASH_AREA_1_ID + 1)
 #define FLASH_AREA_2_DEVICE_ID          (FLASH_AREA_1_DEVICE_ID)
-#define FLASH_AREA_2_OFFSET             (FLASH_AREA_1_OFFSET + FLASH_AREA_1_SIZE)
+#define FLASH_AREA_2_OFFSET             (FLASH_B_SIZE)
 /* Control  Secure image secondary slot */
 #if (FLASH_AREA_2_OFFSET  % FLASH_AREA_IMAGE_SECTOR_SIZE) != 0
 #error "FLASH_AREA_2_OFFSET  not aligned on FLASH_AREA_IMAGE_SECTOR_SIZE"
 #endif /*   (FLASH_AREA_2_OFFSET  % FLASH_AREA_IMAGE_SECTOR_SIZE) != 0 */
+#if FLASH_AREA_2_OFFSET < (FLASH_AREA_1_OFFSET + FLASH_AREA_1_SIZE)
+#error "FLASH_AREA_2 overlaps FLASH_AREA_1"
+#endif
 #define FLASH_AREA_2_SIZE               (FLASH_S_PARTITION_SIZE)
 
 /* Non-secure image secondary slot */
@@ -196,6 +206,24 @@
 #define FLASH_AREA_END_OFFSET           (FLASH_AREA_3_OFFSET + FLASH_AREA_3_SIZE)
 #define FLASH_AREA_SCRATCH_ID           (FLASH_AREA_3_ID + 1)
 #define FLASH_AREA_SCRATCH_DEVICE_ID    (FLASH_AREA_3_DEVICE_ID)
+
+/* STM32 dual-bank flash cannot host one MCUBoot slot across both banks. */
+#if ((FLASH_AREA_0_OFFSET) / FLASH_B_SIZE) != \
+    ((FLASH_AREA_0_OFFSET + FLASH_AREA_0_SIZE - 1) / FLASH_B_SIZE)
+#error "FLASH_AREA_0 spans flash banks"
+#endif
+#if ((FLASH_AREA_1_OFFSET) / FLASH_B_SIZE) != \
+    ((FLASH_AREA_1_OFFSET + FLASH_AREA_1_SIZE - 1) / FLASH_B_SIZE)
+#error "FLASH_AREA_1 spans flash banks"
+#endif
+#if ((FLASH_AREA_2_OFFSET) / FLASH_B_SIZE) != \
+    ((FLASH_AREA_2_OFFSET + FLASH_AREA_2_SIZE - 1) / FLASH_B_SIZE)
+#error "FLASH_AREA_2 spans flash banks"
+#endif
+#if ((FLASH_AREA_3_OFFSET) / FLASH_B_SIZE) != \
+    ((FLASH_AREA_3_OFFSET + FLASH_AREA_3_SIZE - 1) / FLASH_B_SIZE)
+#error "FLASH_AREA_3 spans flash banks"
+#endif
 
 /* Remaining flash after MCUBoot slots: NS-side user data (not an image slot). */
 #define FLASH_NS_USER_DATA_OFFSET       (FLASH_AREA_END_OFFSET)

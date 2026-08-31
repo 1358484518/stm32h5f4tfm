@@ -41,6 +41,7 @@
 #define FLOW_STAGE_CHK          (0x0)
 #endif
 #include "uart_stdout.h"
+#include "bootutil/bootutil_log.h"
 #include "low_level_security.h"
 #ifdef BL2_DATA
 #include "tfm_bl2_shared_data.h"
@@ -729,6 +730,7 @@ void Error_Handler(void)
     typedef void (*nsfptr_t)(void) __attribute__((cmse_nonsecure_call));
     nsfptr_t nsfptr = (nsfptr_t)(SRAM1_BASE_NS + 1);
     __IO uint16_t *pt = (uint16_t *)SRAM1_BASE_NS;
+    BOOT_LOG_ERR("BL2 Error_Handler");
     /*  copy while(1) instruction */
     *pt = WHILE_1_OPCODE;
     /* Flush and refill pipeline  */
@@ -779,6 +781,30 @@ void Error_Handler(void)
 #if defined(__ICCARM__)
 #pragma default_function_attributes =
 #endif /* __ICCARM__ */
+
+void HardFault_Handler(void)
+{
+    BOOT_LOG_ERR("HardFault");
+    Error_Handler();
+}
+
+void MemManage_Handler(void)
+{
+    BOOT_LOG_ERR("MemManage");
+    Error_Handler();
+}
+
+void BusFault_Handler(void)
+{
+    BOOT_LOG_ERR("BusFault");
+    Error_Handler();
+}
+
+void SecureFault_Handler(void)
+{
+    BOOT_LOG_ERR("SecureFault");
+    Error_Handler();
+}
 
 #if defined(__ARMCC_VERSION)
 /* reimplement the function to reach Error Handler */

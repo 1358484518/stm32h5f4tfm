@@ -218,7 +218,9 @@ int main(void)
              */
             memset(&rsp, 0, sizeof(struct boot_rsp));
 
+            BOOT_LOG_INF("Checking image %d", image_id);
             FIH_CALL(boot_go_for_image_id, fih_rc, &rsp, image_id);
+            BOOT_LOG_INF("Image %d boot_go done", image_id);
 
             if (FIH_NOT_EQ(fih_rc, FIH_SUCCESS)) {
                 BOOT_LOG_ERR("Unable to find bootable image");

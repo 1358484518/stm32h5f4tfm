@@ -810,6 +810,7 @@ void LL_SECU_CheckStaticProtections(void)
     Error_Handler();
 #else
     /* bank is not unsecured , modify option bytes */
+    BOOT_LOG_ERR("Unexpected value for secure flash protection: set wmsec2");
     flash_option_bytes_bank2.WMSecStartSector = PAGE_MAX_NUMBER_IN_BANK;
     flash_option_bytes_bank2.WMSecEndSector = 0;
     flash_option_bytes_bank2.OptionType = OPTIONBYTE_WMSEC;
@@ -895,6 +896,7 @@ void LL_SECU_CheckStaticProtections(void)
   /* Configure Options Bytes */
   if ((flash_option_bytes_bank1.OptionType != 0) || (flash_option_bytes_bank2.OptionType != 0))
   {
+    BOOT_LOG_INF("Programming option bytes and resetting");
     /* Unlock the Flash to enable the flash control register access */
     HAL_FLASH_Unlock();
 
