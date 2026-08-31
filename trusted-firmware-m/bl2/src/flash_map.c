@@ -131,6 +131,18 @@ int flash_area_read(const struct flash_area *area, uint32_t off, void *dst,
 
     BOOT_LOG_DBG("read area=%d, off=%#x, len=%#x", area->fa_id, off, len);
 
+#if defined(FLASH_B_SIZE)
+    if (area->fa_off >= FLASH_B_SIZE) {
+        static uint8_t bank2_read_logged;
+        if (!bank2_read_logged) {
+            bank2_read_logged = 1;
+            BOOT_LOG_INF("flash read bank2 fa_id=%d fa_off=0x%x off=0x%x len=0x%x",
+                         area->fa_id, (unsigned)area->fa_off,
+                         (unsigned)off, (unsigned)len);
+        }
+    }
+#endif
+
     if (!is_range_valid(area, off, len)) {
         return -1;
     }

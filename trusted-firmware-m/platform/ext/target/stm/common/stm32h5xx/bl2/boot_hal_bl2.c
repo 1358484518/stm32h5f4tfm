@@ -785,25 +785,30 @@ void Error_Handler(void)
 
 void HardFault_Handler(void)
 {
-    BOOT_LOG_ERR("HardFault");
+    BOOT_LOG_ERR("HardFault cfsr=0x%x hfsr=0x%x mmfar=0x%x bfar=0x%x",
+                 (unsigned)SCB->CFSR, (unsigned)SCB->HFSR,
+                 (unsigned)SCB->MMFAR, (unsigned)SCB->BFAR);
     Error_Handler();
 }
 
 void MemManage_Handler(void)
 {
-    BOOT_LOG_ERR("MemManage");
+    BOOT_LOG_ERR("MemManage cfsr=0x%x mmfar=0x%x",
+                 (unsigned)SCB->CFSR, (unsigned)SCB->MMFAR);
     Error_Handler();
 }
 
 void BusFault_Handler(void)
 {
-    BOOT_LOG_ERR("BusFault");
+    BOOT_LOG_ERR("BusFault cfsr=0x%x bfar=0x%x",
+                 (unsigned)SCB->CFSR, (unsigned)SCB->BFAR);
     Error_Handler();
 }
 
 void SecureFault_Handler(void)
 {
-    BOOT_LOG_ERR("SecureFault");
+    BOOT_LOG_ERR("SecureFault sfsr=0x%x sfar=0x%x",
+                 (unsigned)SCB->SFSR, (unsigned)SCB->SFAR);
     Error_Handler();
 }
 
@@ -817,6 +822,25 @@ void __aeabi_assert(const char *expr, const char *file, int line)
     Error_Handler();
 }
 #endif  /*  __ARMCC_VERSION */
+
+#if defined(__GNUC__) && !defined(__ARMCC_VERSION)
+/* Ubuntu/gcc builds hit this, not __aeabi_assert. Without it, assert()
+ * becomes Error_Handler with no file:line after "Boot source: primary slot".
+ */
+void __assert_func(const char *file, int line, const char *func, const char *expr)
+{
+    BOOT_LOG_ERR("assert %s:%d %s: %s",
+                 file ? file : "-", line,
+                 func ? func : "-",
+                 expr ? expr : "-");
+    Error_Handler();
+}
+
+void __assert_fail(const char *expr, const char *file, int line, const char *func)
+{
+    __assert_func(file, line, func, expr);
+}
+#endif /* __GNUC__ && !__ARMCC_VERSION */
 #ifdef  USE_FULL_ASSERT
 
 /**

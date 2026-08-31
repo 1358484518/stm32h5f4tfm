@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 # Flash STM32H5F4 TF-M and prove the on-chip BL2 is the one just built.
+#
+#   ./flash_stm32h5f4.sh          # 只解开 WRP/HDP，再写 S/NS/BL2（不整片擦除）
+#   ./flash_stm32h5f4.sh erase    # regression 整片擦除后再烧
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -7,6 +10,7 @@ API_NS="${ROOT}/trusted-firmware-m/build_s/api_ns"
 BL2_BIN="${API_NS}/bin/bl2.bin"
 BOOT_ADDR=0xc00e000
 DUMP="${API_NS}/bl2_onchip.bin"
+MODE="${1:-unlock}"
 
 die() { echo "错误: $*" >&2; exit 1; }
 
@@ -15,6 +19,8 @@ if [[ ! -f "${BL2_BIN}" ]] || [[ ! -x "${API_NS}/TFM_UPDATE.sh" ]]; then
 fi
 strings "${BL2_BIN}" | grep -q "Starting bootloader S-sec=" \
     || die "${BL2_BIN} 没有 S-sec 标记"
+strings "${BL2_BIN}" | grep -q "H5F4BL2" \
+    || die "${BL2_BIN} 没有 H5F4BL2 标记"
 grep -q '^slot2=0xc200000$' "${API_NS}/TFM_UPDATE.sh" \
     || die "${API_NS}/TFM_UPDATE.sh 的 slot2 不是 0xc200000"
 
@@ -29,16 +35,28 @@ CONNECT_HP="-c port=SWD ap=1 mode=HotPlug"
 
 cd "${API_NS}"
 
-echo ">>> regression (unlock WRP / erase)"
-./regression.sh
+unlock_wrp_hdp() {
+    echo ">>> 关掉 HDP，并清 H5F4 的 WRPSG11（不是 H573 的 WRPSGn1）"
+    STM32_Programmer_CLI ${CONNECT_UR} -ob HDP1_STRT=1 HDP1_END=0 HDP2_STRT=1 HDP2_END=0
+    STM32_Programmer_CLI ${CONNECT_UR} -ob WRPSG11=0xffffffff WRPSG12=0xffffffff WRPSG21=0xffffffff WRPSG22=0xffffffff
+}
 
-echo ">>> BOOT_UBE=0xB4"
-STM32_Programmer_CLI ${CONNECT_HP} -ob BOOT_UBE=0xB4
+if [[ "${MODE}" == "erase" ]]; then
+    echo ">>> regression (unlock WRP / erase all flash)"
+    ./regression.sh
+    echo ">>> BOOT_UBE=0xB4"
+    STM32_Programmer_CLI ${CONNECT_HP} -ob BOOT_UBE=0xB4
+    unlock_wrp_hdp
+elif [[ "${MODE}" == "unlock" ]]; then
+    echo ">>> 不解整片，只解锁 WRP/HDP（旧 BL2 第一次启动会把 WRP/HDP 锁上）"
+    unlock_wrp_hdp
+    echo ">>> BOOT_UBE=0xB4"
+    STM32_Programmer_CLI ${CONNECT_HP} -ob BOOT_UBE=0xB4 || true
+else
+    die "未知参数 ${MODE}。用法: $0 [unlock|erase]"
+fi
 
-echo ">>> 关掉 HDP，并清 H5F4 的 WRPSG11（不是 H573 的 WRPSGn1）"
-STM32_Programmer_CLI ${CONNECT_UR} -ob HDP1_STRT=1 HDP1_END=0 HDP2_STRT=1 HDP2_END=0
-STM32_Programmer_CLI ${CONNECT_UR} -ob WRPSG11=0xffffffff WRPSG12=0xffffffff WRPSG21=0xffffffff WRPSG22=0xffffffff
-STM32_Programmer_CLI ${CONNECT_HP} -ob displ | grep -E "WRP|HDP|PRODUCT" || true
+STM32_Programmer_CLI ${CONNECT_HP} -ob displ | grep -E "WRP|HDP|PRODUCT|SECWM" || true
 
 echo ">>> TFM_UPDATE.sh"
 set +e
@@ -59,9 +77,14 @@ STM32_Programmer_CLI ${CONNECT_HP} -r ${BOOT_ADDR} 0x20000 "${DUMP}" \
     || die "回读 BL2 失败"
 echo "片上 BL2 字符串:"
 strings "${DUMP}" | grep -E "H5F4BL2|Starting bootloader|Checking image|BL2 flash map" || true
+strings "${DUMP}" | grep -q "H5F4BL2" \
+    || die "片上 BL2 没有 H5F4BL2。写保护还在，bootloader 没换掉"
 strings "${DUMP}" | grep -q "Starting bootloader S-sec=" \
     || die "片上 BL2 没有 S-sec。写保护还在，bootloader 没换掉"
 
 echo
-echo "片上已经是新 BL2。复位后串口第一行必须是: [INF] H5F4BL2"
+echo "片上已经是新 BL2。复位后串口必须有:"
+echo "  [INF] H5F4BL2"
+echo "  BANK 2 secure flash [0, 39]   （不能再是 [255, 0]）"
+echo "  Image 0 boot_go done"
 STM32_Programmer_CLI ${CONNECT_UR} -hardRst || true

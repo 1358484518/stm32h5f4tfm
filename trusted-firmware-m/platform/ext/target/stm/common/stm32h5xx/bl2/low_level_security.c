@@ -313,7 +313,13 @@ const struct sau_cfg_t region_sau_init_cfg[] = {
   {
     1,
     ((uint32_t)FLASH_BASE_NS + NS_IMAGE_PRIMARY_PARTITION_OFFSET),
+#if (FLASH_AREA_2_OFFSET >= FLASH_B_SIZE) && \
+    ((FLASH_AREA_1_OFFSET + FLASH_AREA_1_SIZE) <= FLASH_B_SIZE)
+    /* Stop before bank 2 so S secondary (secure watermark) is not NS. */
+    ((uint32_t)FLASH_BASE_NS + FLASH_B_SIZE - 1),
+#else
     ((uint32_t)FLASH_BASE_NS + FLASH_AREA_END_OFFSET - 1),
+#endif
     TFM_FALSE,
 #ifdef FLOW_CONTROL
     FLOW_STEP_SAU_I_EN_R1,
@@ -350,6 +356,22 @@ const struct sau_cfg_t region_sau_init_cfg[] = {
     FLOW_CTRL_SAU_I_CH_R3,
 #endif /* FLOW_CONTROL */
   },
+#if (FLASH_AREA_2_OFFSET >= FLASH_B_SIZE) && \
+    ((FLASH_AREA_1_OFFSET + FLASH_AREA_1_SIZE) <= FLASH_B_SIZE)
+  /* Region 4: NS secondary and leftover flash in bank 2 (after S secondary). */
+  {
+    4,
+    ((uint32_t)FLASH_BASE_NS + FLASH_AREA_2_OFFSET + FLASH_AREA_2_SIZE),
+    ((uint32_t)FLASH_BASE_NS + FLASH_AREA_END_OFFSET - 1),
+    TFM_FALSE,
+#ifdef FLOW_CONTROL
+    FLOW_STEP_SAU_I_EN_R3,
+    FLOW_CTRL_SAU_I_EN_R3,
+    FLOW_STEP_SAU_I_CH_R3,
+    FLOW_CTRL_SAU_I_CH_R3,
+#endif /* FLOW_CONTROL */
+  },
+#endif
 };
 
 
@@ -824,6 +846,7 @@ void LL_SECU_CheckStaticProtections(void)
                    (int)start, (int)end,
                    (int)flash_option_bytes_bank2.WMSecStartSector,
                    (int)flash_option_bytes_bank2.WMSecEndSector);
+      BOOT_LOG_INF("H5F4 wmsec2 S-secondary sectors [0, %d]", (int)end);
 #ifndef TFM_ENABLE_SET_OB
       BOOT_LOG_ERR("Unexpected value for secure flash protection");
       Error_Handler();
