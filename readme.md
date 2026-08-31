@@ -6,14 +6,15 @@
 
 ## 编译与烧录
 
-只使用仓库根目录的 `./buildtfm.sh` 和 `./flash_stm32h5f4.sh`。  
-**不要**用 `tfmcubeideproject/`、`tfmmakeproject/`、`windows-tfm-tools/` 里的旧脚本和 hex 烧这颗 H5F4。
+只使用仓库根目录的 `./buildtfm.sh` 编译。烧录用 Linux 的 `./flash_stm32h5f4.sh`，或 Windows 的 `windows-tfm-tools\tfm_update.bat`。  
+**不要**用 `tfmcubeideproject/`、`tfmmakeproject/` 里的旧工程 hex 烧这颗 H5F4。
 
 ### 依赖
 
 - Ubuntu：`cmake`、`ninja-build`、`python3-venv`、`python3-pip`
 - ARM GNU 工具链（`arm-none-eabi-gcc`）在 `PATH` 里
 - 烧录：`STM32_Programmer_CLI`（STM32CubeProgrammer）
+- Windows 烧录另外需要 Python 3（校验 `H5F4BL2` 标记；J-Link 还要做 hex 地址映射）
 - 串口：USART1 PA9/PA10，**115200**
 
 脚本会在仓库根目录自动创建 `.venv`。如果签名步骤报 `mcuboot_imagesign_wrapper: not found`，删掉 `.venv` 再编一次。
@@ -59,6 +60,18 @@ git pull origin stm32h5f4
 
 开发镜像用 dummy RSA-3072 密钥，启动日志里的 `NOT SECURE` 是预期现象。
 
+### Windows 烧录
+
+`windows-tfm-tools` 已改成 STM32H5F4（option bytes 用 `WRPSG11/12/21/22`，SECWM 0–255，NS 槽 `0x0C090000`）。  
+脚本会从 `trusted-firmware-m\build_s\api_ns\bin` 取镜像，并拒绝没有 `H5F4BL2` / `H5F4SWP2` 的旧 BL2。本目录不再附带 hex。
+
+1. 先在 Ubuntu/WSL 编好：`./buildtfm.sh test`（或把 `build_s\api_ns\bin` 与 `build_ns\bin` 拷到 Windows 仓库里）。
+2. 安装 STM32CubeProgrammer 和 Python 3。
+3. ST-Link：双击 `windows-tfm-tools\tfm_update.bat`（或 `flash_h5f4.bat`）。第一次会整片擦除。只重烧镜像：`tfm_update.bat images-only`。
+4. J-Link：双击 `jlink_tfm_update.bat`（走 `0x08` 窗口，烧完恢复 SECWM）。
+
+说明见 `windows-tfm-tools/本目录工具使用说明.txt`。
+
 ### SRAM（当前 `stm32h5f4`）
 
 | 块 | 谁用 | 地址 | 大小 |
@@ -97,7 +110,7 @@ NS 大缓冲可放到 `.ram2` / `.bss.ram2`，或使用 `__ns_ram2_start__` / `_
 
 - 增加 tfmcubeideproject.7z 非安全侧工程可以使用stm32cubeide开发，包含.o链接，因为git会忽略链接文件，所以压缩上传。
 
-- 增加 windows-tfm-tools 该工具是windows系统的使用的回归脚本和烧录工具。
+- 增加 windows-tfm-tools：Windows 上给 STM32H5F4 用的回归/烧录脚本（ST-Link：`tfm_update.bat`；J-Link：`jlink_tfm_update.bat`）。必须先 `./buildtfm.sh test`，不要用旧 H573 hex。
 
 ## 文件统计
 

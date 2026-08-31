@@ -1,121 +1,95 @@
 @echo off
-echo ERROR: windows-tfm-tools 里的镜像是旧 H573 固件，禁止用来烧 STM32H5F4。
-echo 请在 Ubuntu 仓库根目录执行: ./buildtfm.sh test
-echo 然后只烧 trusted-firmware-m\build_s\api_ns 下的脚本
-echo 烧完串口必须出现: Starting bootloader S-sec=0x200000
-pause
-exit /b 1
 rem ****************************************************************************
-rem  * STM32H573I-DK TF-M flash after J-Link regression (Windows)
-rem  *
-rem  * J-Link programs the 0x08000000 flash window. Hex files that use the
-rem  * secure alias 0x0Cxxxxxx are remapped (0x0C - 0x04000000 = 0x08).
-rem  * Hex files are converted with jlink_hex_ns_alias.py (Python).
-rem  *
-rem  * Prefer .bin:
-rem  *   tfm_s_signed.bin       0x08038000
-rem  *   tfm_s_ns_signed.bin    0x08038000  (S+NS, skip extra NS)
-rem  *   tfm_ns_signed.bin      0x08088000
-rem  *   bl2.bin                0x0800E000
-rem  *
-rem  * SPDX-License-Identifier: BSD-3-Clause
-rem  ****************************************************************************
+rem  STM32H5F4 TF-M flash after J-Link regression (Windows)
+rem
+rem  WRP names are WRPSG11/12/21/22 (not H573 WRPSGn1).
+rem  J-Link programs the 0x08000000 flash window. Hex files that use the
+rem  secure alias 0x0Cxxxxxx are remapped across the full 4 MB
+rem  (0x0C000000-0x0C3FFFFF -> 0x08000000-0x083FFFFF).
+rem ****************************************************************************
 setlocal EnableExtensions EnableDelayedExpansion
 
 set "EXIT_CODE=0"
 set "FAILED_STEP="
 set "FLASHED=0"
 set "SKIP_NS=0"
-set "SCRIPT_REV=cube-jlink-20260825f"
-set "SN_ARG="
+set "DO_REG=1"
+set "H5F4_PORT=JLINK"
+set "H5F4_SN="
+call "%~dp0h5f4_env.bat"
 
 if /i "%~1"=="-h" goto :usage
 if /i "%~1"=="/?" goto :usage
-if not "%~1"=="" set "SN_ARG=%~1"
 
-set "sn_option="
-if defined SN_ARG set "sn_option=sn=%SN_ARG%"
-
-rem NS flash alias (J-Link). Secure alias is NS + 0x04000000.
-set "ADDR_BL2=0x0800E000"
-set "ADDR_S=0x08038000"
-set "ADDR_NS=0x08088000"
+:parse_args
+if "%~1"=="" goto :args_done
+if /i "%~1"=="images-only" (
+    set "DO_REG=0"
+    shift
+    goto :parse_args
+)
+if /i "%~1"=="skip-erase" (
+    set "DO_REG=0"
+    shift
+    goto :parse_args
+)
+set "H5F4_SN=%~1"
+shift
+goto :parse_args
+:args_done
 
 echo.
 echo ============================================================
-echo  STM32H573I-DK  jlink_tfm_update.bat
-echo  rev:  %SCRIPT_REV%
-echo  file: %~f0
+echo  STM32H5F4  jlink_tfm_update.bat
+echo  rev:  %H5F4_REV%
 echo  cwd:  %CD%
-echo  J-Link: program 0x08 alias as .bin, no 0x0C hex, SECWM open while flashing
+echo  J-Link: program 0x08 alias as .bin, SECWM open while flashing
 echo ============================================================
 echo.
 
-set "REG_BAT="
-if exist "%~dp0jlink_regression.bat" set "REG_BAT=%~dp0jlink_regression.bat"
-if not defined REG_BAT if exist "%~dp0regression.bat" set "REG_BAT=%~dp0regression.bat"
-if not defined REG_BAT (
-    echo [FAIL] jlink_regression.bat not found next to this script
-    set "FAILED_STEP=locate jlink_regression.bat"
-    set "EXIT_CODE=1"
-    goto :finish
-)
-echo [info] regression = %REG_BAT%
-
-echo [1] Locate STM32_Programmer_CLI
-set "CUBEPROG="
-if exist "D:\ST\STM32CubeProgrammer\bin\STM32_Programmer_CLI.exe" (
-    set "CUBEPROG=D:\ST\STM32CubeProgrammer\bin"
-)
-if not defined CUBEPROG if exist "%ProgramFiles%\STMicroelectronics\STM32Cube\STM32CubeProgrammer\bin\STM32_Programmer_CLI.exe" (
-    set "CUBEPROG=%ProgramFiles%\STMicroelectronics\STM32Cube\STM32CubeProgrammer\bin"
-)
-if not defined CUBEPROG if exist "%ProgramFiles(x86)%\STMicroelectronics\STM32Cube\STM32CubeProgrammer\bin\STM32_Programmer_CLI.exe" (
-    set "CUBEPROG=%ProgramFiles(x86)%\STMicroelectronics\STM32Cube\STM32CubeProgrammer\bin"
-)
-if defined CUBEPROG (
-    echo [info] CubeProgrammer bin = %CUBEPROG%
-    set "PATH=%CUBEPROG%;%PATH%"
-)
-for /d %%D in ("%ProgramFiles%\SEGGER\JLink*") do (
-    if exist "%%~D\JLinkARM.dll" set "PATH=%%~D;%PATH%"
-)
-where STM32_Programmer_CLI >nul 2>&1
+call "%~dp0h5f4_setup.bat"
 if errorlevel 1 (
-    echo [FAIL] STM32_Programmer_CLI not found
-    set "FAILED_STEP=locate STM32_Programmer_CLI"
+    set "FAILED_STEP=locate images / STM32_Programmer_CLI"
     set "EXIT_CODE=1"
     goto :finish
 )
-echo [ok]   STM32_Programmer_CLI ready
-echo [info] connect = -c port=JLINK ap=1 %sn_option% mode=UR
+
+echo.
+echo Flash map ^(NS alias for J-Link^):
+echo   BL2  %H5F4_ADDR_BL2_NS%
+echo   S    %H5F4_ADDR_S_NS%
+echo   NS   %H5F4_ADDR_NS_NS%
 echo.
 
-echo [2] Run J-Link regression
-echo ------------------------------------------------------------
-set "TFM_SKIP_PAUSE=1"
-if defined SN_ARG (
-    call "%REG_BAT%" jlink %SN_ARG%
-) else (
-    call "%REG_BAT%" jlink
-)
-set "TFM_SKIP_PAUSE="
-if errorlevel 1 (
+if "%DO_REG%"=="1" (
+    echo [1] Run J-Link regression
+    echo ------------------------------------------------------------
+    set "TFM_SKIP_PAUSE=1"
+    if defined H5F4_SN (
+        call "%~dp0jlink_regression.bat" jlink %H5F4_SN%
+    ) else (
+        call "%~dp0jlink_regression.bat" jlink
+    )
+    set "TFM_SKIP_PAUSE="
+    if errorlevel 1 (
+        echo [FAIL] regression failed, skip download
+        set "FAILED_STEP=jlink_regression.bat"
+        set "EXIT_CODE=1"
+        goto :finish
+    )
+    echo [ok]   regression finished
     echo.
-    echo [FAIL] regression failed, skip download
-    set "FAILED_STEP=jlink_regression.bat"
-    set "EXIT_CODE=1"
-    goto :finish
+) else (
+    echo [1] skip regression ^(images-only^)
+    echo.
 )
-echo [ok]   regression finished
-echo.
 
-set "connect=-c port=JLINK ap=1 %sn_option% mode=UR"
-set "connect_no_reset=-c port=JLINK ap=1 %sn_option% mode=HotPlug"
+set "connect=%H5F4_CONNECT%"
+set "connect_no_reset=%H5F4_CONNECT_HP%"
 
-echo [2b] Open SECWM ^(J-Link cannot program fully-secure 0x0C flash^)
-echo CMD: STM32_Programmer_CLI %connect_no_reset% -ob SECWM1_STRT=127 SECWM1_END=0 SECWM2_STRT=127 SECWM2_END=0
-STM32_Programmer_CLI %connect_no_reset% -ob SECWM1_STRT=127 SECWM1_END=0 SECWM2_STRT=127 SECWM2_END=0
+echo [2] Open SECWM ^(J-Link cannot program fully-secure 0x0C flash^)
+echo CMD: STM32_Programmer_CLI %connect_no_reset% -ob %H5F4_SECWM_OPEN%
+STM32_Programmer_CLI %connect_no_reset% -ob %H5F4_SECWM_OPEN%
 if errorlevel 1 (
     echo [FAIL] could not open SECWM
     set "FAILED_STEP=open SECWM"
@@ -124,75 +98,33 @@ if errorlevel 1 (
 )
 echo.
 
-echo [3] Scan images
-set "FOUND_ANY=0"
-call :note_file tfm_s_signed.bin      "S     %ADDR_S%"
-call :note_file tfm_s_ns_signed.bin   "S+NS  %ADDR_S%"
-call :note_file tfm_s_ns_signed.hex   "S+NS  hex, remap 0x0C-^>0x08"
-call :note_file tfm_ns_signed.bin     "NS    %ADDR_NS%"
-call :note_file bl2.bin               "BL2   %ADDR_BL2%"
-call :note_file bl2.hex               "BL2   hex, remap 0x0C-^>0x08"
+echo [3] Download
 echo.
 
-if "%FOUND_ANY%"=="0" (
-    echo [FAIL] no TF-M images in:
-    echo        %CD%
-    echo        %~dp0
-    set "FAILED_STEP=no image files"
-    set "EXIT_CODE=1"
-    goto :finish
-)
-
-echo [4] Download
-echo.
-
-call :find_file tfm_s_signed.bin
-if not errorlevel 1 (
-    call :flash_bin tfm_s_signed.bin "%FILE%" %ADDR_S% "S signed"
+if defined TFM_S_SIGNED (
+    call :flash_image "%TFM_S_SIGNED%" %H5F4_ADDR_S_NS% "S signed"
     if errorlevel 1 goto :finish
-    goto :after_s
-)
-
-call :find_file tfm_s_ns_signed.bin
-if not errorlevel 1 (
-    call :flash_bin tfm_s_ns_signed.bin "%FILE%" %ADDR_S% "S+NS signed"
+) else (
+    call :flash_image "%TFM_S_NS_SIGNED%" %H5F4_ADDR_S_NS% "S+NS signed"
     if errorlevel 1 goto :finish
     set "SKIP_NS=1"
-    goto :after_s
 )
-
-call :find_file tfm_s_ns_signed.hex
-if not errorlevel 1 (
-    call :flash_hex tfm_s_ns_signed.hex "%FILE%" "S+NS signed"
-    if errorlevel 1 goto :finish
-    set "SKIP_NS=1"
-    goto :after_s
-)
-echo [info] no S / S+NS image
-:after_s
 
 if "%SKIP_NS%"=="1" (
-    echo [info] skip tfm_ns_signed.bin, already in concatenated S+NS
+    echo [info] skip NS, already in concatenated S+NS
 ) else (
-    call :find_file tfm_ns_signed.bin
-    if not errorlevel 1 (
-        call :flash_bin tfm_ns_signed.bin "%FILE%" %ADDR_NS% "NS signed"
-        if errorlevel 1 goto :finish
+    if not defined TFM_NS_SIGNED (
+        echo [FAIL] tfm_ns_signed.bin not found
+        set "FAILED_STEP=no NS image"
+        set "EXIT_CODE=1"
+        goto :finish
     )
+    call :flash_image "%TFM_NS_SIGNED%" %H5F4_ADDR_NS_NS% "NS signed"
+    if errorlevel 1 goto :finish
 )
 
-call :find_file bl2.bin
-if not errorlevel 1 (
-    call :flash_bin bl2.bin "%FILE%" %ADDR_BL2% "BL2"
-    if errorlevel 1 goto :finish
-    goto :after_bl2
-)
-call :find_file bl2.hex
-if not errorlevel 1 (
-    call :flash_hex bl2.hex "%FILE%" "BL2"
-    if errorlevel 1 goto :finish
-)
-:after_bl2
+call :flash_image "%TFM_BL2%" %H5F4_ADDR_BL2_NS% "BL2"
+if errorlevel 1 goto :finish
 
 if "%FLASHED%"=="0" (
     echo [FAIL] nothing downloaded
@@ -201,9 +133,9 @@ if "%FLASHED%"=="0" (
     goto :finish
 )
 
-echo [4b] Restore full-bank SECWM
-echo CMD: STM32_Programmer_CLI %connect_no_reset% -ob SECWM1_STRT=0 SECWM1_END=127 SECWM2_STRT=0 SECWM2_END=127
-STM32_Programmer_CLI %connect_no_reset% -ob SECWM1_STRT=0 SECWM1_END=127 SECWM2_STRT=0 SECWM2_END=127
+echo [4] Restore full-bank SECWM 0-255
+echo CMD: STM32_Programmer_CLI %connect_no_reset% -ob %H5F4_SECWM_FULL%
+STM32_Programmer_CLI %connect_no_reset% -ob %H5F4_SECWM_FULL%
 if errorlevel 1 (
     echo [FAIL] restore SECWM
     set "FAILED_STEP=restore SECWM"
@@ -216,7 +148,6 @@ echo.
 echo [5] Reset MCU
 echo ------------------------------------------------------------
 echo CMD: STM32_Programmer_CLI %connect% -hardRst
-echo ------------------------------------------------------------
 STM32_Programmer_CLI %connect% -hardRst
 if errorlevel 1 (
     echo [FAIL] reset failed
@@ -229,61 +160,53 @@ echo.
 
 echo ============================================================
 echo  ALL STEPS OK  ^(%FLASHED% file(s) downloaded^)  port=JLINK
+echo  UART 115200 USART1 PA9/PA10 must show H5F4BL2
 echo ============================================================
 goto :finish
 
 :usage
-echo Usage: jlink_tfm_update.bat [J-Link SN]
-echo J-Link uses 0x08 flash alias. Hex 0x0C addresses are remapped.
+echo Usage: jlink_tfm_update.bat [images-only] [J-Link SN]
+echo J-Link uses 0x08 flash alias. Hex 0x0C addresses are remapped ^(4 MB^).
 pause
 exit /b 0
 
-:note_file
-call :find_file %~1
+:flash_image
+set "STEP_PATH=%~1"
+set "STEP_ADDR=%~2"
+set "STEP_DESC=%~3"
+set "STEP_NAME=%~nx1"
+set "EXT=%~x1"
+if /i "%EXT%"==".hex" (
+    call :remap_hex "%STEP_NAME%" "%STEP_PATH%"
+    if errorlevel 1 exit /b 1
+    set "STEP_PATH=!HEX_BIN!"
+    set "STEP_ADDR=!HEX_LOAD!"
+)
+echo ------------------------------------------------------------
+echo DOWNLOAD  %STEP_DESC%  [%STEP_NAME%]
+echo FILE: %STEP_PATH%
+echo ADDR: %STEP_ADDR%   ^(must be 0x08..., never 0x0C...^)
+echo CMD:  STM32_Programmer_CLI %connect% -d "%STEP_PATH%" %STEP_ADDR%
+echo ------------------------------------------------------------
+echo %STEP_ADDR% | findstr /i /c:"0x0C" >nul
 if not errorlevel 1 (
-    echo        FOUND  %~1    %~2
-    set "FOUND_ANY=1"
-) else (
-    echo        skip   %~1
+    echo [FAIL] refusing 0x0C alias on J-Link: %STEP_ADDR%
+    set "FAILED_STEP=0x0C alias %STEP_NAME%"
+    set "EXIT_CODE=1"
+    exit /b 1
 )
-exit /b 0
-
-:find_file
-set "FILE="
-if exist "%CD%\%~1" (
-    set "FILE=%CD%\%~1"
-    exit /b 0
-)
-if exist "%~dp0%~1" (
-    set "FILE=%~dp0%~1"
-    exit /b 0
-)
-exit /b 1
+STM32_Programmer_CLI %connect% -d "%STEP_PATH%" %STEP_ADDR% > "%TEMP%\tfm_jlink_dl.txt" 2>&1
+set "DLRC=%ERRORLEVEL%"
+call :check_download
+exit /b %ERRORLEVEL%
 
 :remap_hex
 set "HEX_BIN=%TEMP%\tfm_jlink_%~n1.bin"
 set "HEX_ADDR_FILE=%HEX_BIN%.addr"
-echo [info] hex -^> bin on 0x08 alias ^(python^)
+echo [info] hex -^> bin on 0x08 alias ^(4 MB remap^)
 echo        in  %~2
 echo        out %HEX_BIN%
-if not exist "%~dp0jlink_hex_ns_alias.py" (
-    echo [FAIL] missing %~dp0jlink_hex_ns_alias.py
-    set "FAILED_STEP=remap %~1"
-    set "EXIT_CODE=1"
-    exit /b 1
-)
-set "PY="
-where python >nul 2>&1 && set "PY=python"
-if not defined PY where python3 >nul 2>&1 && set "PY=python3"
-if not defined PY where py >nul 2>&1 && set "PY=py -3"
-if not defined PY (
-    echo [FAIL] Python not found. Add python to PATH, or copy tfm_s_ns_signed.bin and skip hex.
-    set "FAILED_STEP=python not found"
-    set "EXIT_CODE=1"
-    exit /b 1
-)
-echo [info] %PY% "%~dp0jlink_hex_ns_alias.py"
-%PY% "%~dp0jlink_hex_ns_alias.py" -InFile "%~2" -OutFile "%HEX_BIN%"
+%PYCMD% "%~dp0jlink_hex_ns_alias.py" -InFile "%~2" -OutFile "%HEX_BIN%"
 if errorlevel 1 (
     echo [FAIL] hex to bin failed
     set "FAILED_STEP=remap %~1"
@@ -308,46 +231,12 @@ if not errorlevel 1 (
 )
 exit /b 0
 
-:flash_hex
-set "STEP_NAME=%~1"
-set "STEP_PATH=%~2"
-set "STEP_DESC=%~3"
-call :remap_hex "%STEP_NAME%" "%STEP_PATH%"
-if errorlevel 1 exit /b 1
-echo ------------------------------------------------------------
-echo DOWNLOAD  %STEP_DESC%  [%STEP_NAME%]
-echo FILE: %HEX_BIN%
-echo ADDR: %HEX_LOAD%   ^(must be 0x08..., never 0x0C...^)
-echo CMD:  STM32_Programmer_CLI %connect% -d "%HEX_BIN%" %HEX_LOAD%
-echo ------------------------------------------------------------
-STM32_Programmer_CLI %connect% -d "%HEX_BIN%" %HEX_LOAD% > "%TEMP%\tfm_jlink_dl.txt" 2>&1
-set "DLRC=%ERRORLEVEL%"
-call :check_download
-exit /b %ERRORLEVEL%
-
-:flash_bin
-set "STEP_NAME=%~1"
-set "STEP_PATH=%~2"
-set "STEP_ADDR=%~3"
-set "STEP_DESC=%~4"
-echo ------------------------------------------------------------
-echo DOWNLOAD  %STEP_DESC%  [%STEP_NAME%]
-echo FILE: %STEP_PATH%
-echo ADDR: %STEP_ADDR%
-echo CMD:  STM32_Programmer_CLI %connect% -d "%STEP_PATH%" %STEP_ADDR%
-echo ------------------------------------------------------------
-STM32_Programmer_CLI %connect% -d "%STEP_PATH%" %STEP_ADDR% > "%TEMP%\tfm_jlink_dl.txt" 2>&1
-set "DLRC=%ERRORLEVEL%"
-call :check_download
-exit /b %ERRORLEVEL%
-
 :check_download
 type "%TEMP%\tfm_jlink_dl.txt"
-findstr /c:"0x0C038000" /c:"0x0C00E000" /c:"0x0C088000" "%TEMP%\tfm_jlink_dl.txt" >nul
+findstr /c:"0x0C038000" /c:"0x0C00E000" /c:"0x0C088000" /c:"0x0C090000" /c:"0x0C200000" /c:"0x0C258000" "%TEMP%\tfm_jlink_dl.txt" >nul
 if not errorlevel 1 (
     echo.
-    echo [FAIL] CubeProgrammer still used 0x0C alias. This is the old hex path.
-    echo        Need jlink_tfm_update.bat rev cube-jlink-20260825f and jlink_hex_ns_alias.py
+    echo [FAIL] CubeProgrammer still used 0x0C alias. Need the H5F4 jlink remap.
     set "FAILED_STEP=download %STEP_NAME% still 0x0C"
     set "EXIT_CODE=1"
     exit /b 1
@@ -383,7 +272,6 @@ if not "%EXIT_CODE%"=="0" (
     echo  jlink_tfm_update Done
     echo ============================================================
 )
-echo.
 echo Window stays open. Press any key to close.
 pause
 endlocal & exit /b %EXIT_CODE%

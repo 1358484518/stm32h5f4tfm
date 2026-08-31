@@ -1,19 +1,13 @@
 @echo off
-echo ERROR: windows-tfm-tools 是旧 H573 脚本，禁止用来烧 STM32H5F4。
-echo 请只使用 trusted-firmware-m\build_s\api_ns\regression.sh
-pause
-exit /b 1
 rem ****************************************************************************
-rem  * STM32H573I-DK TF-M option-byte regression (Windows)
-rem  * Default probe: J-Link via CubeProgrammer  -c port=JLINK
-rem  * Onboard ST-LINK only if first argument is stlink.
-rem  *
-rem  * SPDX-License-Identifier: BSD-3-Clause
-rem  ****************************************************************************
+rem  STM32H5F4 TF-M option-byte regression (Windows)
+rem  Default probe: J-Link via CubeProgrammer  -c port=JLINK
+rem  Leaves SECWM open so J-Link can program the 0x08 flash alias.
+rem  Onboard ST-LINK only if first argument is stlink.
+rem ****************************************************************************
 setlocal EnableExtensions
 set "FAILED_STEP="
 set "EXIT_CODE=0"
-set "SCRIPT_REV=cube-jlink-20260825d"
 set "PORT=JLINK"
 set "SN_ARG="
 
@@ -31,11 +25,12 @@ if /i "%~1"=="stlink" (
     set "SN_ARG=%~1"
 )
 
+call "%~dp0h5f4_env.bat"
+
 echo.
 echo ============================================================
-echo  STM32H573I-DK  jlink_regression.bat  (OEM-iRoT)
-echo  rev:  %SCRIPT_REV%
-echo  file: %~f0
+echo  STM32H5F4  jlink_regression.bat  (OEM-iRoT)
+echo  rev:  %H5F4_REV%
 echo ============================================================
 echo.
 
@@ -75,20 +70,20 @@ if defined SN_ARG (
     set "sn_option=sn=%SN_ARG%"
     echo [info] probe SN = %SN_ARG%
 ) else (
-    echo [info] using first J-Link ^(port=%PORT%^)
+    echo [info] using first probe ^(port=%PORT%^)
 )
 echo [info] connect = -c port=%PORT% ap=1 %sn_option% mode=UR
 
 set "connect=-c port=%PORT% ap=1 %sn_option% mode=UR"
 set "connect_no_reset=-c port=%PORT% ap=1 %sn_option% mode=HotPlug"
-set "product_state=-ob PRODUCT_STATE=0xED TZEN=0xB4"
-set "remove_bank1_protect=-ob SECWM1_STRT=127 SECWM1_END=0 WRPSGn1=0xffffffff"
-set "remove_bank2_protect=-ob SECWM2_STRT=127 SECWM2_END=0 WRPSGn2=0xffffffff"
+set "product_state=-ob %H5F4_PRODUCT_STATE%"
+set "remove_bank1_protect=-ob SECWM1_STRT=255 SECWM1_END=0 WRPSG11=0xffffffff WRPSG12=0xffffffff"
+set "remove_bank2_protect=-ob SECWM2_STRT=255 SECWM2_END=0 WRPSG21=0xffffffff WRPSG22=0xffffffff"
 set "erase_all=-e all"
-set "remove_hdp_protection=-ob HDP1_END=0 HDP2_END=0"
-set "default_ob1=-ob SECBOOTADD=0xC0100 HDP1_STRT=1 HDP1_END=0 HDP2_STRT=1 HDP2_END=0 SWAP_BANK=0 SRAM2_RST=0 SRAM2_ECC=0"
-set "default_ob2=-ob SECWM1_STRT=127 SECWM1_END=0 SECWM2_STRT=127 SECWM2_END=0"
-set "boot_ube=-ob BOOT_UBE=0xB4"
+set "remove_hdp_protection=-ob %H5F4_HDP_OFF%"
+set "default_ob1=-ob %H5F4_OB1%"
+set "default_ob2=-ob %H5F4_SECWM_OPEN%"
+set "boot_ube=-ob %H5F4_BOOT_UBE%"
 
 echo.
 echo [2/8] PRODUCT_STATE=0xED  TZEN=0xB4 ^(TrustZone ON^)
@@ -149,13 +144,15 @@ if errorlevel 1 goto :finish
 echo.
 echo ============================================================
 echo  ALL STEPS OK   port=%PORT%
-echo  OEM-iRoT: BOOT_UBE=0xB4  SECBOOTADD=0xC0100  TZEN=0xB4
+echo  STM32H5F4 OEM-iRoT: BOOT_UBE=0xB4  SECBOOTADD=0xC0100  TZEN=0xB4
+echo  SECWM left open ^(STRT=255 END=0^) for J-Link 0x08 programming
 echo ============================================================
 goto :finish
 
 :usage
-echo Usage: regression.bat [jlink^|stlink] [SN]
+echo Usage: jlink_regression.bat [jlink^|stlink] [SN]
 echo Default is J-Link:  -c port=JLINK ap=1
+echo H5F4: WRPSG11/12/21/22, SECWM 0-255.
 pause
 exit /b 0
 
@@ -187,7 +184,6 @@ if not "%EXIT_CODE%"=="0" (
     echo  regression Done
     echo ============================================================
 )
-echo.
 if /i "%TFM_SKIP_PAUSE%"=="1" (
     endlocal & exit /b %EXIT_CODE%
 )

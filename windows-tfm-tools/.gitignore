@@ -1,0 +1,5 @@
+# Copied / generated flash images. Use build_s/api_ns/bin after ./buildtfm.sh.
+*.bin
+*.hex
+*.addr
+__pycache__/

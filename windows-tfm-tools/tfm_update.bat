@@ -1,156 +1,139 @@
 @echo off
-echo ERROR: windows-tfm-tools 里的 bl2.hex 是旧 H573 固件，禁止用来烧 STM32H5F4。
-echo 请在 Ubuntu 仓库根目录执行: ./buildtfm.sh test
-echo 然后只烧 trusted-firmware-m\build_s\api_ns 下的 regression.sh 和 TFM_UPDATE.sh
-echo 烧完串口必须出现: Starting bootloader S-sec=0x200000
-pause
-exit /b 1
 rem ****************************************************************************
-rem  * STM32H573I-DK TF-M flash after regression (Windows)
-rem  *
-rem  * 1) Run regression.bat (option bytes + erase + OEM-iRoT)
-rem  * 2) If present in current dir (or this script's dir), download:
-rem  *      bl2.hex                 Intel HEX, address inside the file
-rem  *                              (BL2 bin at 0x0C00E000 / hex often 0x0800E000)
-rem  *      tfm_s_ns_signed.hex     Intel HEX, S+NS concatenated (S slot)
-rem  *      tfm_ns_signed.bin       binary at 0x0C088000 (NS primary)
-rem  *
-rem  * Usage:
-rem  *   tfm_update.bat
-rem  *   tfm_update.bat <ST-LINK SN>
-rem  *
-rem  * SPDX-License-Identifier: BSD-3-Clause
-rem  ****************************************************************************
-setlocal EnableExtensions
+rem  STM32H5F4 TF-M flash after regression (Windows, ST-Link)
+rem
+rem  Images are taken from trusted-firmware-m\build_s\api_ns\bin (preferred)
+rem  or the current directory. bl2.bin MUST contain H5F4BL2 and H5F4SWP2.
+rem  This folder no longer ships hex; old H573 images are rejected.
+rem
+rem  Usage:
+rem    tfm_update.bat                 regression + download (safe first flash)
+rem    tfm_update.bat images-only     skip mass-erase; only program images
+rem    tfm_update.bat [images-only] [ST-LINK SN]
+rem ****************************************************************************
+setlocal EnableExtensions EnableDelayedExpansion
 
 set "EXIT_CODE=0"
 set "FAILED_STEP="
 set "FLASHED=0"
-set "sn_option="
-set "SN_ARG="
-if not "%~1"=="" (
-    set "sn_option=sn=%~1"
-    set "SN_ARG=%~1"
+set "DO_REG=1"
+set "H5F4_PORT=SWD"
+set "H5F4_SN="
+set "SKIP_NS=0"
+call "%~dp0h5f4_env.bat"
+
+if /i "%~1"=="-h" goto :usage
+if /i "%~1"=="/?" goto :usage
+
+:parse_args
+if "%~1"=="" goto :args_done
+if /i "%~1"=="images-only" (
+    set "DO_REG=0"
+    shift
+    goto :parse_args
 )
-
-rem H573 flash map (secure alias 0x0C00_0000)
-set "ADDR_BL2=0x0C00E000"
-set "ADDR_S=0x0C038000"
-set "ADDR_NS=0x0C088000"
+if /i "%~1"=="skip-erase" (
+    set "DO_REG=0"
+    shift
+    goto :parse_args
+)
+set "H5F4_SN=%~1"
+shift
+goto :parse_args
+:args_done
 
 echo.
 echo ============================================================
-echo  STM32H573I-DK  TF-M UPDATE
-echo  cwd: %CD%
+echo  STM32H5F4  TF-M UPDATE  ^(ST-Link, 0x0C alias^)
+echo  rev:  %H5F4_REV%
+echo  cwd:  %CD%
 echo ============================================================
 echo.
 
-if not exist "%~dp0regression.bat" (
-    echo [FAIL] regression.bat not found next to this script
-    set "FAILED_STEP=locate regression.bat"
+call "%~dp0h5f4_setup.bat"
+if errorlevel 1 (
+    set "FAILED_STEP=locate images / STM32_Programmer_CLI"
     set "EXIT_CODE=1"
     goto :finish
 )
 
-echo [1] Run regression.bat
-echo ------------------------------------------------------------
-set "TFM_SKIP_PAUSE=1"
-if defined SN_ARG (
-    call "%~dp0regression.bat" %SN_ARG%
-) else (
-    call "%~dp0regression.bat"
-)
-set "TFM_SKIP_PAUSE="
-if errorlevel 1 (
+echo.
+echo Flash map ^(secure alias^):
+echo   BL2  %H5F4_ADDR_BL2_S%
+echo   S    %H5F4_ADDR_S_S%
+echo   NS   %H5F4_ADDR_NS_S%   ^(H573 was 0x0C088000, do not use^)
+echo.
+
+if "%DO_REG%"=="1" (
+    echo [1] Run regression.bat ^(WRPSG11..22, SECWM 0-255, mass erase^)
+    echo ------------------------------------------------------------
+    set "TFM_SKIP_PAUSE=1"
+    if defined H5F4_SN (
+        call "%~dp0regression.bat" %H5F4_SN%
+    ) else (
+        call "%~dp0regression.bat"
+    )
+    set "TFM_SKIP_PAUSE="
+    if errorlevel 1 (
+        echo [FAIL] regression.bat failed, skip download
+        set "FAILED_STEP=regression.bat"
+        set "EXIT_CODE=1"
+        goto :finish
+    )
+    echo [ok]   regression finished
     echo.
-    echo [FAIL] regression.bat failed, skip download
-    set "FAILED_STEP=regression.bat"
-    set "EXIT_CODE=1"
-    goto :finish
+) else (
+    echo [1] skip regression ^(images-only^)
+    echo.
 )
-echo [ok]   regression finished
+
+set "connect=%H5F4_CONNECT%"
+
+echo [2] Download images
 echo.
 
-echo [2] Locate STM32_Programmer_CLI
-set "CUBEPROG="
-if exist "%ProgramFiles%\STMicroelectronics\STM32Cube\STM32CubeProgrammer\bin\STM32_Programmer_CLI.exe" (
-    set "CUBEPROG=%ProgramFiles%\STMicroelectronics\STM32Cube\STM32CubeProgrammer\bin"
+if defined TFM_S_SIGNED (
+    call :flash_image "%TFM_S_SIGNED%" %H5F4_ADDR_S_S% "S signed"
+    if errorlevel 1 goto :finish
+) else (
+    call :flash_image "%TFM_S_NS_SIGNED%" %H5F4_ADDR_S_S% "S+NS signed"
+    if errorlevel 1 goto :finish
+    set "SKIP_NS=1"
 )
-if not defined CUBEPROG if exist "%ProgramFiles(x86)%\STMicroelectronics\STM32Cube\STM32CubeProgrammer\bin\STM32_Programmer_CLI.exe" (
-    set "CUBEPROG=%ProgramFiles(x86)%\STMicroelectronics\STM32Cube\STM32CubeProgrammer\bin"
+
+if "%SKIP_NS%"=="1" (
+    echo [info] skip NS, already in concatenated S+NS
+) else (
+    if not defined TFM_NS_SIGNED (
+        echo [FAIL] tfm_ns_signed.bin not found
+        set "FAILED_STEP=no NS image"
+        set "EXIT_CODE=1"
+        goto :finish
+    )
+    call :flash_image "%TFM_NS_SIGNED%" %H5F4_ADDR_NS_S% "NS signed"
+    if errorlevel 1 goto :finish
 )
-if defined CUBEPROG set "PATH=%CUBEPROG%;%PATH%"
-where STM32_Programmer_CLI >nul 2>&1
+
+echo [3] Unlock HDP and WRP before BL2
+echo ------------------------------------------------------------
+echo CMD: STM32_Programmer_CLI %connect% -ob %H5F4_HDP_OFF%
+STM32_Programmer_CLI %connect% -ob %H5F4_HDP_OFF%
+echo CMD: STM32_Programmer_CLI %connect% -ob %H5F4_WRP%
+STM32_Programmer_CLI %connect% -ob %H5F4_WRP%
 if errorlevel 1 (
-    echo [FAIL] STM32_Programmer_CLI not found
-    set "FAILED_STEP=locate STM32_Programmer_CLI"
+    echo [FAIL] could not clear WRPSG11/12/21/22
+    set "FAILED_STEP=unlock WRP"
     set "EXIT_CODE=1"
     goto :finish
 )
-echo [ok]   STM32_Programmer_CLI ready
 echo.
 
-set "connect=-c port=SWD ap=1 %sn_option% mode=UR"
+call :flash_image "%TFM_BL2%" %H5F4_ADDR_BL2_S% "BL2"
+if errorlevel 1 goto :finish
 
-echo [3] Scan images in current directory
-set "FOUND_ANY=0"
-call :find_file bl2.hex
-if not errorlevel 1 (
-    echo        FOUND  bl2.hex                 -^> BL2  %ADDR_BL2%  ^(hex uses file addresses^)
-    set "FOUND_ANY=1"
-) else (
-    echo        skip   bl2.hex                 not found
-)
-call :find_file tfm_s_ns_signed.hex
-if not errorlevel 1 (
-    echo        FOUND  tfm_s_ns_signed.hex     -^> S+NS %ADDR_S%    ^(hex uses file addresses^)
-    set "FOUND_ANY=1"
-) else (
-    echo        skip   tfm_s_ns_signed.hex     not found
-)
-call :find_file tfm_ns_signed.bin
-if not errorlevel 1 (
-    echo        FOUND  tfm_ns_signed.bin       -^> NS   %ADDR_NS%
-    set "FOUND_ANY=1"
-) else (
-    echo        skip   tfm_ns_signed.bin       not found
-)
-echo.
-
-if "%FOUND_ANY%"=="0" (
-    echo [FAIL] no bl2.hex / tfm_s_ns_signed.hex / tfm_ns_signed.bin in:
-    echo        %CD%
-    echo        %~dp0
-    set "FAILED_STEP=no image files"
-    set "EXIT_CODE=1"
-    goto :finish
-)
-
-echo [4] Download images that exist
-echo.
-
-call :find_file tfm_s_ns_signed.hex
-if not errorlevel 1 (
-    call :flash_hex tfm_s_ns_signed.hex "%FILE%" "S+NS signed"
-    if errorlevel 1 goto :finish
-)
-
-call :find_file tfm_ns_signed.bin
-if not errorlevel 1 (
-    call :flash_bin tfm_ns_signed.bin "%FILE%" %ADDR_NS% "NS signed"
-    if errorlevel 1 goto :finish
-)
-
-call :find_file bl2.hex
-if not errorlevel 1 (
-    call :flash_hex bl2.hex "%FILE%" "BL2"
-    if errorlevel 1 goto :finish
-)
-
-echo [5] Reset MCU
+echo [4] Reset MCU
 echo ------------------------------------------------------------
 echo CMD: STM32_Programmer_CLI %connect% -hardRst
-echo ------------------------------------------------------------
 STM32_Programmer_CLI %connect% -hardRst
 if errorlevel 1 (
     echo [FAIL] reset failed
@@ -163,33 +146,39 @@ echo.
 
 echo ============================================================
 echo  ALL STEPS OK  ^(%FLASHED% file(s) downloaded^)
+echo  UART 115200 USART1 PA9/PA10 must show H5F4BL2
+echo  If you only see Starting bootloader without H5F4BL2:
+echo    run tfm_update.bat again ^(not images-only^) to mass-erase HDP
 echo ============================================================
 goto :finish
 
-:find_file
-set "FILE="
-if exist "%CD%\%~1" (
-    set "FILE=%CD%\%~1"
-    exit /b 0
-)
-if exist "%~dp0%~1" (
-    set "FILE=%~dp0%~1"
-    exit /b 0
-)
-exit /b 1
+:usage
+echo Usage: tfm_update.bat [images-only] [ST-LINK SN]
+echo Prefer images from trusted-firmware-m\build_s\api_ns\bin after ./buildtfm.sh test
+pause
+exit /b 0
 
-:flash_hex
-set "STEP_NAME=%~1"
-set "STEP_PATH=%~2"
+:flash_image
+set "STEP_PATH=%~1"
+set "STEP_ADDR=%~2"
 set "STEP_DESC=%~3"
+set "STEP_NAME=%~nx1"
 echo ------------------------------------------------------------
 echo DOWNLOAD  %STEP_DESC%  [%STEP_NAME%]
 echo FILE: %STEP_PATH%
-echo CMD:  STM32_Programmer_CLI %connect% -d "%STEP_PATH%" -v
-echo ------------------------------------------------------------
-STM32_Programmer_CLI %connect% -d "%STEP_PATH%" -v
+set "EXT=%~x1"
+if /i "%EXT%"==".hex" (
+    echo CMD:  STM32_Programmer_CLI %connect% -d "%STEP_PATH%" -v
+    STM32_Programmer_CLI %connect% -d "%STEP_PATH%" -v
+) else (
+    echo ADDR: %STEP_ADDR%
+    echo CMD:  STM32_Programmer_CLI %connect% -d "%STEP_PATH%" %STEP_ADDR% -v
+    STM32_Programmer_CLI %connect% -d "%STEP_PATH%" %STEP_ADDR% -v
+)
 if errorlevel 1 (
     echo [FAIL] download %STEP_NAME%
+    echo        If BL2 verify fails at 0x0C010000, HDP still covers BL2.
+    echo        Re-run without images-only so regression.bat mass-erases.
     set "FAILED_STEP=download %STEP_NAME%"
     set "EXIT_CODE=1"
     exit /b 1
@@ -199,39 +188,13 @@ echo.
 set /a FLASHED+=1
 exit /b 0
 
-:flash_bin
-set "STEP_NAME=%~1"
-set "STEP_PATH=%~2"
-set "STEP_ADDR=%~3"
-set "STEP_DESC=%~4"
-echo ------------------------------------------------------------
-echo DOWNLOAD  %STEP_DESC%  [%STEP_NAME%]
-echo FILE: %STEP_PATH%
-echo ADDR: %STEP_ADDR%
-echo CMD:  STM32_Programmer_CLI %connect% -d "%STEP_PATH%" %STEP_ADDR% -v
-echo ------------------------------------------------------------
-STM32_Programmer_CLI %connect% -d "%STEP_PATH%" %STEP_ADDR% -v
-if errorlevel 1 (
-    echo [FAIL] download %STEP_NAME%
-    set "FAILED_STEP=download %STEP_NAME%"
-    set "EXIT_CODE=1"
-    exit /b 1
-)
-echo [ok]   %STEP_NAME% downloaded @ %STEP_ADDR%
-echo.
-set /a FLASHED+=1
-exit /b 0
-
 :finish
 echo.
 if not "%EXIT_CODE%"=="0" (
     echo ============================================================
     echo  FAILED at: %FAILED_STEP%
-    echo  Window stays open so you can read the log above.
     echo ============================================================
-) else (
-    echo Window stays open. Press any key to close.
 )
-echo.
+echo Window stays open. Press any key to close.
 pause
 endlocal & exit /b %EXIT_CODE%

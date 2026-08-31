@@ -1,41 +1,35 @@
 @echo off
-echo ERROR: windows-tfm-tools 是旧 H573 脚本，禁止用来烧 STM32H5F4。
-echo 请只使用 trusted-firmware-m\build_s\api_ns\regression.sh
-pause
-exit /b 1
 rem ****************************************************************************
-rem  * STM32H573I-DK TF-M option-byte regression (Windows)
-rem  * Wipe protections, erase flash, restore default secure OBs,
-rem  * set BOOT_UBE=0xB4 (OEM-iRoT).
-rem  *
-rem  * Usage:
-rem  *   regression.bat              first ST-LINK
-rem  *   regression.bat <SN>         specific probe
-rem  *
-rem  * SPDX-License-Identifier: BSD-3-Clause
-rem  ****************************************************************************
+rem  STM32H5F4 TF-M option-byte regression (Windows, ST-Link)
+rem  Wipe WRP/SECWM, mass-erase, restore full-bank secure OBs, BOOT_UBE=OEM-iRoT.
+rem
+rem  Usage:
+rem    regression.bat              first ST-LINK
+rem    regression.bat <SN>         specific probe
+rem ****************************************************************************
 setlocal EnableExtensions
 set "FAILED_STEP="
 set "EXIT_CODE=0"
+set "H5F4_PORT=SWD"
+set "H5F4_SN="
+if /i "%~1"=="-h" goto :usage
+if /i "%~1"=="/?" goto :usage
+if not "%~1"=="" set "H5F4_SN=%~1"
 
 echo.
 echo ============================================================
-echo  STM32H573I-DK  regression  (OEM-iRoT)
+echo  STM32H5F4  regression  (OEM-iRoT, ST-Link)
 echo ============================================================
 echo.
 
-set "sn_option="
-if not "%~1"=="" (
-    set "sn_option=sn=%~1"
-    echo [info] ST-LINK SN = %~1
-) else (
-    echo [info] ST-LINK SN not specified, use the first probe
-)
+call "%~dp0h5f4_env.bat"
 
-echo.
 echo [1/8] Locate STM32_Programmer_CLI
 set "CUBEPROG="
-if exist "%ProgramFiles%\STMicroelectronics\STM32Cube\STM32CubeProgrammer\bin\STM32_Programmer_CLI.exe" (
+if exist "D:\ST\STM32CubeProgrammer\bin\STM32_Programmer_CLI.exe" (
+    set "CUBEPROG=D:\ST\STM32CubeProgrammer\bin"
+)
+if not defined CUBEPROG if exist "%ProgramFiles%\STMicroelectronics\STM32Cube\STM32CubeProgrammer\bin\STM32_Programmer_CLI.exe" (
     set "CUBEPROG=%ProgramFiles%\STMicroelectronics\STM32Cube\STM32CubeProgrammer\bin"
 )
 if not defined CUBEPROG if exist "%ProgramFiles(x86)%\STMicroelectronics\STM32Cube\STM32CubeProgrammer\bin\STM32_Programmer_CLI.exe" (
@@ -47,8 +41,7 @@ if defined CUBEPROG (
 )
 where STM32_Programmer_CLI >nul 2>&1
 if errorlevel 1 (
-    echo [FAIL] step 1/8 : STM32_Programmer_CLI not found
-    echo        Install STM32CubeProgrammer, or add its bin directory to PATH.
+    echo [FAIL] STM32_Programmer_CLI not found
     set "FAILED_STEP=1/8 Locate STM32_Programmer_CLI"
     set "EXIT_CODE=1"
     goto :finish
@@ -59,16 +52,24 @@ for /f "delims=" %%I in ('where STM32_Programmer_CLI') do (
 )
 :cli_found
 
+set "sn_option="
+if defined H5F4_SN (
+    set "sn_option=sn=%H5F4_SN%"
+    echo [info] ST-LINK SN = %H5F4_SN%
+) else (
+    echo [info] ST-LINK SN not specified, use the first probe
+)
+
 set "connect=-c port=SWD ap=1 %sn_option% mode=UR"
 set "connect_no_reset=-c port=SWD ap=1 %sn_option% mode=HotPlug"
-set "product_state=-ob PRODUCT_STATE=0xED TZEN=0xB4"
-set "remove_bank1_protect=-ob SECWM1_STRT=127 SECWM1_END=0 WRPSGn1=0xffffffff"
-set "remove_bank2_protect=-ob SECWM2_STRT=127 SECWM2_END=0 WRPSGn2=0xffffffff"
+set "product_state=-ob %H5F4_PRODUCT_STATE%"
+set "remove_bank1_protect=-ob SECWM1_STRT=255 SECWM1_END=0 WRPSG11=0xffffffff WRPSG12=0xffffffff"
+set "remove_bank2_protect=-ob SECWM2_STRT=255 SECWM2_END=0 WRPSG21=0xffffffff WRPSG22=0xffffffff"
 set "erase_all=-e all"
-set "remove_hdp_protection=-ob HDP1_END=0 HDP2_END=0"
-set "default_ob1=-ob SECBOOTADD=0xC0100 HDP1_STRT=1 HDP1_END=0 HDP2_STRT=1 HDP2_END=0 SWAP_BANK=0 SRAM2_RST=0 SRAM2_ECC=0"
-set "default_ob2=-ob SECWM2_STRT=0 SECWM2_END=127 SECWM1_STRT=0 SECWM1_END=127"
-set "boot_ube=-ob BOOT_UBE=0xB4"
+set "remove_hdp_protection=-ob %H5F4_HDP_OFF%"
+set "default_ob1=-ob %H5F4_OB1%"
+set "default_ob2=-ob %H5F4_SECWM_FULL%"
+set "boot_ube=-ob %H5F4_BOOT_UBE%"
 
 echo.
 echo [2/8] PRODUCT_STATE=0xED  TZEN=0xB4 ^(TrustZone ON^)
@@ -99,14 +100,14 @@ call :run_cli %connect_no_reset% %remove_hdp_protection%
 if errorlevel 1 goto :finish
 
 echo.
-echo [6/8] Default OB1 : SECBOOTADD=0xC0100 ^(BL2^), SWAP_BANK=0, SRAM2
+echo [6/8] Default OB1 : SECBOOTADD=0xC0100 ^(BL2^)
 set "STEP_ID=6/8"
 set "STEP_NAME=Default OB1 SECBOOTADD"
 call :run_cli %connect_no_reset% %default_ob1%
 if errorlevel 1 goto :finish
 
 echo.
-echo [7/8] Default OB2 : bank1+bank2 full secure
+echo [7/8] Default OB2 : bank1+bank2 full secure ^(SECWM 0-255^)
 set "STEP_ID=7/8"
 set "STEP_NAME=Default OB2 SECWM"
 call :run_cli %connect_no_reset% %default_ob2%
@@ -114,14 +115,13 @@ if errorlevel 1 goto :finish
 
 echo.
 echo [8/8] BOOT_UBE=0xB4 ^(OEM-iRoT, boot from user flash BL2^)
-echo        0xB4 = OEM-iRoT    0xC3 = ST-iRoT
 set "STEP_ID=8/8"
 set "STEP_NAME=BOOT_UBE OEM-iRoT"
 call :run_cli %connect_no_reset% %boot_ube%
 if errorlevel 1 goto :finish
 
 echo.
-echo [extra] Read option bytes ^(confirm BOOT_UBE / SECBOOTADD / TZEN^)
+echo [extra] Read option bytes
 set "STEP_ID=extra"
 set "STEP_NAME=Display option bytes"
 call :run_cli %connect_no_reset% -ob displ
@@ -130,9 +130,16 @@ if errorlevel 1 goto :finish
 echo.
 echo ============================================================
 echo  ALL STEPS OK
-echo  OEM-iRoT: BOOT_UBE=0xB4  SECBOOTADD=0xC0100  TZEN=0xB4
+echo  STM32H5F4 OEM-iRoT: BOOT_UBE=0xB4  SECBOOTADD=0xC0100  TZEN=0xB4
+echo  WRP names WRPSG11/12/21/22   SECWM 0-255  ^(not H573 WRPSGn1 / 127^)
 echo ============================================================
 goto :finish
+
+:usage
+echo Usage: regression.bat [ST-LINK SN]
+echo H5F4 option bytes: WRPSG11/12/21/22, SECWM STRT/END 0-255.
+pause
+exit /b 0
 
 :run_cli
 echo ------------------------------------------------------------
@@ -156,11 +163,11 @@ echo.
 if not "%EXIT_CODE%"=="0" (
     echo ============================================================
     echo  FAILED at: %FAILED_STEP%
-    echo  Window stays open so you can read the log above.
     echo ============================================================
-) else (
-    echo Window stays open. Press any key to close.
 )
-echo.
+if /i "%TFM_SKIP_PAUSE%"=="1" (
+    endlocal & exit /b %EXIT_CODE%
+)
+echo Window stays open. Press any key to close.
 pause
 endlocal & exit /b %EXIT_CODE%
