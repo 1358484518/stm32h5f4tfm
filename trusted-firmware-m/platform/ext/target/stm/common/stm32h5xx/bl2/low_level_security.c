@@ -807,6 +807,35 @@ void LL_SECU_CheckStaticProtections(void)
 #endif /* TFM_ENABLE_SET_OB  */
     }
   }
+#if (FLASH_AREA_2_OFFSET >= FLASH_B_SIZE) && \
+    ((FLASH_AREA_1_OFFSET + FLASH_AREA_1_SIZE) <= FLASH_B_SIZE)
+  /* S secondary starts at bank 2. Keep that slot in the secure watermark so
+   * BL2 reads it through the secure flash alias. Leaving bank 2 fully NS
+   * made image 0 Error_Handler after Boot source: primary slot.
+   */
+  else
+  {
+    start = 0;
+    end = (FLASH_AREA_2_SIZE - 1) / PAGE_SIZE;
+    if ((start != flash_option_bytes_bank2.WMSecStartSector)
+        || (end != flash_option_bytes_bank2.WMSecEndSector))
+    {
+      BOOT_LOG_INF("BANK 2 secure flash [%d, %d] : OB [%d, %d]",
+                   (int)start, (int)end,
+                   (int)flash_option_bytes_bank2.WMSecStartSector,
+                   (int)flash_option_bytes_bank2.WMSecEndSector);
+#ifndef TFM_ENABLE_SET_OB
+      BOOT_LOG_ERR("Unexpected value for secure flash protection");
+      Error_Handler();
+#else
+      BOOT_LOG_ERR("Unexpected value for secure flash protection: set wmsec2");
+      flash_option_bytes_bank2.WMSecStartSector = start;
+      flash_option_bytes_bank2.WMSecEndSector = end;
+      flash_option_bytes_bank2.OptionType = OPTIONBYTE_WMSEC;
+#endif /* TFM_ENABLE_SET_OB */
+    }
+  }
+#else
   /* the bank 2 must be fully unsecure */
   else if (flash_option_bytes_bank2.WMSecEndSector >= flash_option_bytes_bank2.WMSecStartSector)
   {
@@ -823,6 +852,7 @@ void LL_SECU_CheckStaticProtections(void)
     flash_option_bytes_bank2.OptionType = OPTIONBYTE_WMSEC;
 #endif /* TFM_ENABLE_SET_OB */
   }
+#endif
 
 #ifdef  TFM_WRP_PROTECT_ENABLE
   uint32_t val;

@@ -730,7 +730,8 @@ void Error_Handler(void)
     typedef void (*nsfptr_t)(void) __attribute__((cmse_nonsecure_call));
     nsfptr_t nsfptr = (nsfptr_t)(SRAM1_BASE_NS + 1);
     __IO uint16_t *pt = (uint16_t *)SRAM1_BASE_NS;
-    BOOT_LOG_ERR("BL2 Error_Handler");
+    BOOT_LOG_ERR("BL2 Error_Handler lr=0x%x",
+                 (unsigned)(uintptr_t)__builtin_return_address(0));
     /*  copy while(1) instruction */
     *pt = WHILE_1_OPCODE;
     /* Flush and refill pipeline  */

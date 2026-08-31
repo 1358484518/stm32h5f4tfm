@@ -120,6 +120,12 @@ static struct flash_range secure_vect[] = {
 #if FLASH_AREA_0_SIZE > 0
 	{ FLASH_AREA_0_OFFSET, FLASH_AREA_0_OFFSET + FLASH_AREA_0_SIZE - 1 },
 #endif
+#if FLASH_AREA_2_SIZE > 0 && FLASH_DRIVER_IS_INTERNAL(FLASH_DEV_NAME_2) && \
+    (FLASH_AREA_2_OFFSET >= FLASH_B_SIZE) && \
+    ((FLASH_AREA_1_OFFSET + FLASH_AREA_1_SIZE) <= FLASH_B_SIZE)
+	/* S secondary sits at the start of bank 2 and is a secure slot. */
+	{ FLASH_AREA_2_OFFSET, FLASH_AREA_2_OFFSET + FLASH_AREA_2_SIZE - 1 },
+#endif
 };
 
 struct low_level_device FLASH0_DEV = {
