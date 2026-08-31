@@ -257,14 +257,15 @@ chmod +x postbuild.sh regression.sh TFM_UPDATE.sh preprocess.sh 2>/dev/null || t
 
 BL2_BIN="${TFM_ROOT}/build_s/api_ns/bin/bl2.bin"
 [[ -f "${BL2_BIN}" ]] || { echo "错误: 找不到 ${BL2_BIN}"; exit 1; }
-# grep -q + pipefail 会因 strings 收到 SIGPIPE 而误报失败
-if ! grep -a -F -q "Starting bootloader S-sec=" "${BL2_BIN}"; then
-    echo "错误: ${BL2_BIN} 没有 S-sec 标记，这不是当前源码编出来的 BL2，禁止烧录"
+# H5F4BL2 is a static string (always linked). "Starting bootloader S-sec=" is
+# BOOT_LOG_INF and is compiled out in prod (LOG_LEVEL_ERROR).
+if ! grep -a -F -q "H5F4BL2" "${BL2_BIN}"; then
+    echo "错误: ${BL2_BIN} 没有 H5F4BL2 标记（编译产物不是当前源码）"
     strings "${BL2_BIN}" | grep -E "Starting bootloader|H5F4BL2" || true
     exit 1
 fi
-if ! grep -a -F -q "H5F4BL2" "${BL2_BIN}"; then
-    echo "错误: ${BL2_BIN} 没有 H5F4BL2 标记（编译产物不是当前源码）"
+if [[ "${BUILD_TYPE}" == "test" ]] && ! grep -a -F -q "Starting bootloader S-sec=" "${BL2_BIN}"; then
+    echo "错误: ${BL2_BIN} 没有 S-sec 标记（测试版 INFO 日志应编进该串）"
     strings "${BL2_BIN}" | grep -E "Starting bootloader|H5F4BL2" || true
     exit 1
 fi
@@ -330,8 +331,8 @@ echo "* ./regression.sh"
 echo "* STM32_Programmer_CLI -c port=SWD mode=HotPlug -ob BOOT_UBE=0xB4"
 echo "* ./TFM_UPDATE.sh"
 echo "*"
-echo "* 烧完串口第一行必须有: [INF] H5F4BL2"
-echo "* 如果仍是 Starting bootloader（没有 H5F4BL2 / S-sec），BL2 没写进去"
+echo "* 烧完串口第一行必须有: H5F4BL2（BOOT_LOG_ERR，正式版也会打）"
+echo "* 如果没有 H5F4BL2，BL2 没写进去"
 echo "************************************************************"
 SLOT1="$(sed -n 's/^slot1=//p' TFM_UPDATE.sh | head -n1)"
 SLOT3="$(sed -n 's/^slot3=//p' TFM_UPDATE.sh | head -n1)"

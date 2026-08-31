@@ -71,15 +71,14 @@ if [[ "${MODE}" == "--self-test" ]]; then
 fi
 
 if [[ ! -f "${BL2_BIN}" ]] || [[ ! -x "${API_NS}/TFM_UPDATE.sh" ]]; then
-    die "还没有编译产物。先在仓库根目录执行: ./buildtfm.sh test"
+    die "还没有编译产物。先在仓库根目录执行: ./buildtfm.sh"
 fi
 # 不要用 strings | grep -q：pipefail 下 strings 会 SIGPIPE，误报没有标记
-grep -a -F -q "Starting bootloader S-sec=" "${BL2_BIN}" \
-    || die "${BL2_BIN} 没有 S-sec 标记。这是旧产物，请先在仓库根目录执行: ./buildtfm.sh test"
+# S-sec 是 BOOT_LOG_INF，正式版 ERROR 日志不会编进 bl2.bin；认 H5F4BL2 即可。
 grep -a -F -q "H5F4BL2" "${BL2_BIN}" \
-    || die "${BL2_BIN} 没有 H5F4BL2 标记。这是旧产物，请先: git pull && ./buildtfm.sh test"
+    || die "${BL2_BIN} 没有 H5F4BL2 标记。这是旧产物，请先: git pull && ./buildtfm.sh"
 grep -a -F -q "H5F4SWP2" "${BL2_BIN}" \
-    || die "${BL2_BIN} 没有 MCUBoot 0002 标记 H5F4SWP2（image 0 会 BusFault）。请: git pull && ./buildtfm.sh test"
+    || die "${BL2_BIN} 没有 MCUBoot 0002 标记 H5F4SWP2（image 0 会 BusFault）。请: git pull && ./buildtfm.sh"
 grep -q '^slot2=0xc200000$' "${API_NS}/TFM_UPDATE.sh" \
     || die "${API_NS}/TFM_UPDATE.sh 的 slot2 不是 0xc200000"
 grep -q '^slot1=0xc090000$' "${API_NS}/TFM_UPDATE.sh" \
@@ -203,12 +202,10 @@ echo "片上 BL2 字符串:"
 strings "${DUMP}" | grep -E "H5F4BL2|Starting bootloader|Checking image|BL2 flash map" || true
 grep -a -F -q "H5F4BL2" "${DUMP}" \
     || die "片上 BL2 没有 H5F4BL2。写保护还在，bootloader 没换掉"
-grep -a -F -q "Starting bootloader S-sec=" "${DUMP}" \
-    || die "片上 BL2 没有 S-sec。写保护还在，bootloader 没换掉"
 
 echo
 echo "片上已经是新 BL2。复位后串口必须有:"
-echo "  H5F4BL2                         （测试版可能是 [ERR] 行）"
+echo "  H5F4BL2                         （BOOT_LOG_ERR，正式版也会打）"
 echo "  BANK 2 secure flash [0, 39]     （不能再是 [255, 0]）"
 echo "  不能出现 set wrp1 / set hdp1"
 echo "  Image 0 boot_go done"

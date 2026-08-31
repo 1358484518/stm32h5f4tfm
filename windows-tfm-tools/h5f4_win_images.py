@@ -12,7 +12,6 @@ import sys
 import tempfile
 
 BL2_MARKERS = (b"H5F4BL2", b"H5F4SWP2")
-S_SEC_MARKER = b"Starting bootloader S-sec="
 FLASH_NS_BASE = 0x08000000
 FLASH_S_BASE = 0x0C000000
 FLASH_BYTES = 4 * 1024 * 1024
@@ -88,8 +87,6 @@ def bl2_marker_error(path):
             path,
             ", ".join(missing),
         )
-    if S_SEC_MARKER not in blob:
-        return "%s missing %s" % (path, S_SEC_MARKER.decode("ascii"))
     return None
 
 
@@ -277,7 +274,7 @@ def cmd_self_test():
     with tempfile.TemporaryDirectory() as td:
         good = os.path.join(td, "bl2.bin")
         with open(good, "wb") as f:
-            f.write(b"pad H5F4BL2 pad H5F4SWP2 pad Starting bootloader S-sec=0x200000")
+            f.write(b"pad H5F4BL2 pad H5F4SWP2")
         assert bl2_marker_error(good) is None
 
         bad = os.path.join(td, "old.bin")
