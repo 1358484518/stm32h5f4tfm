@@ -62,18 +62,32 @@ fi
 if [ "$slot2" == $l5 ]; then
 external_loader="-el $cubedir/ExternalLoader/MX25LM51245G_STM32L562E-DK.stldr"
 fi
-connect_no_reset="-c port=SWD "$sn_option" mode=UR $external_loader"
-connect="-c port=SWD "$sn_option" mode=UR $external_loader"
+connect_no_reset="-c port=SWD ap=1 "$sn_option" mode=UR $external_loader"
+connect="-c port=SWD ap=1 "$sn_option" mode=UR $external_loader"
 
 echo "Write TFM_Appli Secure"
 # part ot be updated according to flash_layout.h
 
 $stm32programmercli $connect -d $BINPATH_SPE/tfm_s_signed.bin $slot_s -v
+if [ $? -ne 0 ]; then
+  echo "ERROR: Secure image download/verify failed"
+  exit 1
+fi
 echo "TFM_Appli Secure Written"
 echo "Write TFM_Appli NonSecure"
 $stm32programmercli $connect -d $BINPATH_NSPE/tfm_ns_signed.bin $slot_ns -v
+if [ $? -ne 0 ]; then
+  echo "ERROR: Non-secure image download/verify failed"
+  exit 1
+fi
 echo "TFM_Appli NonSecure Written"
+echo "Unlock WRP before BL2"
+$stm32programmercli $connect -ob WRPSGn1=0xffffffff WRPSGn2=0xffffffff
 echo "Write TFM_SBSFU_Boot"
 $stm32programmercli $connect -d $BINPATH_BL2/bl2.bin $boot -v
+if [ $? -ne 0 ]; then
+  echo "ERROR: BL2 download/verify failed (WRP still protecting 0x0C010000?)"
+  exit 1
+fi
 echo "TFM_SBSFU_Boot Written"
 echo "TFM_UPDATE Done"
