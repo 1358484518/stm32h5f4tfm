@@ -401,28 +401,10 @@ static int32_t Flash_ReadData(uint32_t addr, void *data, uint32_t cnt)
   /* area secure and non secure are done with a non secure access */
   if (is_range_secure(&ARM_FLASH0_DEV, addr, cnt))
   {
-#ifdef TFM_DEV_MODE
-    if (addr >= FLASH_B_SIZE) {
-      static uint8_t bank2_s_logged;
-      if (!bank2_s_logged) {
-        bank2_s_logged = 1;
-        printf("BL2 bank2 read S alias 0x%x\r\n", (unsigned)(addr + FLASH_BASE));
-      }
-    }
-#endif
     memcpy_flash(data, (void *)((uint32_t)addr + FLASH_BASE), cnt);
   }
   else
   {
-#ifdef TFM_DEV_MODE
-    if (addr >= FLASH_B_SIZE) {
-      static uint8_t bank2_ns_logged;
-      if (!bank2_ns_logged) {
-        bank2_ns_logged = 1;
-        printf("BL2 bank2 read NS alias 0x%x\r\n", (unsigned)(addr + FLASH_BASE_NS));
-      }
-    }
-#endif
     memcpy_flash(data, (void *)((uint32_t)addr + FLASH_BASE_NS), cnt);
   }
 #else
