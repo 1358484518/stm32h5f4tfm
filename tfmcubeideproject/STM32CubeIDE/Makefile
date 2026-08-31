@@ -1,5 +1,6 @@
 # Command-line build for the STM32H5F4 CubeIDE NS smoke app.
-# Matches STM32CubeIDE/.cproject (MCU STM32H5F4xx, BL2_TRAILER_SIZE=0x3000).
+# Matches STM32CubeIDE/.cproject (MCU STM32H5F4xx, BL2_TRAILER_SIZE=0x3000,
+# mbedtls-4.1.1 TLS/X.509 helpers; PSA crypto still via SPE veneers).
 #
 #   make
 #   make clean
@@ -17,6 +18,7 @@ BUILD   := build
 TARGET  := $(BUILD)/tfm_ns
 LDSCRIPT := spe/out/appli_ns.pp.ld
 VENEERS := spe/api_ns/interface/lib/s_veneers.o
+MBEDTLS := ns_app/mbedtls-4.1.1
 
 CPU := -mcpu=cortex-m33 -mthumb -mfpu=fpv5-sp-d16 -mfloat-abi=hard
 
@@ -44,6 +46,19 @@ CPPFLAGS := \
 	-DMCUBOOT_IMAGE_NUMBER=2 \
 	-DTFM_NS_LOG \
 	-DNDEBUG \
+	-DTF_PSA_CRYPTO_USER_CONFIG_FILE='"ns_crypto_user.h"' \
+	-DMBEDTLS_USER_CONFIG_FILE='"ns_mbedtls_user.h"' \
+	-DMBEDTLS_ALLOW_PRIVATE_ACCESS \
+	-Ins_app \
+	-I$(MBEDTLS)/include \
+	-I$(MBEDTLS)/tf-psa-crypto/include \
+	-I$(MBEDTLS)/library \
+	-I$(MBEDTLS)/tf-psa-crypto/core \
+	-I$(MBEDTLS)/tf-psa-crypto/drivers/builtin/include \
+	-I$(MBEDTLS)/tf-psa-crypto/drivers/builtin/src \
+	-I$(MBEDTLS)/tf-psa-crypto/extras \
+	-I$(MBEDTLS)/tf-psa-crypto/platform \
+	-I$(MBEDTLS)/tf-psa-crypto/utilities \
 	-Ispe/api_ns/interface/include \
 	-Ispe/api_ns/interface/include/crypto_keys \
 	-Ispe/api_ns/platform/include \
@@ -52,8 +67,7 @@ CPPFLAGS := \
 	-Ispe/api_ns/platform/ext/cmsis/Include \
 	-Ispe/api_ns/platform/ext/cmsis/Include/m-profile \
 	-Ispe/api_ns/platform/ext/common \
-	-Ispe/api_ns/platform/hal/Inc \
-	-Ins_app
+	-Ispe/api_ns/platform/hal/Inc
 
 CFLAGS := $(CPU) -O2 -ffunction-sections -fdata-sections -Wall -fno-builtin
 
@@ -67,7 +81,22 @@ NS_APP_SRCS := \
 
 TFM_SRCS := $(wildcard ns_app/tfm_src/*.c)
 
-SRCS := $(NS_APP_SRCS) $(TFM_SRCS)
+# Same exclusions as STM32CubeIDE/.cproject sourceEntries.
+MBEDTLS_LIB_EXCL := mbedtls_config.c net_sockets.c pkcs7.c ssl_cookie.c \
+	ssl_tls12_server.c ssl_tls13_server.c timing.c x509_create.c x509_csr.c \
+	x509write.c x509write_crt.c x509write_csr.c
+MBEDTLS_EXTRAS_EXCL := lmots.c lms.c nist_kw.c pkwrite.c
+MBEDTLS_PLATFORM_EXCL := memory_buffer_alloc.c threading.c
+MBEDTLS_UTIL_EXCL := pkcs5.c
+
+MBEDTLS_SRCS := \
+	$(filter-out $(addprefix $(MBEDTLS)/library/,$(MBEDTLS_LIB_EXCL)),$(wildcard $(MBEDTLS)/library/*.c)) \
+	$(filter-out $(addprefix $(MBEDTLS)/tf-psa-crypto/extras/,$(MBEDTLS_EXTRAS_EXCL)),$(wildcard $(MBEDTLS)/tf-psa-crypto/extras/*.c)) \
+	$(filter-out $(addprefix $(MBEDTLS)/tf-psa-crypto/platform/,$(MBEDTLS_PLATFORM_EXCL)),$(wildcard $(MBEDTLS)/tf-psa-crypto/platform/*.c)) \
+	$(filter-out $(addprefix $(MBEDTLS)/tf-psa-crypto/utilities/,$(MBEDTLS_UTIL_EXCL)),$(wildcard $(MBEDTLS)/tf-psa-crypto/utilities/*.c)) \
+	$(wildcard $(MBEDTLS)/tf-psa-crypto/drivers/builtin/src/*.c)
+
+SRCS := $(NS_APP_SRCS) $(TFM_SRCS) $(MBEDTLS_SRCS)
 OBJS := $(patsubst %.c,$(BUILD)/%.o,$(SRCS))
 
 .PHONY: all clean size

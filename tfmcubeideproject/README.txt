@@ -12,3 +12,7 @@ Linux 命令行：在 STM32CubeIDE/ 下执行 make，再 ./sign_kit/sign.sh buil
 s_veneers.o 必须和板上的 SPE 一起重新导出（trusted-firmware-m/build_s/api_ns/interface/lib）。换过 SPE 后请拷新的 s_veneers.o 和 sign_kit/layout/signing_layout_*.o。
 
 NS 槽 1200 KB @ 0x0C090000；S 槽 352 KB @ 0x0C038000。USART1 PA9/PA10，115200。
+
+工程已带 mbedtls 4.1.1（ns_app/mbedtls-4.1.1）：编 TLS/X.509 辅助模块，不编第二套 PSA crypto core。
+密码仍走 SPE 的 PSA（s_veneers.o）。配置见 ns_app/ns_crypto_user.h、ns_mbedtls_user.h。
+不要把 net_sockets.c、ssl_*_server.c、builtin aes/ecp 等排除文件加回源文件列表，除非同步改配置。
