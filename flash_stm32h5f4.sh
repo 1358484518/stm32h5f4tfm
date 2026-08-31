@@ -17,9 +17,10 @@ die() { echo "错误: $*" >&2; exit 1; }
 if [[ ! -f "${BL2_BIN}" ]] || [[ ! -x "${API_NS}/TFM_UPDATE.sh" ]]; then
     die "还没有编译产物。先在仓库根目录执行: ./buildtfm.sh test"
 fi
-strings "${BL2_BIN}" | grep -q "Starting bootloader S-sec=" \
+# 不要用 strings | grep -q：pipefail 下 strings 会 SIGPIPE，误报没有标记
+grep -a -F -q "Starting bootloader S-sec=" "${BL2_BIN}" \
     || die "${BL2_BIN} 没有 S-sec 标记。这是旧产物，请先在仓库根目录执行: ./buildtfm.sh test"
-strings "${BL2_BIN}" | grep -q "H5F4BL2" \
+grep -a -F -q "H5F4BL2" "${BL2_BIN}" \
     || die "${BL2_BIN} 没有 H5F4BL2 标记。这是旧产物，请先: git pull && ./buildtfm.sh test"
 grep -q '^slot2=0xc200000$' "${API_NS}/TFM_UPDATE.sh" \
     || die "${API_NS}/TFM_UPDATE.sh 的 slot2 不是 0xc200000"
@@ -77,9 +78,9 @@ STM32_Programmer_CLI ${CONNECT_HP} -r ${BOOT_ADDR} 0x20000 "${DUMP}" \
     || die "回读 BL2 失败"
 echo "片上 BL2 字符串:"
 strings "${DUMP}" | grep -E "H5F4BL2|Starting bootloader|Checking image|BL2 flash map" || true
-strings "${DUMP}" | grep -q "H5F4BL2" \
+grep -a -F -q "H5F4BL2" "${DUMP}" \
     || die "片上 BL2 没有 H5F4BL2。写保护还在，bootloader 没换掉"
-strings "${DUMP}" | grep -q "Starting bootloader S-sec=" \
+grep -a -F -q "Starting bootloader S-sec=" "${DUMP}" \
     || die "片上 BL2 没有 S-sec。写保护还在，bootloader 没换掉"
 
 echo

@@ -834,11 +834,13 @@ void __assert_func(const char *file, int line, const char *func, const char *exp
                  func ? func : "-",
                  expr ? expr : "-");
     Error_Handler();
+    __builtin_unreachable();
 }
 
 void __assert_fail(const char *expr, const char *file, int line, const char *func)
 {
     __assert_func(file, line, func, expr);
+    __builtin_unreachable();
 }
 #endif /* __GNUC__ && !__ARMCC_VERSION */
 #ifdef  USE_FULL_ASSERT

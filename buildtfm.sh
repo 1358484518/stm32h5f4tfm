@@ -207,12 +207,15 @@ chmod +x postbuild.sh regression.sh TFM_UPDATE.sh preprocess.sh 2>/dev/null || t
 
 BL2_BIN="${TFM_ROOT}/build_s/api_ns/bin/bl2.bin"
 [[ -f "${BL2_BIN}" ]] || { echo "错误: 找不到 ${BL2_BIN}"; exit 1; }
-if ! strings "${BL2_BIN}" | grep -q "Starting bootloader S-sec="; then
+# grep -q + pipefail 会因 strings 收到 SIGPIPE 而误报失败
+if ! grep -a -F -q "Starting bootloader S-sec=" "${BL2_BIN}"; then
     echo "错误: ${BL2_BIN} 没有 S-sec 标记，这不是当前源码编出来的 BL2，禁止烧录"
+    strings "${BL2_BIN}" | grep -E "Starting bootloader|H5F4BL2" || true
     exit 1
 fi
-if ! strings "${BL2_BIN}" | grep -q "H5F4BL2"; then
+if ! grep -a -F -q "H5F4BL2" "${BL2_BIN}"; then
     echo "错误: ${BL2_BIN} 没有 H5F4BL2 标记（编译产物不是当前源码）"
+    strings "${BL2_BIN}" | grep -E "Starting bootloader|H5F4BL2" || true
     exit 1
 fi
 if ! grep -q '^slot2=0xc200000$' TFM_UPDATE.sh; then
