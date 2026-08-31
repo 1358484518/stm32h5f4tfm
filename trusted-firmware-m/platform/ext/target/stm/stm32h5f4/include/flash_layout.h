@@ -244,7 +244,12 @@
  */
 #define MCUBOOT_STATUS_MAX_ENTRIES         ((FLASH_MAX_PARTITION_SIZE) / \
                                             FLASH_AREA_SCRATCH_SIZE)
-/* Maximum number of image sectors supported by the bootloader. */
+/* Maximum number of image sectors supported by the bootloader.
+ * NS is 1200 KB / 8 KB = 150. MCUBoot sizes the swap-status trailer for this
+ * count in every slot, including the 320 KB S slot. A matching MCUBoot patch
+ * (0002) drops an erased swap_size so a factory S image is not treated as a
+ * mid-swap and does not walk the sector table off the end of SRAM.
+ */
 #define MCUBOOT_MAX_IMG_SECTORS           ((FLASH_MAX_PARTITION_SIZE) / \
                                            FLASH_AREA_IMAGE_SECTOR_SIZE)
 

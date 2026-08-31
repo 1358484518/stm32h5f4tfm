@@ -144,6 +144,20 @@ if ! command -v hex_generation >/dev/null 2>&1; then
 fi
 command -v hex_generation >/dev/null || { echo "错误: hex_generation 未安装"; exit 1; }
 
+# 已下载的 MCUBoot 不会自动再打新补丁。缺 0002 时当场补上，避免整目录重拉。
+MCUBOOT_SRC="${LIB_EXT_S}/mcuboot-src"
+MCUBOOT_PATCH2="${TFM_ROOT}/lib/ext/mcuboot/0002-bootutil-Bound-scratch-swap-sector-walk.patch"
+if [[ -d "${MCUBOOT_SRC}" && -f "${MCUBOOT_PATCH2}" ]]; then
+    if ! grep -q "Dropping invalid swap status" \
+            "${MCUBOOT_SRC}/boot/bootutil/src/swap_misc.c" 2>/dev/null; then
+        echo ">>> 给已有 MCUBoot 打 0002（限制 find_last_sector_idx）"
+        if ! git -C "${MCUBOOT_SRC}" apply "${MCUBOOT_PATCH2}"; then
+            echo "错误: MCUBoot 补丁失败。请: rm -rf ${TFM_ROOT}/build_s && $0 ${BUILD_TYPE}"
+            exit 1
+        fi
+    fi
+fi
+
 # 有 lib/ext 就离线，没有就自动在线下载
 OFFLINE=1
 for lib in qcbor mcuboot cmsis t_cose tf-psa-crypto tf-m-extras; do
@@ -216,6 +230,11 @@ fi
 if ! grep -a -F -q "H5F4BL2" "${BL2_BIN}"; then
     echo "错误: ${BL2_BIN} 没有 H5F4BL2 标记（编译产物不是当前源码）"
     strings "${BL2_BIN}" | grep -E "Starting bootloader|H5F4BL2" || true
+    exit 1
+fi
+if ! grep -a -F -q "Dropping invalid swap status" "${BL2_BIN}"; then
+    echo "错误: ${BL2_BIN} 没有 MCUBoot 0002 补丁（会在 image 0 的 find_last_sector_idx 里 BusFault）"
+    echo "请确认 lib/ext/mcuboot/0002-bootutil-Bound-scratch-swap-sector-walk.patch 已打进 mcuboot-src"
     exit 1
 fi
 if ! grep -q '^slot2=0xc200000$' TFM_UPDATE.sh; then

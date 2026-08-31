@@ -1,0 +1,159 @@
+From a46ebcaee2b09ff4041cf2dc8fb862d3cd9b89bf Mon Sep 17 00:00:00 2001
+From: STM32H5F4 port <stm32h5f4@local>
+Date: Mon, 31 Aug 2026 09:22:12 +0000
+Subject: [PATCH] bootutil: Bound scratch swap sector walk on invalid swap_size
+
+A factory image with magic=good and copy_done=unset is treated as an
+in-progress swap. If swap_size is erased (0xffffffff) or the status
+bytes are leftover image payload in a small slot, find_last_sector_idx
+walks past the sector table and BusFaults.
+
+Refuse that status and stop the sector walk at num_sectors.
+---
+ boot/bootutil/src/swap_misc.c    | 34 +++++++++++++++++++++++++
+ boot/bootutil/src/swap_scratch.c | 43 ++++++++++++++++++++++++++++++--
+ 2 files changed, 75 insertions(+), 2 deletions(-)
+
+diff --git a/boot/bootutil/src/swap_misc.c b/boot/bootutil/src/swap_misc.c
+index c00f281..5217c1d 100644
+--- a/boot/bootutil/src/swap_misc.c
++++ b/boot/bootutil/src/swap_misc.c
+@@ -200,6 +200,40 @@ swap_read_status(struct boot_loader_state *state, struct boot_status *bs)
+ 
+         /* Extract the swap type info */
+         bs->swap_type = BOOT_GET_SWAP_TYPE(swap_info);
++
++        /*
++         * magic=good and copy_done=unset makes MCUBoot treat the primary as
++         * an in-progress swap. A factory image, or a small slot whose payload
++         * overlaps the status area sized for MCUBOOT_MAX_IMG_SECTORS, then
++         * feeds find_last_sector_idx a swap_size of 0xffffffff (erased
++         * trailer) and walks the sector table off the end of SRAM.
++         */
++        if (!boot_status_is_reset(bs)) {
++            uint32_t swap_size = 0;
++            uint32_t slot_sz = flash_area_get_size(fap);
++
++            rc = boot_read_swap_size(fap, &swap_size);
++            BOOT_LOG_INF("swap status idx=%u state=%u size=0x%x slot=0x%x",
++                         (unsigned)bs->idx, (unsigned)bs->state,
++                         (unsigned)swap_size, (unsigned)slot_sz);
++            if (rc != 0 || swap_size == 0 || swap_size == 0xffffffffu ||
++                swap_size > slot_sz) {
++                BOOT_LOG_ERR("Dropping invalid swap status size=0x%x",
++                             (unsigned)swap_size);
++                bs->idx = BOOT_STATUS_IDX_0;
++                bs->state = BOOT_STATUS_STATE_0;
++#if defined(MCUBOOT_SWAP_USING_OFFSET)
++                bs->op = BOOT_STATUS_OP_SWAP;
++#else
++                bs->op = BOOT_STATUS_OP_MOVE;
++#endif
++                bs->use_scratch = 0;
++                bs->swap_size = 0;
++                bs->source = BOOT_STATUS_SOURCE_NONE;
++                bs->swap_type = BOOT_SWAP_TYPE_NONE;
++                rc = 0;
++            }
++        }
+     }
+ 
+ done:
+diff --git a/boot/bootutil/src/swap_scratch.c b/boot/bootutil/src/swap_scratch.c
+index 59b64ad..d02f6bc 100644
+--- a/boot/bootutil/src/swap_scratch.c
++++ b/boot/bootutil/src/swap_scratch.c
+@@ -598,11 +598,22 @@ find_last_sector_idx(const struct boot_loader_state *state, uint32_t copy_size)
+     int last_sector_idx_secondary;
+     uint32_t primary_slot_size;
+     uint32_t secondary_slot_size;
++    size_t max_pri;
++    size_t max_sec;
+ 
+     primary_slot_size = 0;
+     secondary_slot_size = 0;
+     last_sector_idx_primary = 0;
+     last_sector_idx_secondary = 0;
++    max_pri = boot_img_num_sectors(state, BOOT_SLOT_PRIMARY);
++    max_sec = boot_img_num_sectors(state, BOOT_SLOT_SECONDARY);
++
++    if (copy_size == 0 || copy_size == 0xffffffffu ||
++        max_pri == 0 || max_sec == 0) {
++        BOOT_LOG_ERR("find_last_sector_idx bad copy_size=0x%x pri=%u sec=%u",
++                     (unsigned)copy_size, (unsigned)max_pri, (unsigned)max_sec);
++        return -1;
++    }
+ 
+     /*
+      * Knowing the size of the largest image between both slots, here we
+@@ -613,6 +624,11 @@ find_last_sector_idx(const struct boot_loader_state *state, uint32_t copy_size)
+     while (1) {
+         if ((primary_slot_size < copy_size) ||
+             (primary_slot_size < secondary_slot_size)) {
++            if ((size_t)last_sector_idx_primary >= max_pri) {
++                BOOT_LOG_ERR("find_last_sector_idx overflow copy_size=0x%x pri=%u",
++                             (unsigned)copy_size, (unsigned)max_pri);
++                return -1;
++            }
+            primary_slot_size += boot_img_sector_size(state,
+                                                      BOOT_SLOT_PRIMARY,
+                                                      last_sector_idx_primary);
+@@ -620,6 +636,11 @@ find_last_sector_idx(const struct boot_loader_state *state, uint32_t copy_size)
+         }
+         if ((secondary_slot_size < copy_size) ||
+             (secondary_slot_size < primary_slot_size)) {
++            if ((size_t)last_sector_idx_secondary >= max_sec) {
++                BOOT_LOG_ERR("find_last_sector_idx overflow copy_size=0x%x sec=%u",
++                             (unsigned)copy_size, (unsigned)max_sec);
++                return -1;
++            }
+            secondary_slot_size += boot_img_sector_size(state,
+                                                        BOOT_SLOT_SECONDARY,
+                                                        last_sector_idx_secondary);
+@@ -651,6 +672,9 @@ find_swap_count(const struct boot_loader_state *state, uint32_t copy_size)
+     uint32_t swap_count;
+ 
+     last_sector_idx = find_last_sector_idx(state, copy_size);
++    if (last_sector_idx < 0) {
++        return 0;
++    }
+ 
+     swap_count = 0;
+ 
+@@ -927,6 +951,10 @@ swap_run(struct boot_loader_state *state, struct boot_status *bs,
+     BOOT_LOG_INF("Starting swap using scratch algorithm.");
+ 
+     last_sector_idx = find_last_sector_idx(state, copy_size);
++    if (last_sector_idx < 0) {
++        BOOT_LOG_ERR("swap_run aborted copy_size=0x%x", (unsigned)copy_size);
++        return;
++    }
+ 
+     swap_idx = 0;
+     while (last_sector_idx >= 0) {
+@@ -1096,9 +1124,20 @@ boot_read_image_header(struct boot_loader_state *state, int slot,
+             goto done;
+         }
+ 
+-        swap_count = find_swap_count(state, swap_size);
++        BOOT_LOG_INF("swap resume size=0x%x idx=%u pri/sec sectors=%u/%u",
++                     (unsigned)swap_size, (unsigned)bs->idx,
++                     (unsigned)boot_img_num_sectors(state, BOOT_SLOT_PRIMARY),
++                     (unsigned)boot_img_num_sectors(state, BOOT_SLOT_SECONDARY));
+ 
+-        if (bs->idx - BOOT_STATUS_IDX_0 >= swap_count) {
++        swap_count = find_swap_count(state, swap_size);
++        if (swap_count == 0) {
++            /* Erased/junk swap_size (0xffffffff) or a slot too small for the
++             * recorded copy. Read headers from their natural slots instead of
++             * walking the sector table off the end of SRAM.
++             */
++            BOOT_LOG_ERR("Dropping invalid swap status size=0x%x",
++                         (unsigned)swap_size);
++        } else if (bs->idx - BOOT_STATUS_IDX_0 >= swap_count) {
+             /* If all segments have been swapped, the header is located in the other slot */
+             hdr_slot = (slot == BOOT_SLOT_PRIMARY) ? BOOT_SLOT_SECONDARY : BOOT_SLOT_PRIMARY;
+         } else if (bs->idx - BOOT_STATUS_IDX_0 == swap_count - 1) {
+-- 
+2.43.0
+
