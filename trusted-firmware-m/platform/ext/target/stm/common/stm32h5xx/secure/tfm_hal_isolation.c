@@ -168,7 +168,7 @@ const struct mpu_armv8m_region_cfg_t region_cfg[] = {
     {
         0, /* will be updated before using */
         SRAM1_BASE_NS,
-        SRAM3_BASE_NS + SRAM3_SIZE,
+        NS_DATA_LIMIT_2 + 1,
         MPU_ARMV8M_MAIR_ATTR_DATA_IDX,
         MPU_ARMV8M_XN_EXEC_NEVER,
         MPU_ARMV8M_AP_RW_PRIV_ONLY,

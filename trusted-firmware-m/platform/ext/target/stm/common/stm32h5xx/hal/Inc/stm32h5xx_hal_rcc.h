@@ -1078,6 +1078,20 @@ typedef struct
                                                   UNUSED(tmpreg); \
                                                 } while(0)
 #endif /* SRAM3_BASE */
+#if defined(SRAM4_BASE)
+#define __HAL_RCC_SRAM4_CLK_ENABLE()         do { \
+                                                  __IO uint32_t tmpreg; \
+                                                  SET_BIT(RCC->AHB2ENR, RCC_AHB2ENR_SRAM4EN); \
+                                                  tmpreg = READ_BIT(RCC->AHB2ENR, RCC_AHB2ENR_SRAM4EN); \
+                                                  UNUSED(tmpreg); \
+                                                } while(0)
+#define __HAL_RCC_SRAM5_CLK_ENABLE()         do { \
+                                                  __IO uint32_t tmpreg; \
+                                                  SET_BIT(RCC->AHB2ENR, RCC_AHB2ENR_SRAM5EN); \
+                                                  tmpreg = READ_BIT(RCC->AHB2ENR, RCC_AHB2ENR_SRAM5EN); \
+                                                  UNUSED(tmpreg); \
+                                                } while(0)
+#endif /* SRAM4_BASE */
 
 #define __HAL_RCC_GPIOA_CLK_DISABLE()          CLEAR_BIT(RCC->AHB2ENR, RCC_AHB2ENR_GPIOAEN)
 
@@ -1137,6 +1151,10 @@ typedef struct
 #if defined(SRAM3_BASE)
 #define __HAL_RCC_SRAM3_CLK_DISABLE()          CLEAR_BIT(RCC->AHB2ENR, RCC_AHB2ENR_SRAM3EN)
 #endif /* SRAM3_BASE */
+#if defined(SRAM4_BASE)
+#define __HAL_RCC_SRAM4_CLK_DISABLE()          CLEAR_BIT(RCC->AHB2ENR, RCC_AHB2ENR_SRAM4EN)
+#define __HAL_RCC_SRAM5_CLK_DISABLE()          CLEAR_BIT(RCC->AHB2ENR, RCC_AHB2ENR_SRAM5EN)
+#endif /* SRAM4_BASE */
 /**
   * @}
   */

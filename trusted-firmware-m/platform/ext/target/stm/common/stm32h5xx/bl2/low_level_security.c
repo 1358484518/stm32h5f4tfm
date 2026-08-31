@@ -531,11 +531,11 @@ static const struct sau_cfg_t region_sau_load_cfg[] =
     FLOW_CTRL_SAU_L_CH_R4,
 #endif /* FLOW_CONTROL */
   },
-  /* allow non secure access to SRAM3 */
+  /* allow non secure access to SRAM3 (H5F4: SRAM3+SRAM4+SRAM5) */
   {
     5,
-    (uint32_t)SRAM3_BASE_NS,
-    ((uint32_t)SRAM3_BASE_NS + _SRAM3_SIZE_MAX - 1U),
+    (uint32_t)NS_DATA_START_2,
+    (uint32_t)NS_DATA_LIMIT_2,
     TFM_FALSE,
 #ifdef FLOW_CONTROL
     FLOW_STEP_SAU_L_EN_R5,
@@ -570,8 +570,13 @@ static const struct sau_cfg_t region_sau_load_cfg[] =
 /* SRAM1 NB super-block */
 #define GTZC_MPCBB1_NB_VCTR (16U)
 
-/* SRAM3 NB super-block */
+#if defined(STM32H5F4xx)
+#define GTZC_MPCBB3_NB_VCTR (24U)
+#define GTZC_MPCBB4_NB_VCTR (24U)
+#define GTZC_MPCBB5_NB_VCTR (24U)
+#else
 #define GTZC_MPCBB3_NB_VCTR (20U)
+#endif
 
 /* MPCBB : All SRAM block non secure */
 #define GTZC_MPCBB_ALL_NSEC (0x00000000UL)
@@ -1562,6 +1567,18 @@ static void gtzc_loader_cfg(void)
       GTZC_MPCBB3_S->SECCFGR[i] = GTZC_MPCBB_ALL_NSEC;
       GTZC_MPCBB3_S->PRIVCFGR[i] = GTZC_MPCBB_ALL_NPRIV;
     }
+#if defined(STM32H5F4xx)
+    for (i = 0; i < GTZC_MPCBB4_NB_VCTR; i++)
+    {
+      GTZC_MPCBB4_S->SECCFGR[i] = GTZC_MPCBB_ALL_NSEC;
+      GTZC_MPCBB4_S->PRIVCFGR[i] = GTZC_MPCBB_ALL_NPRIV;
+    }
+    for (i = 0; i < GTZC_MPCBB5_NB_VCTR; i++)
+    {
+      GTZC_MPCBB5_S->SECCFGR[i] = GTZC_MPCBB_ALL_NSEC;
+      GTZC_MPCBB5_S->PRIVCFGR[i] = GTZC_MPCBB_ALL_NPRIV;
+    }
+#endif
 
     /* Execution stopped if flow control failed */
     FLOW_CONTROL_STEP(uFlowProtectValue, FLOW_STEP_GTZC_L_EN_MPCBB1, FLOW_CTRL_GTZC_L_EN_MPCBB1);

@@ -123,8 +123,8 @@ const struct sau_cfg_t sau_init_cfg[] = {
     },
     {
         TFM_NS_REGION_DATA_2,
-        SRAM3_BASE_NS,
-        (SRAM3_BASE_NS + _SRAM3_SIZE_MAX - 1),
+        NS_DATA_START_2,
+        NS_DATA_LIMIT_2,
         TFM_FALSE,
 #ifdef FLOW_CONTROL
         FLOW_STEP_SAU_EN_R2,
@@ -367,6 +367,8 @@ void sau_and_idau_cfg(void)
 /* SRAM1 is 256 KB = 16 superblocks; H5F4 gives all of it to NS. */
 #define MPCBB_LOCK_SRAM1_SIZE 0xffff
 #define MPCBB_LOCK_SRAM3_SIZE 0x00ffffff
+#define MPCBB_LOCK_SRAM4_SIZE 0x00ffffff
+#define MPCBB_LOCK_SRAM5_SIZE 0x00ffffff
 #else
 #define MPCBB_LOCK_SRAM2_SIZE 0xf
 #define MPCBB_LOCK_SRAM1_SIZE 0xfff
@@ -514,6 +516,10 @@ void gtzc_init_cfg(void)
 
     /* Enable GTZC clock */
     __HAL_RCC_GTZC1_CLK_ENABLE();
+#if defined(STM32H5F4xx)
+    __HAL_RCC_SRAM4_CLK_ENABLE();
+    __HAL_RCC_SRAM5_CLK_ENABLE();
+#endif
     /* assume non secure ram is only in SRAM 1 , SRAM 2 is reserved for secure */
       gtzc_config_sram(SRAM1_BASE, SRAM1_SIZE, (NS_DATA_START - NS_RAM_ALIAS(0)),
               (NS_DATA_START + NS_DATA_SIZE - 1) - NS_RAM_ALIAS(0), FLAG_NSEC | FLAG_NPRIV);
@@ -543,10 +549,18 @@ void gtzc_init_cfg(void)
               -SRAM2_BASE, SRAM2_SIZE - 1, 0);
 #endif
       gtzc_config_sram(SRAM3_BASE, SRAM3_SIZE, 0, SRAM3_SIZE -1, FLAG_NPRIV | FLAG_NSEC);
+#if defined(STM32H5F4xx)
+      gtzc_config_sram(SRAM4_BASE, SRAM4_SIZE, 0, SRAM4_SIZE -1, FLAG_NPRIV | FLAG_NSEC);
+      gtzc_config_sram(SRAM5_BASE, SRAM5_SIZE, 0, SRAM5_SIZE -1, FLAG_NPRIV | FLAG_NSEC);
+#endif
 
     GTZC_MPCBB1_S->CFGLOCKR1=MPCBB_LOCK(SRAM1_SIZE);
     GTZC_MPCBB2_S->CFGLOCKR1=MPCBB_LOCK(SRAM2_SIZE);
     GTZC_MPCBB3_S->CFGLOCKR1=MPCBB_LOCK(SRAM3_SIZE);
+#if defined(STM32H5F4xx)
+    GTZC_MPCBB4_S->CFGLOCKR1=MPCBB_LOCK(SRAM4_SIZE);
+    GTZC_MPCBB5_S->CFGLOCKR1=MPCBB_LOCK(SRAM5_SIZE);
+#endif
     /* privileged secure internal flash */
     gtzc_internal_flash_priv(0x0, (uint32_t)(&REGION_NAME(Image$$, TFM_UNPRIV_CODE_START, $$RO$$Base)) - FLASH_BASE_S - 1);
 
@@ -652,9 +666,17 @@ void gtzc_init_cfg(void)
               -SRAM2_BASE, SRAM2_SIZE - 1, 0);
 #endif
       gtzc_config_sram(SRAM3_BASE, SRAM3_SIZE, 0, SRAM3_SIZE -1, FLAG_NPRIV | FLAG_NSEC);
+#if defined(STM32H5F4xx)
+      gtzc_config_sram(SRAM4_BASE, SRAM4_SIZE, 0, SRAM4_SIZE -1, FLAG_NPRIV | FLAG_NSEC);
+      gtzc_config_sram(SRAM5_BASE, SRAM5_SIZE, 0, SRAM5_SIZE -1, FLAG_NPRIV | FLAG_NSEC);
+#endif
     if (GTZC_MPCBB1_S->CFGLOCKR1 != MPCBB_LOCK(SRAM1_SIZE)) Error_Handler();
     if (GTZC_MPCBB2_S->CFGLOCKR1 != MPCBB_LOCK(SRAM2_SIZE)) Error_Handler();
     if (GTZC_MPCBB3_S->CFGLOCKR1 != MPCBB_LOCK(SRAM3_SIZE)) Error_Handler();
+#if defined(STM32H5F4xx)
+    if (GTZC_MPCBB4_S->CFGLOCKR1 != MPCBB_LOCK(SRAM4_SIZE)) Error_Handler();
+    if (GTZC_MPCBB5_S->CFGLOCKR1 != MPCBB_LOCK(SRAM5_SIZE)) Error_Handler();
+#endif
     gtzc_internal_flash_priv(0x0, (uint32_t)(&REGION_NAME(Image$$, TFM_UNPRIV_CODE_START, $$RO$$Base)) - FLASH_BASE_S - 1);
 #if (defined (MBEDTLS_SHA256_C) && defined (MBEDTLS_SHA256_ALT)) \
  || (defined (MBEDTLS_SHA1_C) && defined (MBEDTLS_SHA1_ALT)) \

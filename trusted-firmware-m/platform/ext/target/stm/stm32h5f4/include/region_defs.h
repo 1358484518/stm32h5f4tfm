@@ -50,17 +50,23 @@
 #define _SRAM1_SIZE_MAX         (0x40000) /*!< SRAM1=256 KB */
 #define _SRAM2_SIZE_MAX         (0x20000 - BOOT_TFM_SHARED_DATA_SIZE)  /*!< SRAM2=128k -0x400 */
 #define _SRAM3_SIZE_MAX         (0x60000) /*!< SRAM3=384 KB */
+#define _SRAM4_SIZE_MAX         (0x60000) /*!< SRAM4=384 KB */
+#define _SRAM5_SIZE_MAX         (0x60000) /*!< SRAM5=384 KB */
 
 /* Flash and internal SRAMs base addresses - Non secure aliased */
 #define _FLASH_BASE_NS          (0x08000000) /*!< FLASH(up to 4 MB) base address */
 #define _SRAM1_BASE_NS          (0x20000000) /*!< SRAM1(256 KB) base address */
 #define _SRAM2_BASE_NS          (0x20040000) /*!< SRAM2(128 KB) base address */
 #define _SRAM3_BASE_NS          (0x20060000) /*!< SRAM3(384 KB) base address */
+#define _SRAM4_BASE_NS          (0x200C0000) /*!< SRAM4(384 KB) base address */
+#define _SRAM5_BASE_NS          (0x20120000) /*!< SRAM5(384 KB) base address */
 /* Flash and internal SRAMs base addresses - Secure aliased */
 #define _FLASH_BASE_S           (0x0C000000) /*!< FLASH(up to 4 MB) base address */
 #define _SRAM1_BASE_S           (0x30000000) /*!< SRAM1(256 KB) base address */
 #define _SRAM2_BASE_S           (0x30040000) /*!< SRAM2(128 KB) base address */
 #define _SRAM3_BASE_S           (0x30060000) /*!< SRAM3(384 KB) base address */
+#define _SRAM4_BASE_S           (0x300C0000) /*!< SRAM4(384 KB) base address */
+#define _SRAM5_BASE_S           (0x30120000) /*!< SRAM5(384 KB) base address */
 
 
 #define TOTAL_ROM_SIZE          FLASH_TOTAL_SIZE
@@ -175,7 +181,8 @@
 #define NS_DATA_START_2                     (_SRAM3_BASE_NS)
 #define NS_NO_INIT_DATA_SIZE                (0x100)
 #define NS_DATA_SIZE                        (NS_TOTAL_RAM_SIZE)
-#define NS_DATA_SIZE_2                      (_SRAM3_SIZE_MAX)
+/* SRAM3+SRAM4+SRAM5 are contiguous NS RAM after SRAM2. SAU/GTZC cover all three. */
+#define NS_DATA_SIZE_2                      (_SRAM3_SIZE_MAX + _SRAM4_SIZE_MAX + _SRAM5_SIZE_MAX)
 #define NS_DATA_LIMIT                       (NS_DATA_START + NS_DATA_SIZE - 1)
 #define NS_DATA_LIMIT_2                     (NS_DATA_START_2 + NS_DATA_SIZE_2 - 1)
 
@@ -212,7 +219,7 @@
 /* Define BL2 MPU SRAM protection to remove execution capability */
 /* Area is covering the complete SRAM memory space non secure alias and secure alias */
 #define BL2_SRAM_AREA_BASE                  (_SRAM1_BASE_NS)
-#define BL2_SRAM_AREA_END                   (_SRAM3_BASE_S + _SRAM3_SIZE_MAX - 1)
+#define BL2_SRAM_AREA_END                   (_SRAM5_BASE_S + _SRAM5_SIZE_MAX - 1)
 
 /* Define Area provision by BL2 */
 #define BL2_OTP_AREA_BASE                   S_ROM_ALIAS(TFM_OTP_NV_COUNTERS_AREA_ADDR)

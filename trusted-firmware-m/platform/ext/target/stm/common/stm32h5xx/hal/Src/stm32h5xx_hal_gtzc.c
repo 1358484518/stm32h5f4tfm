@@ -827,7 +827,18 @@ HAL_StatusTypeDef HAL_GTZC_MPCBB_ConfigMem(uint32_t MemBaseAddress,
   uint32_t size_in_superblocks;
   uint32_t i;
 
-#if defined (GTZC_MPCBB3)
+#if defined (GTZC_MPCBB4)
+  /* check entry parameters */
+  if ((!(IS_GTZC_BASE_ADDRESS(SRAM1, MemBaseAddress))
+       &&  !(IS_GTZC_BASE_ADDRESS(SRAM2, MemBaseAddress))
+       &&  !(IS_GTZC_BASE_ADDRESS(SRAM3, MemBaseAddress))
+       &&  !(IS_GTZC_BASE_ADDRESS(SRAM4, MemBaseAddress))
+       &&  !(IS_GTZC_BASE_ADDRESS(SRAM5, MemBaseAddress)))
+      || ((pMPCBB_desc->SecureRWIllegalMode != GTZC_MPCBB_SRWILADIS_ENABLE)
+          && (pMPCBB_desc->SecureRWIllegalMode != GTZC_MPCBB_SRWILADIS_DISABLE))
+      || ((pMPCBB_desc->InvertSecureState != GTZC_MPCBB_INVSECSTATE_NOT_INVERTED)
+          && (pMPCBB_desc->InvertSecureState != GTZC_MPCBB_INVSECSTATE_INVERTED)))
+#elif defined (GTZC_MPCBB3)
   /* check entry parameters */
   if ((!(IS_GTZC_BASE_ADDRESS(SRAM1, MemBaseAddress))
        &&  !(IS_GTZC_BASE_ADDRESS(SRAM2, MemBaseAddress))
@@ -843,7 +854,7 @@ HAL_StatusTypeDef HAL_GTZC_MPCBB_ConfigMem(uint32_t MemBaseAddress,
           && (pMPCBB_desc->SecureRWIllegalMode != GTZC_MPCBB_SRWILADIS_DISABLE))
       || ((pMPCBB_desc->InvertSecureState != GTZC_MPCBB_INVSECSTATE_NOT_INVERTED)
           && (pMPCBB_desc->InvertSecureState != GTZC_MPCBB_INVSECSTATE_INVERTED)))
-#endif /* defined (GTZC_MPCBB3) */
+#endif /* defined (GTZC_MPCBB4) */
   {
     return HAL_ERROR;
   }
@@ -853,24 +864,34 @@ HAL_StatusTypeDef HAL_GTZC_MPCBB_ConfigMem(uint32_t MemBaseAddress,
     mpcbb_ptr = GTZC_MPCBB1;
     mem_size = GTZC_MEM_SIZE(SRAM1);
   }
-#if defined (GTZC_MPCBB3)
   else if (IS_GTZC_BASE_ADDRESS(SRAM2, MemBaseAddress))
   {
     mpcbb_ptr = GTZC_MPCBB2;
     mem_size = GTZC_MEM_SIZE(SRAM2);
   }
-  else
+#if defined (GTZC_MPCBB3)
+  else if (IS_GTZC_BASE_ADDRESS(SRAM3, MemBaseAddress))
   {
     mpcbb_ptr = GTZC_MPCBB3;
     mem_size = GTZC_MEM_SIZE(SRAM3);
   }
-#else
+#endif /* defined (GTZC_MPCBB3) */
+#if defined (GTZC_MPCBB4)
+  else if (IS_GTZC_BASE_ADDRESS(SRAM4, MemBaseAddress))
+  {
+    mpcbb_ptr = GTZC_MPCBB4;
+    mem_size = GTZC_MEM_SIZE(SRAM4);
+  }
+  else if (IS_GTZC_BASE_ADDRESS(SRAM5, MemBaseAddress))
+  {
+    mpcbb_ptr = GTZC_MPCBB5;
+    mem_size = GTZC_MEM_SIZE(SRAM5);
+  }
+#endif /* defined (GTZC_MPCBB4) */
   else
   {
-    mpcbb_ptr = GTZC_MPCBB2;
-    mem_size = GTZC_MEM_SIZE(SRAM2);
+    return HAL_ERROR;
   }
-#endif /* defined (GTZC_MPCBB3) */
 
   /* translate mem_size in number of super-blocks  */
   size_in_superblocks = (mem_size / GTZC_MPCBB_SUPERBLOCK_SIZE);
@@ -933,14 +954,20 @@ HAL_StatusTypeDef HAL_GTZC_MPCBB_GetConfigMem(uint32_t MemBaseAddress,
   uint32_t i;
 
   /* check entry parameters */
-#if defined (GTZC_MPCBB3)
+#if defined (GTZC_MPCBB4)
+  if (!(IS_GTZC_BASE_ADDRESS(SRAM1, MemBaseAddress))
+      && !(IS_GTZC_BASE_ADDRESS(SRAM2, MemBaseAddress))
+      && !(IS_GTZC_BASE_ADDRESS(SRAM3, MemBaseAddress))
+      && !(IS_GTZC_BASE_ADDRESS(SRAM4, MemBaseAddress))
+      && !(IS_GTZC_BASE_ADDRESS(SRAM5, MemBaseAddress)))
+#elif defined (GTZC_MPCBB3)
   if (!(IS_GTZC_BASE_ADDRESS(SRAM1, MemBaseAddress))
       && !(IS_GTZC_BASE_ADDRESS(SRAM2, MemBaseAddress))
       && !(IS_GTZC_BASE_ADDRESS(SRAM3, MemBaseAddress)))
 #else
   if (!(IS_GTZC_BASE_ADDRESS(SRAM1, MemBaseAddress))
       && !(IS_GTZC_BASE_ADDRESS(SRAM2, MemBaseAddress)))
-#endif /* defined (GTZC_MPCBB3) */
+#endif
   {
     return HAL_ERROR;
   }
@@ -952,24 +979,34 @@ HAL_StatusTypeDef HAL_GTZC_MPCBB_GetConfigMem(uint32_t MemBaseAddress,
     mpcbb_ptr = GTZC_MPCBB1;
     mem_size = GTZC_MEM_SIZE(SRAM1);
   }
-#if defined (GTZC_MPCBB3)
   else if (IS_GTZC_BASE_ADDRESS(SRAM2, MemBaseAddress))
   {
     mpcbb_ptr = GTZC_MPCBB2;
     mem_size = GTZC_MEM_SIZE(SRAM2);
   }
-  else
+#if defined (GTZC_MPCBB3)
+  else if (IS_GTZC_BASE_ADDRESS(SRAM3, MemBaseAddress))
   {
     mpcbb_ptr = GTZC_MPCBB3;
     mem_size = GTZC_MEM_SIZE(SRAM3);
   }
-#else
+#endif
+#if defined (GTZC_MPCBB4)
+  else if (IS_GTZC_BASE_ADDRESS(SRAM4, MemBaseAddress))
+  {
+    mpcbb_ptr = GTZC_MPCBB4;
+    mem_size = GTZC_MEM_SIZE(SRAM4);
+  }
+  else if (IS_GTZC_BASE_ADDRESS(SRAM5, MemBaseAddress))
+  {
+    mpcbb_ptr = GTZC_MPCBB5;
+    mem_size = GTZC_MEM_SIZE(SRAM5);
+  }
+#endif
   else
   {
-    mpcbb_ptr = GTZC_MPCBB2;
-    mem_size = GTZC_MEM_SIZE(SRAM2);
+    return HAL_ERROR;
   }
-#endif /* */
 
   /* translate mem_size in number of super-blocks  */
   size_in_superblocks = (mem_size / GTZC_MPCBB_SUPERBLOCK_SIZE);
@@ -1082,6 +1119,32 @@ HAL_StatusTypeDef HAL_GTZC_MPCBB_ConfigMemAttributes(uint32_t MemAddress,
     base_address = SRAM3_BASE_S;
   }
 #endif /* defined (GTZC_MPCBB3) */
+#if defined (GTZC_MPCBB4)
+  else if (((IS_ADDRESS_IN_NS(SRAM4, MemAddress))
+            && (IS_ADDRESS_IN_NS(SRAM4, end_address))) != 0U)
+  {
+    mpcbb_ptr = GTZC_MPCBB4;
+    base_address = SRAM4_BASE_NS;
+  }
+  else if (((IS_ADDRESS_IN_S(SRAM4, MemAddress))
+            && (IS_ADDRESS_IN_S(SRAM4, end_address))) != 0U)
+  {
+    mpcbb_ptr = GTZC_MPCBB4;
+    base_address = SRAM4_BASE_S;
+  }
+  else if (((IS_ADDRESS_IN_NS(SRAM5, MemAddress))
+            && (IS_ADDRESS_IN_NS(SRAM5, end_address))) != 0U)
+  {
+    mpcbb_ptr = GTZC_MPCBB5;
+    base_address = SRAM5_BASE_NS;
+  }
+  else if (((IS_ADDRESS_IN_S(SRAM5, MemAddress))
+            && (IS_ADDRESS_IN_S(SRAM5, end_address))) != 0U)
+  {
+    mpcbb_ptr = GTZC_MPCBB5;
+    base_address = SRAM5_BASE_S;
+  }
+#endif /* defined (GTZC_MPCBB4) */
   else
   {
     return HAL_ERROR;
@@ -1227,6 +1290,32 @@ HAL_StatusTypeDef HAL_GTZC_MPCBB_GetConfigMemAttributes(uint32_t MemAddress,
     base_address = SRAM3_BASE_S;
   }
 #endif /* defined (GTZC_MPCBB3) */
+#if defined (GTZC_MPCBB4)
+  else if ((IS_ADDRESS_IN_NS(SRAM4, MemAddress))
+           && (IS_ADDRESS_IN_NS(SRAM4, end_address)))
+  {
+    mpcbb_ptr = GTZC_MPCBB4_NS;
+    base_address = SRAM4_BASE_NS;
+  }
+  else if ((IS_ADDRESS_IN_S(SRAM4, MemAddress))
+           && (IS_ADDRESS_IN_S(SRAM4, end_address)))
+  {
+    mpcbb_ptr = GTZC_MPCBB4_S;
+    base_address = SRAM4_BASE_S;
+  }
+  else if ((IS_ADDRESS_IN_NS(SRAM5, MemAddress))
+           && (IS_ADDRESS_IN_NS(SRAM5, end_address)))
+  {
+    mpcbb_ptr = GTZC_MPCBB5_NS;
+    base_address = SRAM5_BASE_NS;
+  }
+  else if ((IS_ADDRESS_IN_S(SRAM5, MemAddress))
+           && (IS_ADDRESS_IN_S(SRAM5, end_address)))
+  {
+    mpcbb_ptr = GTZC_MPCBB5_S;
+    base_address = SRAM5_BASE_S;
+  }
+#endif /* defined (GTZC_MPCBB4) */
   else
   {
     return HAL_ERROR;
@@ -1316,7 +1405,24 @@ HAL_StatusTypeDef HAL_GTZC_MPCBB_LockConfig(uint32_t MemAddress,
     /* limitation: code not portable with memory > 512K */
     reg_mpcbb = (__IO uint32_t *)&GTZC_MPCBB3_S->CFGLOCKR1;
   }
-
+#if defined (GTZC_MPCBB4)
+  else if ((IS_ADDRESS_IN(SRAM4, MemAddress))
+           && (IS_ADDRESS_IN(SRAM4, (MemAddress
+                                     + (NbSuperBlocks * GTZC_MPCBB_SUPERBLOCK_SIZE)
+                                     - 1U))))
+  {
+    base_address = GTZC_BASE_ADDRESS(SRAM4);
+    reg_mpcbb = (__IO uint32_t *)&GTZC_MPCBB4_S->CFGLOCKR1;
+  }
+  else if ((IS_ADDRESS_IN(SRAM5, MemAddress))
+           && (IS_ADDRESS_IN(SRAM5, (MemAddress
+                                     + (NbSuperBlocks * GTZC_MPCBB_SUPERBLOCK_SIZE)
+                                     - 1U))))
+  {
+    base_address = GTZC_BASE_ADDRESS(SRAM5);
+    reg_mpcbb = (__IO uint32_t *)&GTZC_MPCBB5_S->CFGLOCKR1;
+  }
+#endif
   else
   {
     return HAL_ERROR;
@@ -1411,6 +1517,26 @@ HAL_StatusTypeDef HAL_GTZC_MPCBB_GetLockConfig(uint32_t MemAddress,
     /* limitation: code not portable with memory > 512K */
     reg_mpcbb = GTZC_MPCBB3_S->CFGLOCKR1;
   }
+#if defined (GTZC_MPCBB4)
+  else if ((IS_ADDRESS_IN(SRAM4, MemAddress))
+           && (IS_ADDRESS_IN(SRAM4, (MemAddress
+                                     + (NbSuperBlocks
+                                        * GTZC_MPCBB_SUPERBLOCK_SIZE)
+                                     - 1U))))
+  {
+    base_address = GTZC_BASE_ADDRESS(SRAM4);
+    reg_mpcbb = GTZC_MPCBB4_S->CFGLOCKR1;
+  }
+  else if ((IS_ADDRESS_IN(SRAM5, MemAddress))
+           && (IS_ADDRESS_IN(SRAM5, (MemAddress
+                                     + (NbSuperBlocks
+                                        * GTZC_MPCBB_SUPERBLOCK_SIZE)
+                                     - 1U))))
+  {
+    base_address = GTZC_BASE_ADDRESS(SRAM5);
+    reg_mpcbb = GTZC_MPCBB5_S->CFGLOCKR1;
+  }
+#endif
   else
   {
     return HAL_ERROR;
@@ -1451,6 +1577,16 @@ HAL_StatusTypeDef HAL_GTZC_MPCBB_Lock(uint32_t MemBaseAddress)
   {
     SET_BIT(GTZC_MPCBB3_S->CR, GTZC_MPCBB_CR_GLOCK_Msk);
   }
+#if defined (GTZC_MPCBB4)
+  else if (IS_GTZC_BASE_ADDRESS(SRAM4, MemBaseAddress))
+  {
+    SET_BIT(GTZC_MPCBB4_S->CR, GTZC_MPCBB_CR_GLOCK_Msk);
+  }
+  else if (IS_GTZC_BASE_ADDRESS(SRAM5, MemBaseAddress))
+  {
+    SET_BIT(GTZC_MPCBB5_S->CR, GTZC_MPCBB_CR_GLOCK_Msk);
+  }
+#endif
   else
   {
     return HAL_ERROR;
@@ -1481,6 +1617,16 @@ HAL_StatusTypeDef HAL_GTZC_MPCBB_GetLock(uint32_t MemBaseAddress,
   {
     *pLockState = READ_BIT(GTZC_MPCBB3_S->CR, GTZC_MPCBB_CR_GLOCK_Msk);
   }
+#if defined (GTZC_MPCBB4)
+  else if (IS_GTZC_BASE_ADDRESS(SRAM4, MemBaseAddress))
+  {
+    *pLockState = READ_BIT(GTZC_MPCBB4_S->CR, GTZC_MPCBB_CR_GLOCK_Msk);
+  }
+  else if (IS_GTZC_BASE_ADDRESS(SRAM5, MemBaseAddress))
+  {
+    *pLockState = READ_BIT(GTZC_MPCBB5_S->CR, GTZC_MPCBB_CR_GLOCK_Msk);
+  }
+#endif
   else
   {
     return HAL_ERROR;
