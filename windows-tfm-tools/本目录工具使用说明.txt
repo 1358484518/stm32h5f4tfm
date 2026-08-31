@@ -10,16 +10,38 @@ STM32H5F4 Windows 烧录（ST-Link / J-Link）
   3. 安装 Python 3（用来校验 BL2 标记；J-Link 烧 hex 时还要做 0x0C→0x08 映射）
   4. 用同一份仓库（或把 build_s\api_ns\bin 和 build_ns\bin 拷到这台 Windows）
 
+把镜像放到本目录（tfm_update 会自动下载）
+  双击 tfm_update.bat / jlink_tfm_update.bat 就会自己找镜像并烧进去，不用再手动下载。
+  可以把 hex 或 bin 直接放在本目录（和 bat 同一文件夹），或放在当前工作目录。
+
+  文件名必须是下面这些（bin / hex 都可以）：
+    BL2     bl2.bin              或  bl2.hex
+    S       tfm_s_signed.bin     或  tfm_s_signed.hex
+    NS      tfm_ns_signed.bin    或  tfm_ns_signed.hex
+    或者 S+NS 拼在一个文件里：
+            tfm_s_ns_signed.bin  或  tfm_s_ns_signed.hex
+            （有这个就可以不再单独放 NS）
+
+  必须用签名后的 *_signed 文件，不要放未签名的 tfm_s.bin / tfm_ns.bin。
+  bl2 里必须有 H5F4BL2 和 H5F4SWP2，旧 H573 镜像会被拒绝。
+  推荐从下面目录拷过来：
+    trusted-firmware-m\build_s\api_ns\bin     （bl2、tfm_s_signed）
+    trusted-firmware-m\build_ns\bin           （tfm_ns_signed）
+
+  查找顺序：先 build_s\api_ns\bin 和 build_ns\bin，再当前目录，最后才是本目录。
+  仓库里如果已经编过一份产物，会优先用那份，同目录的文件排在后面。
+
 一键擦除 Flash（只擦，不烧 TF-M）
   双击  erase_flash.bat            ST-Link
   双击  jlink_erase_flash.bat      J-Link
   会先解开 WRPSG11/12/21/22 和 SECWM，再整片 -e all。
-  擦完芯片是空的；要下程序再跑 tfm_update.bat / jlink_tfm_update.bat。
+  擦完芯片是空的，这个脚本不会下载 TF-M。
+  若要烧 TF-M：直接双击 tfm_update.bat（会自动下载），不必先擦再烧。
 
 ST-Link（板载调试器，推荐）
   双击  tfm_update.bat
   或     flash_h5f4.bat
-  第一次 / 片上还有旧 HDP 时会整片擦除（regression.bat）。
+  第一次 / 片上还有旧 HDP 时会整片擦除（regression.bat），然后自动下载 BL2/S/NS。
   已经是新 BL2、只想重烧镜像：  tfm_update.bat images-only
 
 J-Link
