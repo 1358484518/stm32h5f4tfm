@@ -66,8 +66,12 @@
 #define TOTAL_ROM_SIZE          FLASH_TOTAL_SIZE
 #define TOTAL_RAM_SIZE          (_SRAM1_SIZE_MAX +_SRAM2_SIZE_MAX)
 
-#define S_TOTAL_RAM2_SIZE       (_SRAM2_SIZE_MAX) /*! size require for Secure part */
-#define S_TOTAL_RAM1_SIZE       (0x10000)
+/* Secure RAM is SRAM2 only (128 KB minus the 1 KB shared boot area at the top).
+ * SRAM1 (256 KB) is entirely Non-secure. GTZC already implements this via
+ * S_TOTAL_RAM1_SIZE == 0 ("only SRAM2 is secure"). TEST_S currently uses ~77 KB.
+ */
+#define S_TOTAL_RAM2_SIZE       (_SRAM2_SIZE_MAX)
+#define S_TOTAL_RAM1_SIZE       (0)
 #define S_TOTAL_RAM_SIZE        (S_TOTAL_RAM2_SIZE + S_TOTAL_RAM1_SIZE)
 #define NS_TOTAL_RAM_SIZE       (TOTAL_RAM_SIZE - S_TOTAL_RAM_SIZE)
 /*
@@ -144,6 +148,9 @@
 #define S_DATA_START                        (S_RAM_ALIAS(NS_TOTAL_RAM_SIZE))
 #define S_DATA_SIZE                         (S_TOTAL_RAM_SIZE)
 #define S_DATA_LIMIT                        (S_DATA_START + S_DATA_SIZE -0x1)
+#if (S_TOTAL_RAM1_SIZE == 0) && (S_DATA_START != _SRAM2_BASE_S)
+#error "S RAM must start at SRAM2 when S_TOTAL_RAM1_SIZE is 0"
+#endif
 
 #if (MCUBOOT_S_DATA_IMAGE_NUMBER == 1)
 #define S_DATA_IMAGE_PRIMARY_AREA_OFFSET    (S_DATA_IMAGE_PRIMARY_PARTITION_OFFSET + BL2_DATA_HEADER_SIZE)

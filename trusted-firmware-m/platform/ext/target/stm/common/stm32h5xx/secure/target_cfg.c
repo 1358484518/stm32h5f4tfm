@@ -364,7 +364,8 @@ void sau_and_idau_cfg(void)
 
 #if defined(STM32H5F4xx)
 #define MPCBB_LOCK_SRAM2_SIZE 0xff
-#define MPCBB_LOCK_SRAM1_SIZE 0xfff
+/* SRAM1 is 256 KB = 16 superblocks; H5F4 gives all of it to NS. */
+#define MPCBB_LOCK_SRAM1_SIZE 0xffff
 #define MPCBB_LOCK_SRAM3_SIZE 0x00ffffff
 #else
 #define MPCBB_LOCK_SRAM2_SIZE 0xf
