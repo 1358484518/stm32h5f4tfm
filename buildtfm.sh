@@ -202,6 +202,13 @@ cmake -S "${TFM_TESTS}/tests_reg/spe" -B build_s -GNinja \
     "${LOG_FLAGS[@]}" \
     "${FETCH_OFF[@]}"
 
+# tests_reg/spe 是一层 wrapper，已有的 build-spe CMakeCache 不会吃上面的
+# -DBL2_TRAILER_SIZE。必须再配一次内层 TF-M，否则仍是 0x2000。
+if [[ -f "${TFM_ROOT}/build_s/build-spe/CMakeCache.txt" ]]; then
+    echo ">>> 内层 TF-M: BL2_TRAILER_SIZE=0x3000"
+    cmake -DBL2_TRAILER_SIZE=0x3000 "${TFM_ROOT}/build_s/build-spe"
+fi
+
 apply_mcuboot_0002
 
 ninja -C build_s install -j"$(nproc)"
