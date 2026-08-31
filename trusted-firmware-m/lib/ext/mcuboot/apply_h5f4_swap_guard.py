@@ -192,6 +192,23 @@ HEADER_NEW = """        BOOT_LOG_INF("swap resume size=0x%x idx=%u pri/sec secto
 """
 
 
+TLV_SIZE_OLD = """    if (img_sz > bootutil_max_image_size(state, fap)) {
+        rc = -1;
+        BOOT_LOG_DBG("bootutil_img_validate: TLV beyond image size");
+        goto out;
+    }
+"""
+
+TLV_SIZE_NEW = """    if (img_sz > bootutil_max_image_size(state, fap)) {
+        rc = -1;
+        BOOT_LOG_ERR("H5F4SWP2 image TLV end=0x%x max=0x%x",
+                     (unsigned)img_sz,
+                     (unsigned)bootutil_max_image_size(state, fap));
+        goto out;
+    }
+"""
+
+
 def die(msg: str) -> None:
     print(f"错误: {msg}", file=sys.stderr)
     raise SystemExit(1)
@@ -267,16 +284,29 @@ def patch_swap_scratch(path: Path) -> None:
     path.write_text(text)
 
 
+def patch_image_validate(path: Path) -> None:
+    text = path.read_text()
+    if "H5F4SWP2 image TLV end=" in text:
+        return
+    text = replace_once(
+        text, TLV_SIZE_OLD, TLV_SIZE_NEW, "TLV beyond image size in image_validate.c"
+    )
+    path.write_text(text)
+
+
 def main(argv: list[str]) -> int:
     if len(argv) != 2:
         die("用法: apply_h5f4_swap_guard.py <mcuboot-src>")
     src = Path(argv[1])
     misc = src / "boot/bootutil/src/swap_misc.c"
     scratch = src / "boot/bootutil/src/swap_scratch.c"
+    validate = src / "boot/bootutil/src/image_validate.c"
     if not misc.is_file() or not scratch.is_file():
         die(f"{src} 里没有 MCUBoot swap 源文件")
     patch_swap_misc(misc)
     patch_swap_scratch(scratch)
+    if validate.is_file():
+        patch_image_validate(validate)
     text = misc.read_text()
     if MARKER not in text:
         die(f"写入后 {misc} 仍没有 {MARKER}")

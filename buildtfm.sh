@@ -157,8 +157,10 @@ apply_mcuboot_0002() {
         found=1
         python3 "${helper}" "${src}"
         grep -q 'H5F4SWP2' "${misc}" || { echo "错误: ${misc} 仍没有 H5F4SWP2"; exit 1; }
-        touch "${misc}" "${src}/boot/bootutil/src/swap_scratch.c"
-        find "${TFM_ROOT}/build_s" \( -name 'swap_misc.c.o' -o -name 'swap_scratch.c.o' \) -delete 2>/dev/null || true
+        touch "${misc}" "${src}/boot/bootutil/src/swap_scratch.c" \
+            "${src}/boot/bootutil/src/image_validate.c"
+        find "${TFM_ROOT}/build_s" \( -name 'swap_misc.c.o' -o -name 'swap_scratch.c.o' \
+            -o -name 'image_validate.c.o' \) -delete 2>/dev/null || true
     done < <(find "${TFM_ROOT}/build_s" -type d -name 'mcuboot-src' 2>/dev/null)
     if [[ "${found}" -eq 0 ]]; then
         echo "错误: 找不到 mcuboot-src，无法打 MCUBoot swap 防护"
@@ -194,6 +196,7 @@ cmake -S "${TFM_TESTS}/tests_reg/spe" -B build_s -GNinja \
     -DTFM_TOOLCHAIN_FILE="${TFM_ROOT}/toolchain_GNUARM.cmake" \
     -DTFM_PSA_API=ON \
     -DTFM_ISOLATION_LEVEL=1 \
+    -DBL2_TRAILER_SIZE=0x3000 \
     "${TEST_FLAGS[@]}" \
     "${FP_FLAGS[@]}" \
     "${LOG_FLAGS[@]}" \
@@ -252,6 +255,43 @@ if ! grep -q '^slot2=0xc200000$' TFM_UPDATE.sh; then
     grep -E '^slot[0-3]=' TFM_UPDATE.sh || true
     exit 1
 fi
+if ! grep -q '^slot1=0xc090000$' TFM_UPDATE.sh; then
+    echo "错误: TFM_UPDATE.sh 的 slot1 必须是 0xc090000（S primary 已扩到 352 KB）"
+    grep -E '^slot[0-3]=' TFM_UPDATE.sh || true
+    exit 1
+fi
+
+S_SIGNED="${TFM_ROOT}/build_s/api_ns/bin/tfm_s_signed.bin"
+[[ -f "${S_SIGNED}" ]] || { echo "错误: 找不到 ${S_SIGNED}"; exit 1; }
+"${PYTHON}" - "${S_SIGNED}" <<'PY'
+import struct, sys
+from pathlib import Path
+data = Path(sys.argv[1]).read_bytes()
+if len(data) < 32:
+    raise SystemExit(f"错误: {sys.argv[1]} 太小")
+magic, _load, hdr, prot, img, _flags = struct.unpack_from("<IIHHII", data, 0)
+if magic != 0x96F3B83D:
+    raise SystemExit(f"错误: {sys.argv[1]} 没有 MCUBoot 头 magic")
+off = hdr + img
+if off + 4 > len(data):
+    raise SystemExit(f"错误: {sys.argv[1]} TLV 超出文件")
+mag, tot = struct.unpack_from("<HH", data, off)
+end = off + tot
+if mag == 0x6908:
+    if end + 4 > len(data):
+        raise SystemExit(f"错误: {sys.argv[1]} 未保护 TLV 超出文件")
+    _umag, utot = struct.unpack_from("<HH", data, end)
+    end = end + utot
+# MCUBoot SWAP_USING_SCRATCH trailer for 150 NS sectors, write_sz=16, align=16.
+trailer = 150 * 3 * 16 + 80
+max_img = len(data) - trailer
+if end > max_img:
+    raise SystemExit(
+        f"错误: S 镜像 TLV 到 0x{end:x}，MCUBoot 上限 0x{max_img:x} "
+        f"(slot=0x{len(data):x} trailer=0x{trailer:x})。加大 FLASH_S_PARTITION_SIZE。"
+    )
+print(f">>> S 镜像 TLV end=0x{end:x} max=0x{max_img:x} slot=0x{len(data):x}")
+PY
 
 echo ""
 grep -E '^boot=|^slot0=|^slot1=|^slot2=|^slot3=' TFM_UPDATE.sh || true
@@ -270,5 +310,12 @@ echo "*"
 echo "* 烧完串口第一行必须有: [INF] H5F4BL2"
 echo "* 如果仍是 Starting bootloader（没有 H5F4BL2 / S-sec），BL2 没写进去"
 echo "************************************************************"
-echo "NS 测试程序: ${TFM_ROOT}/build_ns/bin/tfm_ns_signed.bin  地址 0x0C088000"
-echo "NS 用户 Flash 数据区: 0x0C37C000  大小 528 KB（到 4 MB 末尾）"
+SLOT1="$(sed -n 's/^slot1=//p' TFM_UPDATE.sh | head -n1)"
+SLOT3="$(sed -n 's/^slot3=//p' TFM_UPDATE.sh | head -n1)"
+echo "NS 测试程序: ${TFM_ROOT}/build_ns/bin/tfm_ns_signed.bin  地址 0x${SLOT1#0x}"
+if [[ -n "${SLOT3}" ]]; then
+    ns_sec=$((SLOT3))
+    ns_end=$((ns_sec + 0x12C000))
+    user_sz=$((0x0C400000 - ns_end))
+    printf 'NS 用户 Flash 数据区: 0x%X  大小 %d KB（到 4 MB 末尾）\n' "${ns_end}" "$((user_sz / 1024))"
+fi

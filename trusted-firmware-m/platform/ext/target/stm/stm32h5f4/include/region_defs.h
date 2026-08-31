@@ -85,7 +85,15 @@
 #define BL2_HEADER_SIZE                     (0x400) /*!< Appli image header size */
 #endif 
 #ifndef BL2_TRAILER_SIZE
-#define BL2_TRAILER_SIZE                    (0x400)
+#define BL2_TRAILER_SIZE                    (0x3000)
+#endif
+/* MCUBoot SWAP_USING_SCRATCH trailer: status = MAX_SECTORS * 3 * write_sz(16)
+ * plus 80-byte info/magic. RSA-3072 TLV is ~1 KB on top of that. The linker
+ * reservation must cover both or TEST_S fills the slot and BL2 rejects it.
+ */
+#define MCUBOOT_SCRATCH_TRAILER_MIN         ((MCUBOOT_MAX_IMG_SECTORS) * 3u * 16u + 80u)
+#if BL2_TRAILER_SIZE < (MCUBOOT_SCRATCH_TRAILER_MIN + 0x400)
+#error "BL2_TRAILER_SIZE is smaller than MCUBoot swap trailer plus TLV"
 #endif
 
 #define BL2_DATA_HEADER_SIZE                (0x20)  /*!< Data image header size */
