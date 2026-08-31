@@ -16,3 +16,5 @@ NS 槽 1200 KB @ 0x0C090000；S 槽 352 KB @ 0x0C038000。USART1 PA9/PA10，1152
 工程已带 mbedtls 4.1.1（ns_app/mbedtls-4.1.1）：编 TLS/X.509 辅助模块，不编第二套 PSA crypto core。
 密码仍走 SPE 的 PSA（s_veneers.o）。配置见 ns_app/ns_crypto_user.h、ns_mbedtls_user.h。
 不要把 net_sockets.c、ssl_*_server.c、builtin aes/ecp 等排除文件加回源文件列表，除非同步改配置。
+
+NS smoke（main.c）会跑 mbedtls_md SHA-256，以及 AES-128-CBC / AES-128-GCM 加解密（NIST 向量，经 PSA 进 SPE）。串口日志里搜 `mbedtls AES`。
