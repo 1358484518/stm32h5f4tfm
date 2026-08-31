@@ -82,13 +82,16 @@ if [ $? -ne 0 ]; then
 fi
 echo "TFM_Appli NonSecure Written"
 echo "Unlock HDP and WRP before BL2"
-# H5F4 CubeProgrammer names (WRPSGn1 does not exist on this part)
+# H5F4 CubeProgrammer names (WRPSGn1 does not exist on this part).
+# HDP1 cannot be shrunk by this -ob once STRT<=END; flash_stm32h5f4.sh
+# mass-erases first when HDP still covers BL2.
 $stm32programmercli $connect -ob HDP1_STRT=1 HDP1_END=0 HDP2_STRT=1 HDP2_END=0
 $stm32programmercli $connect -ob WRPSG11=0xffffffff WRPSG12=0xffffffff WRPSG21=0xffffffff WRPSG22=0xffffffff
 echo "Write TFM_SBSFU_Boot"
 $stm32programmercli $connect -d $BINPATH_BL2/bl2.bin $boot -v
 if [ $? -ne 0 ]; then
-  echo "ERROR: BL2 download/verify failed (WRP still protecting 0x0C010000?)"
+  echo "ERROR: BL2 download/verify failed (HDP1 still covering 0x0C010000, not WRP?)"
+  echo "Run: ./flash_stm32h5f4.sh erase"
   exit 1
 fi
 echo "TFM_SBSFU_Boot Written"
