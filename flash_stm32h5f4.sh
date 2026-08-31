@@ -1,49 +1,65 @@
 #!/usr/bin/env bash
-# 只烧当前源码编出来的 STM32H5F4 镜像。拒绝仓库里的旧 H573 快照。
+# Flash STM32H5F4 TF-M and prove the on-chip BL2 is the one just built.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 API_NS="${ROOT}/trusted-firmware-m/build_s/api_ns"
 BL2_BIN="${API_NS}/bin/bl2.bin"
+BOOT_ADDR=0xc00e000
+DUMP="${API_NS}/bl2_onchip.bin"
+
+die() { echo "错误: $*" >&2; exit 1; }
 
 if [[ ! -f "${BL2_BIN}" ]] || [[ ! -x "${API_NS}/TFM_UPDATE.sh" ]]; then
-    echo "错误: 还没有编译产物。先在仓库根目录执行: ./buildtfm.sh test"
-    exit 1
+    die "还没有编译产物。先在仓库根目录执行: ./buildtfm.sh test"
 fi
-
-if ! strings "${BL2_BIN}" | grep -q "Starting bootloader S-sec="; then
-    echo "错误: ${BL2_BIN} 没有 S-sec 标记，不是这次移植的 BL2"
-    exit 1
-fi
-
-if ! grep -q '^slot2=0xc200000$' "${API_NS}/TFM_UPDATE.sh"; then
-    echo "错误: ${API_NS}/TFM_UPDATE.sh 的 slot2 不是 0xc200000"
-    grep -E '^slot[0-3]=' "${API_NS}/TFM_UPDATE.sh" || true
-    exit 1
-fi
+strings "${BL2_BIN}" | grep -q "Starting bootloader S-sec=" \
+    || die "${BL2_BIN} 没有 S-sec 标记"
+grep -q '^slot2=0xc200000$' "${API_NS}/TFM_UPDATE.sh" \
+    || die "${API_NS}/TFM_UPDATE.sh 的 slot2 不是 0xc200000"
 
 echo "将要烧录的目录: ${API_NS}"
 grep -E '^boot=|^slot0=|^slot1=|^slot2=|^slot3=' "${API_NS}/TFM_UPDATE.sh"
 echo
-echo "bl2.bin 标记:"
-strings "${BL2_BIN}" | grep -E "Starting bootloader S-sec=|Checking image|BL2 flash map S-secondary=" || true
-echo
+command -v STM32_Programmer_CLI >/dev/null 2>&1 \
+    || die "找不到 STM32_Programmer_CLI"
 
-if ! command -v STM32_Programmer_CLI >/dev/null 2>&1; then
-    echo "本机没有 STM32_Programmer_CLI，请手动执行:"
-    echo "  cd ${API_NS}"
-    echo "  ./regression.sh"
-    echo "  STM32_Programmer_CLI -c port=SWD mode=HotPlug -ob BOOT_UBE=0xB4"
-    echo "  ./TFM_UPDATE.sh"
-    echo
-    echo "烧完串口必须出现: Starting bootloader S-sec=0x200000"
-    exit 0
-fi
+CONNECT_UR="-c port=SWD ap=1 mode=UR"
+CONNECT_HP="-c port=SWD ap=1 mode=HotPlug"
 
 cd "${API_NS}"
+
+echo ">>> regression (unlock WRP / erase)"
 ./regression.sh
-STM32_Programmer_CLI -c port=SWD mode=HotPlug -ob BOOT_UBE=0xB4
+
+echo ">>> BOOT_UBE=0xB4"
+STM32_Programmer_CLI ${CONNECT_HP} -ob BOOT_UBE=0xB4
+
+echo ">>> 再清一次 WRP（忽略 CubeProgrammer 不认识的 OB 名）"
+STM32_Programmer_CLI ${CONNECT_UR} -ob WRPSGn1=0xffffffff WRPSGn2=0xffffffff || true
+
+echo ">>> TFM_UPDATE.sh"
+set +e
 ./TFM_UPDATE.sh
+upd_rc=$?
+set -e
+if [[ "${upd_rc}" -ne 0 ]]; then
+    echo "警告: TFM_UPDATE.sh 退出码 ${upd_rc}，继续单独重写并回读 BL2"
+fi
+
+echo ">>> 单独再写一次 BL2 并校验"
+STM32_Programmer_CLI ${CONNECT_UR} -d "${BL2_BIN}" ${BOOT_ADDR} -v \
+    || die "BL2 下载失败（多半是 WRP 还在）。看上面 CubeProgrammer 输出"
+
+echo ">>> 从芯片回读 BL2"
+rm -f "${DUMP}"
+STM32_Programmer_CLI ${CONNECT_HP} -r ${BOOT_ADDR} 0x20000 "${DUMP}" \
+    || die "回读 BL2 失败"
+echo "片上 BL2 字符串:"
+strings "${DUMP}" | grep -E "H5F4BL2|Starting bootloader|Checking image|BL2 flash map" || true
+strings "${DUMP}" | grep -q "Starting bootloader S-sec=" \
+    || die "片上 BL2 没有 S-sec。写保护还在，bootloader 没换掉"
+
 echo
-echo "烧录结束。复位后串口必须出现: Starting bootloader S-sec=0x200000"
-echo "如果仍是 Starting bootloader（没有 S-sec），BL2 没写进去。"
+echo "片上已经是新 BL2。复位后串口第一行必须是: [INF] H5F4BL2"
+STM32_Programmer_CLI ${CONNECT_UR} -hardRst || true

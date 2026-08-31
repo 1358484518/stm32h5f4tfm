@@ -42,7 +42,15 @@
 #define TFM_ICACHE_ENABLE /*!< Instruction cache enable */
 
 /* Static protections */
+#ifdef TFM_DEV_MODE
+/*
+ * Do not lock BL2 with WRP while bringing up the port. On H5F4 a previous
+ * BL2 run sets WRP, then CubeProgrammer "erase all" skips those sectors and
+ * TFM_UPDATE.sh leaves the old bootloader in place.
+ */
+#else
 #define TFM_WRP_PROTECT_ENABLE  /*!< Write Protection  */
+#endif
 #define TFM_HDP_PROTECT_ENABLE /*!< HDP protection   */
 #define TFM_SECURE_USER_SRAM2_ERASE_AT_RESET /*!< SRAM2 clear at Reset  */
 #define TFM_SECURE_USER_SRAM2_ECC /*!< SRAM2 ECC */

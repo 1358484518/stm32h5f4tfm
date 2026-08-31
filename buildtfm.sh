@@ -211,6 +211,10 @@ if ! strings "${BL2_BIN}" | grep -q "Starting bootloader S-sec="; then
     echo "错误: ${BL2_BIN} 没有 S-sec 标记，这不是当前源码编出来的 BL2，禁止烧录"
     exit 1
 fi
+if ! strings "${BL2_BIN}" | grep -q "H5F4BL2"; then
+    echo "错误: ${BL2_BIN} 没有 H5F4BL2 标记"
+    exit 1
+fi
 if ! grep -q '^slot2=0xc200000$' TFM_UPDATE.sh; then
     echo "错误: TFM_UPDATE.sh 的 slot2 必须是 0xc200000（S secondary 在 bank 2）"
     grep -E '^slot[0-3]=' TFM_UPDATE.sh || true
@@ -231,8 +235,8 @@ echo "* ./regression.sh"
 echo "* STM32_Programmer_CLI -c port=SWD mode=HotPlug -ob BOOT_UBE=0xB4"
 echo "* ./TFM_UPDATE.sh"
 echo "*"
-echo "* 烧完串口第一行必须有: Starting bootloader S-sec=0x200000"
-echo "* 如果仍是 Starting bootloader（没有 S-sec），BL2 没写进去"
+echo "* 烧完串口第一行必须有: [INF] H5F4BL2"
+echo "* 如果仍是 Starting bootloader（没有 H5F4BL2 / S-sec），BL2 没写进去"
 echo "************************************************************"
 echo "NS 测试程序: ${TFM_ROOT}/build_ns/bin/tfm_ns_signed.bin  地址 0x0C088000"
 echo "NS 用户 Flash 数据区: 0x0C37C000  大小 528 KB（到 4 MB 末尾）"
