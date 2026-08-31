@@ -18,12 +18,23 @@ __attribute__((used)) static const char mcuboot_h5f4_swap_guard[] = "H5F4SWP2";
 #endif
 """
 
-GUARD_USE = """
-#if defined(MCUBOOT_SWAP_USING_SCRATCH)
+# (void)array[0] is a compile-time no-op. GCC -fdata-sections + ld --gc-sections
+# then drops the unreferenced .rodata, so bl2.bin has no H5F4SWP2.
+WEAK_KEEP = """#if defined(MCUBOOT_SWAP_USING_SCRATCH)
     /* Keep H5F4SWP2 in the BL2 image despite --gc-sections. */
     (void)mcuboot_h5f4_swap_guard[0];
 #endif
 """
+
+STRONG_KEEP = """#if defined(MCUBOOT_SWAP_USING_SCRATCH)
+    /* Address operand creates a relocation. (void)array[0] is a no-op and
+     * --gc-sections then drops H5F4SWP2 from bl2.bin.
+     */
+    __asm__ volatile ("" :: "r"(mcuboot_h5f4_swap_guard));
+#endif
+"""
+
+GUARD_USE = "\n" + STRONG_KEEP + "\n"
 
 DROP_STATUS = """
         /*
@@ -43,7 +54,7 @@ DROP_STATUS = """
                          (unsigned)swap_size, (unsigned)slot_sz);
             if (rc != 0 || swap_size == 0 || swap_size == 0xffffffffu ||
                 swap_size > slot_sz) {
-                BOOT_LOG_ERR("Dropping invalid swap status size=0x%x",
+                BOOT_LOG_ERR("H5F4SWP2 Dropping invalid swap status size=0x%x",
                              (unsigned)swap_size);
                 bs->idx = BOOT_STATUS_IDX_0;
                 bs->state = BOOT_STATUS_STATE_0;
@@ -175,7 +186,7 @@ HEADER_NEW = """        BOOT_LOG_INF("swap resume size=0x%x idx=%u pri/sec secto
              * recorded copy. Read headers from their natural slots instead of
              * walking the sector table off the end of SRAM.
              */
-            BOOT_LOG_ERR("Dropping invalid swap status size=0x%x",
+            BOOT_LOG_ERR("H5F4SWP2 Dropping invalid swap status size=0x%x",
                          (unsigned)swap_size);
         } else if (bs->idx - BOOT_STATUS_IDX_0 >= swap_count) {
 """
@@ -192,48 +203,67 @@ def replace_once(text: str, old: str, new: str, label: str) -> str:
     return text.replace(old, new, 1)
 
 
+def ensure_keepalive(text: str) -> str:
+    """Upgrade a previously applied weak keep, or leave a strong keep alone."""
+    if "__asm__ volatile (\"\" :: \"r\"(mcuboot_h5f4_swap_guard));" in text:
+        return text
+    if WEAK_KEEP in text:
+        return text.replace(WEAK_KEEP, STRONG_KEEP, 1)
+    if "(void)mcuboot_h5f4_swap_guard[0];" in text:
+        return text.replace(
+            "(void)mcuboot_h5f4_swap_guard[0];",
+            '__asm__ volatile ("" :: "r"(mcuboot_h5f4_swap_guard));',
+            1,
+        )
+    return text
+
+
+def ensure_log_marker(text: str) -> str:
+    """Put H5F4SWP2 in the ERR format string so strings(1) can see it."""
+    old = 'BOOT_LOG_ERR("Dropping invalid swap status size=0x%x"'
+    new = 'BOOT_LOG_ERR("H5F4SWP2 Dropping invalid swap status size=0x%x"'
+    return text.replace(old, new)
+
+
 def patch_swap_misc(path: Path) -> None:
     text = path.read_text()
-    if MARKER in text:
-        return
-    text = replace_once(
-        text,
-        "BOOT_LOG_MODULE_DECLARE(mcuboot);\n",
-        "BOOT_LOG_MODULE_DECLARE(mcuboot);\n" + GUARD_DECL,
-        "BOOT_LOG_MODULE_DECLARE in swap_misc.c",
-    )
-    text = replace_once(
-        text,
-        "    int rc;\n\n    bs->source = swap_status_source(state);",
-        "    int rc;\n" + GUARD_USE + "\n    bs->source = swap_status_source(state);",
-        "swap_read_status rc in swap_misc.c",
-    )
-    if "boot_status_is_reset(bs)" not in text or "swap_size == 0xffffffffu" not in text:
+    if MARKER not in text:
         text = replace_once(
             text,
-            "        bs->swap_type = BOOT_GET_SWAP_TYPE(swap_info);\n    }",
-            "        bs->swap_type = BOOT_GET_SWAP_TYPE(swap_info);"
-            + DROP_STATUS
-            + "    }",
-            "BOOT_GET_SWAP_TYPE in swap_misc.c",
+            "BOOT_LOG_MODULE_DECLARE(mcuboot);\n",
+            "BOOT_LOG_MODULE_DECLARE(mcuboot);\n" + GUARD_DECL,
+            "BOOT_LOG_MODULE_DECLARE in swap_misc.c",
         )
+        text = replace_once(
+            text,
+            "    int rc;\n\n    bs->source = swap_status_source(state);",
+            "    int rc;\n" + GUARD_USE + "\n    bs->source = swap_status_source(state);",
+            "swap_read_status rc in swap_misc.c",
+        )
+        if "boot_status_is_reset(bs)" not in text or "swap_size == 0xffffffffu" not in text:
+            text = replace_once(
+                text,
+                "        bs->swap_type = BOOT_GET_SWAP_TYPE(swap_info);\n    }",
+                "        bs->swap_type = BOOT_GET_SWAP_TYPE(swap_info);"
+                + DROP_STATUS
+                + "    }",
+                "BOOT_GET_SWAP_TYPE in swap_misc.c",
+            )
+    text = ensure_keepalive(text)
+    text = ensure_log_marker(text)
     path.write_text(text)
 
 
 def patch_swap_scratch(path: Path) -> None:
     text = path.read_text()
-    if "find_last_sector_idx overflow" in text and MARKER not in text:
-        # Logic already patched by an older 0002; nothing else lives here.
-        path.write_text(text)
-        return
-    if "find_last_sector_idx overflow" in text:
-        return
-    text = replace_once(text, FIND_LAST_OLD, FIND_LAST_NEW, "find_last_sector_idx locals")
-    text = replace_once(text, PRI_BOUND_OLD, PRI_BOUND_NEW, "primary sector bound")
-    text = replace_once(text, SEC_BOUND_OLD, SEC_BOUND_NEW, "secondary sector bound")
-    text = replace_once(text, SWAP_COUNT_OLD, SWAP_COUNT_NEW, "find_swap_count")
-    text = replace_once(text, SWAP_RUN_OLD, SWAP_RUN_NEW, "swap_run")
-    text = replace_once(text, HEADER_OLD, HEADER_NEW, "boot_read_image_header")
+    if "find_last_sector_idx overflow" not in text:
+        text = replace_once(text, FIND_LAST_OLD, FIND_LAST_NEW, "find_last_sector_idx locals")
+        text = replace_once(text, PRI_BOUND_OLD, PRI_BOUND_NEW, "primary sector bound")
+        text = replace_once(text, SEC_BOUND_OLD, SEC_BOUND_NEW, "secondary sector bound")
+        text = replace_once(text, SWAP_COUNT_OLD, SWAP_COUNT_NEW, "find_swap_count")
+        text = replace_once(text, SWAP_RUN_OLD, SWAP_RUN_NEW, "swap_run")
+        text = replace_once(text, HEADER_OLD, HEADER_NEW, "boot_read_image_header")
+    text = ensure_log_marker(text)
     path.write_text(text)
 
 

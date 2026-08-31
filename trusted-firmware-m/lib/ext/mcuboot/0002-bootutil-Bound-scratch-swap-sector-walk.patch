@@ -35,8 +35,10 @@ index c00f281..b1cada1 100644
      int rc;
  
 +#if defined(MCUBOOT_SWAP_USING_SCRATCH)
-+    /* Keep H5F4SWP2 in the BL2 image despite --gc-sections. */
-+    (void)mcuboot_h5f4_swap_guard[0];
++    /* Address operand creates a relocation. (void)array[0] is a no-op and
++     * --gc-sections then drops H5F4SWP2 from bl2.bin.
++     */
++    __asm__ volatile ("" :: "r"(mcuboot_h5f4_swap_guard));
 +#endif
 +
      bs->source = swap_status_source(state);
@@ -64,7 +66,7 @@ index c00f281..b1cada1 100644
 +                         (unsigned)swap_size, (unsigned)slot_sz);
 +            if (rc != 0 || swap_size == 0 || swap_size == 0xffffffffu ||
 +                swap_size > slot_sz) {
-+                BOOT_LOG_ERR("Dropping invalid swap status size=0x%x",
++                BOOT_LOG_ERR("H5F4SWP2 Dropping invalid swap status size=0x%x",
 +                             (unsigned)swap_size);
 +                bs->idx = BOOT_STATUS_IDX_0;
 +                bs->state = BOOT_STATUS_STATE_0;
@@ -172,7 +174,7 @@ index 59b64ad..d02f6bc 100644
 +             * recorded copy. Read headers from their natural slots instead of
 +             * walking the sector table off the end of SRAM.
 +             */
-+            BOOT_LOG_ERR("Dropping invalid swap status size=0x%x",
++            BOOT_LOG_ERR("H5F4SWP2 Dropping invalid swap status size=0x%x",
 +                         (unsigned)swap_size);
 +        } else if (bs->idx - BOOT_STATUS_IDX_0 >= swap_count) {
              /* If all segments have been swapped, the header is located in the other slot */
