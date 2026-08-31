@@ -164,8 +164,23 @@ apply_mcuboot_0002() {
     done < <(find "${TFM_ROOT}/build_s" -type d -name 'mcuboot-src' 2>/dev/null)
     if [[ "${found}" -eq 0 ]]; then
         echo "错误: 找不到 mcuboot-src，无法打 MCUBoot swap 防护"
+        echo "内层 TF-M configure 应已拉取 MCUBoot。请检查网络后: rm -rf ${TFM_ROOT}/build_s && ./buildtfm.sh ${BUILD_TYPE}"
         exit 1
     fi
+}
+
+# tests_reg/spe 只生成 wrapper。MCUBoot 是内层 TF-M cmake（FetchContent）下的，
+# 第一次或切 test/prod 清掉 build_s 之后还不存在。先跑 TF-M-configure 再打补丁。
+ensure_mcuboot_src() {
+    local src misc
+    while IFS= read -r src; do
+        misc="${src}/boot/bootutil/src/swap_misc.c"
+        if [[ -f "${misc}" ]]; then
+            return 0
+        fi
+    done < <(find "${TFM_ROOT}/build_s" -type d -name 'mcuboot-src' 2>/dev/null)
+    echo ">>> 内层 TF-M configure（拉取 MCUBoot）"
+    ninja -C build_s TF-M-configure
 }
 
 # 有 lib/ext 就离线，没有就自动在线下载
@@ -204,6 +219,7 @@ cmake -S "${TFM_TESTS}/tests_reg/spe" -B build_s -GNinja \
 
 # tests_reg/spe 是一层 wrapper，已有的 build-spe CMakeCache 不会吃上面的
 # -DBL2_TRAILER_SIZE。必须再配一次内层 TF-M，否则仍是 0x2000。
+ensure_mcuboot_src
 if [[ -f "${TFM_ROOT}/build_s/build-spe/CMakeCache.txt" ]]; then
     echo ">>> 内层 TF-M: BL2_TRAILER_SIZE=0x3000"
     cmake -DBL2_TRAILER_SIZE=0x3000 "${TFM_ROOT}/build_s/build-spe"
