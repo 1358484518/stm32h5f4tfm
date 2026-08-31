@@ -44,14 +44,14 @@
 /* Static protections */
 #ifdef TFM_DEV_MODE
 /*
- * Do not lock BL2 with WRP while bringing up the port. On H5F4 a previous
- * BL2 run sets WRP, then CubeProgrammer "erase all" skips those sectors and
- * TFM_UPDATE.sh leaves the old bootloader in place.
+ * Do not lock BL2 with WRP/HDP while bringing up the port. H5F4 option
+ * bytes are WRPSG11 (not WRPSGn1). Old BL2 sets WRPSG11=0xFFFFFFE3 and
+ * HDP1_END=0x13, then CubeProgrammer cannot program 0x0C010000.
  */
 #else
 #define TFM_WRP_PROTECT_ENABLE  /*!< Write Protection  */
-#endif
 #define TFM_HDP_PROTECT_ENABLE /*!< HDP protection   */
+#endif
 #define TFM_SECURE_USER_SRAM2_ERASE_AT_RESET /*!< SRAM2 clear at Reset  */
 #define TFM_SECURE_USER_SRAM2_ECC /*!< SRAM2 ECC */
 

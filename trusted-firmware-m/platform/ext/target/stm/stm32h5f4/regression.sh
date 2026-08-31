@@ -24,10 +24,10 @@ connect_no_reset="-c port=SWD ap=1 "$sn_option" mode=HotPlug"
 echo "Regression platform STM32H5F4"
 product_state="-ob PRODUCT_STATE=0xED  TZEN=0xB4"
 # H5F4: 256 sectors per 2 MB bank (last sector index 255)
-remove_bank1_protect="-ob SECWM1_STRT=255 SECWM1_END=0 WRPSGn1=0xffffffff"
-remove_bank2_protect="-ob SECWM2_STRT=255 SECWM2_END=0 WRPSGn2=0xffffffff" 
+remove_bank1_protect="-ob SECWM1_STRT=255 SECWM1_END=0 WRPSG11=0xffffffff WRPSG12=0xffffffff"
+remove_bank2_protect="-ob SECWM2_STRT=255 SECWM2_END=0 WRPSG21=0xffffffff WRPSG22=0xffffffff"
 erase_all="-e all"
-remove_hdp_protection="-ob HDP1_END=0 HDP2_END=0"
+remove_hdp_protection="-ob HDP1_STRT=1 HDP1_END=0 HDP2_STRT=1 HDP2_END=0"
 default_ob1="-ob SECBOOTADD="0xC0100" HDP1_STRT=1 HDP1_END=0 HDP2_STRT=1 HDP2_END=0 SWAP_BANK=0 SRAM2_RST=0 SRAM2_ECC=0"
 default_ob2="-ob SECWM2_STRT=0 SECWM2_END=255 SECWM1_STRT=0 SECWM1_END=255"
 

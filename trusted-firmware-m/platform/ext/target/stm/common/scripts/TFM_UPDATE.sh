@@ -81,8 +81,10 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 echo "TFM_Appli NonSecure Written"
-echo "Unlock WRP before BL2"
-$stm32programmercli $connect -ob WRPSGn1=0xffffffff WRPSGn2=0xffffffff
+echo "Unlock HDP and WRP before BL2"
+# H5F4 CubeProgrammer names (WRPSGn1 does not exist on this part)
+$stm32programmercli $connect -ob HDP1_STRT=1 HDP1_END=0 HDP2_STRT=1 HDP2_END=0
+$stm32programmercli $connect -ob WRPSG11=0xffffffff WRPSG12=0xffffffff WRPSG21=0xffffffff WRPSG22=0xffffffff
 echo "Write TFM_SBSFU_Boot"
 $stm32programmercli $connect -d $BINPATH_BL2/bl2.bin $boot -v
 if [ $? -ne 0 ]; then

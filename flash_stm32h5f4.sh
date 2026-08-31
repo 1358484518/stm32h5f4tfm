@@ -35,8 +35,10 @@ echo ">>> regression (unlock WRP / erase)"
 echo ">>> BOOT_UBE=0xB4"
 STM32_Programmer_CLI ${CONNECT_HP} -ob BOOT_UBE=0xB4
 
-echo ">>> 再清一次 WRP（忽略 CubeProgrammer 不认识的 OB 名）"
-STM32_Programmer_CLI ${CONNECT_UR} -ob WRPSGn1=0xffffffff WRPSGn2=0xffffffff || true
+echo ">>> 关掉 HDP，并清 H5F4 的 WRPSG11（不是 H573 的 WRPSGn1）"
+STM32_Programmer_CLI ${CONNECT_UR} -ob HDP1_STRT=1 HDP1_END=0 HDP2_STRT=1 HDP2_END=0
+STM32_Programmer_CLI ${CONNECT_UR} -ob WRPSG11=0xffffffff WRPSG12=0xffffffff WRPSG21=0xffffffff WRPSG22=0xffffffff
+STM32_Programmer_CLI ${CONNECT_HP} -ob displ | grep -E "WRP|HDP|PRODUCT" || true
 
 echo ">>> TFM_UPDATE.sh"
 set +e
