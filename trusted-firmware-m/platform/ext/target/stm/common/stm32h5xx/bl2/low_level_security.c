@@ -682,6 +682,13 @@ void LL_SECU_ApplyRunTimeProtections(void)
   /* Enable SAU to gain access to flash area non secure for write/read */
   sau_init_cfg();
 
+  /* Route MemManage/BusFault/UsageFault/SecureFault to their own vectors
+   * instead of escalating everything to HardFault. */
+  SCB->SHCSR |= SCB_SHCSR_USGFAULTENA_Msk |
+                SCB_SHCSR_BUSFAULTENA_Msk |
+                SCB_SHCSR_MEMFAULTENA_Msk |
+                SCB_SHCSR_SECUREFAULTENA_Msk;
+
   /* With TFM_DEV_MODE , active tamper calls Error_Handler */
   /* Error_Handler requires sau_init_cfg */
   active_tamper();
@@ -839,6 +846,10 @@ void LL_SECU_CheckStaticProtections(void)
   {
     start = 0;
     end = (FLASH_AREA_2_SIZE - 1) / PAGE_SIZE;
+    BOOT_LOG_INF("BANK 2 secure flash want [%d, %d] OB [%d, %d]",
+                 (int)start, (int)end,
+                 (int)flash_option_bytes_bank2.WMSecStartSector,
+                 (int)flash_option_bytes_bank2.WMSecEndSector);
     if ((start != flash_option_bytes_bank2.WMSecStartSector)
         || (end != flash_option_bytes_bank2.WMSecEndSector))
     {

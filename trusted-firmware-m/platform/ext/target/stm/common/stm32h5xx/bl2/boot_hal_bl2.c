@@ -730,8 +730,11 @@ void Error_Handler(void)
     typedef void (*nsfptr_t)(void) __attribute__((cmse_nonsecure_call));
     nsfptr_t nsfptr = (nsfptr_t)(SRAM1_BASE_NS + 1);
     __IO uint16_t *pt = (uint16_t *)SRAM1_BASE_NS;
-    BOOT_LOG_ERR("BL2 Error_Handler lr=0x%x",
-                 (unsigned)(uintptr_t)__builtin_return_address(0));
+    BOOT_LOG_ERR("BL2 Error_Handler lr=0x%x ipsr=%u cfsr=0x%x hfsr=0x%x sfsr=0x%x mmfar=0x%x bfar=0x%x sfar=0x%x",
+                 (unsigned)(uintptr_t)__builtin_return_address(0),
+                 (unsigned)__get_IPSR(),
+                 (unsigned)SCB->CFSR, (unsigned)SCB->HFSR, (unsigned)SCB->SFSR,
+                 (unsigned)SCB->MMFAR, (unsigned)SCB->BFAR, (unsigned)SCB->SFAR);
     /*  copy while(1) instruction */
     *pt = WHILE_1_OPCODE;
     /* Flush and refill pipeline  */
@@ -783,33 +786,75 @@ void Error_Handler(void)
 #pragma default_function_attributes =
 #endif /* __ICCARM__ */
 
-void HardFault_Handler(void)
+static void Bl2_Fault_C(const char *name, uint32_t *frame, uint32_t exc_lr)
 {
-    BOOT_LOG_ERR("HardFault cfsr=0x%x hfsr=0x%x mmfar=0x%x bfar=0x%x",
-                 (unsigned)SCB->CFSR, (unsigned)SCB->HFSR,
-                 (unsigned)SCB->MMFAR, (unsigned)SCB->BFAR);
+    BOOT_LOG_ERR("%s pc=0x%x ret=0x%x xpsr=0x%x exc_lr=0x%x",
+                 name,
+                 (unsigned)frame[6], (unsigned)frame[5],
+                 (unsigned)frame[7], (unsigned)exc_lr);
+    BOOT_LOG_ERR("cfsr=0x%x hfsr=0x%x sfsr=0x%x mmfar=0x%x bfar=0x%x sfar=0x%x",
+                 (unsigned)SCB->CFSR, (unsigned)SCB->HFSR, (unsigned)SCB->SFSR,
+                 (unsigned)SCB->MMFAR, (unsigned)SCB->BFAR, (unsigned)SCB->SFAR);
     Error_Handler();
 }
 
-void MemManage_Handler(void)
+void HardFault_Handler_C(uint32_t *frame, uint32_t exc_lr)
 {
-    BOOT_LOG_ERR("MemManage cfsr=0x%x mmfar=0x%x",
-                 (unsigned)SCB->CFSR, (unsigned)SCB->MMFAR);
-    Error_Handler();
+    Bl2_Fault_C("HardFault", frame, exc_lr);
 }
 
-void BusFault_Handler(void)
+void MemManage_Handler_C(uint32_t *frame, uint32_t exc_lr)
 {
-    BOOT_LOG_ERR("BusFault cfsr=0x%x bfar=0x%x",
-                 (unsigned)SCB->CFSR, (unsigned)SCB->BFAR);
-    Error_Handler();
+    Bl2_Fault_C("MemManage", frame, exc_lr);
 }
 
-void SecureFault_Handler(void)
+void BusFault_Handler_C(uint32_t *frame, uint32_t exc_lr)
 {
-    BOOT_LOG_ERR("SecureFault sfsr=0x%x sfar=0x%x",
-                 (unsigned)SCB->SFSR, (unsigned)SCB->SFAR);
-    Error_Handler();
+    Bl2_Fault_C("BusFault", frame, exc_lr);
+}
+
+void UsageFault_Handler_C(uint32_t *frame, uint32_t exc_lr)
+{
+    Bl2_Fault_C("UsageFault", frame, exc_lr);
+}
+
+void SecureFault_Handler_C(uint32_t *frame, uint32_t exc_lr)
+{
+    Bl2_Fault_C("SecureFault", frame, exc_lr);
+}
+
+#define BL2_FAULT_TRAMPOLINE(c_handler) \
+    __asm volatile ( \
+        "tst lr, #4\n" \
+        "ite eq\n" \
+        "mrseq r0, msp\n" \
+        "mrsne r0, psp\n" \
+        "mov r1, lr\n" \
+        "b " #c_handler "\n")
+
+__attribute__((naked)) void HardFault_Handler(void)
+{
+    BL2_FAULT_TRAMPOLINE(HardFault_Handler_C);
+}
+
+__attribute__((naked)) void MemManage_Handler(void)
+{
+    BL2_FAULT_TRAMPOLINE(MemManage_Handler_C);
+}
+
+__attribute__((naked)) void BusFault_Handler(void)
+{
+    BL2_FAULT_TRAMPOLINE(BusFault_Handler_C);
+}
+
+__attribute__((naked)) void UsageFault_Handler(void)
+{
+    BL2_FAULT_TRAMPOLINE(UsageFault_Handler_C);
+}
+
+__attribute__((naked)) void SecureFault_Handler(void)
+{
+    BL2_FAULT_TRAMPOLINE(SecureFault_Handler_C);
 }
 
 #if defined(__ARMCC_VERSION)

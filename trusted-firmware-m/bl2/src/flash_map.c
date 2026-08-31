@@ -7,6 +7,7 @@
 
 #include <stdbool.h>
 #include "target.h"
+#include "flash_layout.h"
 #include "flash_map/flash_map.h"
 #include "flash_map_backend/flash_map_backend.h"
 #include "bootutil_priv.h"
@@ -131,6 +132,14 @@ int flash_area_read(const struct flash_area *area, uint32_t off, void *dst,
 
     BOOT_LOG_DBG("read area=%d, off=%#x, len=%#x", area->fa_id, off, len);
 
+#if defined(FLASH_AREA_2_ID)
+    if (area->fa_id == FLASH_AREA_2_ID) {
+        BOOT_LOG_INF("read AREA_2 (S-secondary) off=0x%x len=0x%x abs_s=0x%x abs_ns=0x%x",
+                     (unsigned)off, (unsigned)len,
+                     (unsigned)(FLASH_BASE_ADDRESS + area->fa_off + off),
+                     (unsigned)(0x08000000u + area->fa_off + off));
+    }
+#endif
 #if defined(FLASH_B_SIZE)
     if (area->fa_off >= FLASH_B_SIZE) {
         static uint8_t bank2_read_logged;
