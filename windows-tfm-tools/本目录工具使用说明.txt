@@ -6,7 +6,10 @@ tfm_update.bat 默认顺序：
   1. erase_flash.bat     整片擦除
   2. regression.bat      烧 option bytes（WRPSG11、SECWM、BOOT_UBE）
   3. 找镜像：当前目录 / 本目录 的 .bin；没有 bin 就把同名 .hex 用 Python 转成 bin
-     再没有才用 trusted-firmware-m\build_s\api_ns\bin 和 build_ns\bin
+     再没有才用：
+       trusted-firmware-m\build_s\api_ns\bin
+       trusted-firmware-m\build_s\bin          （仓库里有 bl2.hex）
+       trusted-firmware-m\build_ns\bin         （仓库里有 tfm_s_ns_signed.hex）
   4. 按地址下载
        BL2  0x0C00E000
        S    0x0C038000
@@ -28,7 +31,7 @@ tfm_update.bat 默认顺序：
 
 ST-Link（推荐）
   双击  tfm_update.bat     或  flash_h5f4.bat
-  窗口 rev 应为 h5f4-20260901c（或更新）。
+  窗口 rev 应为 h5f4-20260901d（或更新）。
   只重烧镜像、不擦不改 option bytes：  tfm_update.bat images-only
 
 J-Link

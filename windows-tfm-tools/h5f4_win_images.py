@@ -122,6 +122,7 @@ def search_dirs(extra_cwd=None):
         cwd,
         script,
         os.path.join(root, "trusted-firmware-m", "build_s", "api_ns", "bin"),
+        os.path.join(root, "trusted-firmware-m", "build_s", "bin"),
         os.path.join(root, "trusted-firmware-m", "build_ns", "bin"),
     ]
     seen = set()
@@ -338,6 +339,7 @@ def cmd_self_test():
     find_bat = open(os.path.join(script_dir, "h5f4_find_images.bat"), encoding="utf-8").read()
     assert "bl2.bin" in find_bat
     assert "hex2bin" in find_bat
+    assert "build_s\\bin" in find_bat
     assert "call :" not in find_bat
     assert "goto :eof" not in find_bat
     update = open(os.path.join(script_dir, "tfm_update.bat"), encoding="utf-8").read()
@@ -381,7 +383,7 @@ def cmd_self_test():
     assert " -e all" in erase
     assert "SECWM1_STRT=255" in erase
     assert "H5F4_SECWM_FULL" not in erase
-    assert "h5f4-20260901c" in env
+    assert "h5f4-20260901d" in env
     src = open(os.path.join(script_dir, "h5f4_win_images.py"), encoding="utf-8").read()
     assert all(not ln.strip().startswith("import argparse") for ln in src.splitlines())
     rc = main(["--locate"])
