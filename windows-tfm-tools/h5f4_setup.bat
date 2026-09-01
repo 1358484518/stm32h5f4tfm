@@ -46,8 +46,11 @@ if not defined PYCMD if not errorlevel 1 set "PYCMD=py -3"
 if defined PYCMD (
     echo [ok]   python = %PYCMD%
     echo [info] locate H5F4 images
+    echo CMD: %PYCMD% "%~dp0h5f4_win_images.py" --locate
     del "%LOCATE_OUT%" >nul 2>&1
-    %PYCMD% "%~dp0h5f4_win_images.py" locate > "%LOCATE_OUT%" 2> "%LOCATE_OUT%.err"
+    rem Do not use argparse here. Chinese Windows Python printed
+    rem "此时不应有 。" and stopped before STATUS=OK.
+    %PYCMD% "%~dp0h5f4_win_images.py" --locate > "%LOCATE_OUT%" 2>&1
     goto :parse_locate
 )
 
@@ -82,7 +85,11 @@ for /f "usebackq tokens=1* delims==" %%A in ("%LOCATE_OUT%") do (
 )
 if /i not "%TFM_STATUS%"=="OK" (
     echo [FAIL] %TFM_ERROR%
+    echo ----- locate stdout -----
+    type "%LOCATE_OUT%"
+    echo ----- locate stderr -----
     type "%LOCATE_OUT%.err" 2>nul
+    echo -----
     echo        Put bl2.bin / tfm_s_signed.bin / tfm_ns_signed.bin next to this bat,
     echo        or keep trusted-firmware-m\build_s\api_ns\bin from ./buildtfm.sh
     set "H5F4_SETUP_RC=1"

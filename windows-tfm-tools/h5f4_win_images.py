@@ -6,7 +6,6 @@ Intel HEX 0x0Cxxxxxx records are remapped to 0x08xxxxxx across the full 4 MB.
 """
 from __future__ import annotations
 
-import argparse
 import os
 import sys
 import tempfile
@@ -338,6 +337,7 @@ def cmd_self_test():
     assert "call :pick_python" not in setup
     assert "call :try_python" not in setup
     assert "goto :eof" not in setup
+    assert "--locate" in setup
     assert "h5f4_win_images.py" in setup
     assert "h5f4_win_images.ps1" in setup
     assert "LOCATE_OUT" in setup
@@ -376,44 +376,88 @@ def cmd_self_test():
     assert " -e all" in erase
     assert "SECWM1_STRT=255" in erase
     assert "H5F4_SECWM_FULL" not in erase
+    assert "h5f4-20260901b" in env
+    src = open(os.path.join(script_dir, "h5f4_win_images.py"), encoding="utf-8").read()
+    assert all(not ln.strip().startswith("import argparse") for ln in src.splitlines())
+    rc = main(["--locate"])
+    assert rc in (0, 1), rc
+    rc = main(["locate"])
+    assert rc in (0, 1), rc
+    rc = main(["locate", ""])
+    assert rc in (0, 1), rc
     print("h5f4_win_images.py self-test OK")
 
 
 def main(argv=None):
-    p = argparse.ArgumentParser(description="STM32H5F4 Windows image helper")
-    p.add_argument("-InFile", dest="infile")
-    p.add_argument("-OutFile", dest="outfile")
-    p.add_argument("--self-test", action="store_true")
-    p.add_argument("command", nargs="?", help="locate | check | remap | self-test")
-    p.add_argument("path", nargs="?", help="file for check")
-    args = p.parse_args(argv)
+    # Parse argv by hand. argparse + "-InFile" on Chinese Windows Python
+    # aborts with "此时不应有 。" ("ignored explicit argument") before locate.
+    argv = list(sys.argv[1:] if argv is None else argv)
+    infile = None
+    outfile = None
+    self_test = False
+    rest = []
+    i = 0
+    while i < len(argv):
+        a = argv[i]
+        if a is None or str(a).strip() == "":
+            i += 1
+            continue
+        if a in ("-h", "--help"):
+            print("h5f4_win_images.py locate")
+            print("h5f4_win_images.py --self-test")
+            print("h5f4_win_images.py -InFile in.hex -OutFile out.bin")
+            return 0
+        if a in ("-InFile", "--InFile", "--in-file"):
+            if i + 1 >= len(argv):
+                print("ERROR=-InFile needs a path")
+                return 2
+            infile = argv[i + 1]
+            i += 2
+            continue
+        if a in ("-OutFile", "--OutFile", "--out-file"):
+            if i + 1 >= len(argv):
+                print("ERROR=-OutFile needs a path")
+                return 2
+            outfile = argv[i + 1]
+            i += 2
+            continue
+        if a in ("--self-test", "self-test"):
+            self_test = True
+            i += 1
+            continue
+        rest.append(a)
+        i += 1
 
-    if args.infile and args.outfile:
-        hex_to_ns_bin(args.infile, args.outfile)
+    if infile and outfile:
+        hex_to_ns_bin(infile, outfile)
         return 0
-
-    cmd = (args.command or "").lower()
-    if args.self_test or cmd in ("self-test", "--self-test"):
+    if self_test:
         cmd_self_test()
         return 0
-    if cmd == "locate":
+
+    cmd = rest[0].lower() if rest else ""
+    if cmd in ("locate", "--locate"):
         info = locate()
         print_locate(info)
         return 0 if info["STATUS"] == "OK" else 1
     if cmd == "check":
-        if not args.path:
-            sys.exit("check requires a file path")
-        err = bl2_marker_error(args.path)
+        if len(rest) < 2:
+            print("ERROR=check requires a file path")
+            return 1
+        err = bl2_marker_error(rest[1])
         if err:
             print(err, file=sys.stderr)
             return 1
-        print("OK %s" % args.path)
+        print("OK %s" % rest[1])
         return 0
     if cmd == "remap":
-        if not args.path:
-            sys.exit("remap requires -InFile and -OutFile")
-        sys.exit("use -InFile / -OutFile")
-    p.print_help()
+        print("ERROR=use -InFile / -OutFile")
+        return 2
+    if not rest:
+        info = locate()
+        print_locate(info)
+        return 0 if info["STATUS"] == "OK" else 1
+    print("ERROR=unknown command %s" % rest[0])
     return 2
 
 
