@@ -37,9 +37,42 @@ git pull origin stm32h5f4
 成功结尾应有 `=== 编译完成（测试版，硬件浮点 ON）===`，并且检查：
 
 - `bl2.bin` 含 `H5F4BL2`、`H5F4SWP2`
-- `TFM_UPDATE.sh`：`boot=0xc00e000` `slot0=0xc038000` `slot1=0xc090000` `slot2=0xc200000` `slot3=0xc258000`
+- 槽位（写在 `api_ns` 的 `TFM_UPDATE.sh` 里，只核对、不要执行）：`boot=0xc00e000` `slot0=0xc038000` `slot1=0xc090000` `slot2=0xc200000` `slot3=0xc258000`
 
-产物目录：`trusted-firmware-m/build_s/api_ns`（BL2 / S / 更新脚本）和 `trusted-firmware-m/build_ns/bin`（NS 测试镜像）。
+产物目录：`trusted-firmware-m/build_s/api_ns`（BL2 / S）和 `trusted-firmware-m/build_ns/bin`（NS 测试镜像）。  
+`api_ns` 里的 `TFM_UPDATE.sh` / `regression.sh` 只用来核对槽位地址，**不要执行**；烧录用下面的 Linux / Windows 脚本。
+
+### 签名（自己编的未加密 .bin）
+
+`./buildtfm.sh` 编出来的 `tfm_s_signed.bin` / `tfm_ns_signed.bin` 已经签过。  
+makefile / CubeIDE 自己编的未签名 `.bin` 必须先签再烧。工具按 H5F4 槽位（NS 1200 KB、S 352 KB），不要用旧的 `sign_kit.tar.xz` 或 H573 签名包。
+
+| 工程 | 工具目录 | 签完写到哪 |
+|------|----------|------------|
+| makefile | `tfmmakeproject/sign_kit/` | 输入文件旁边（`make` → `out/tfm_ns_signed.bin`） |
+| CubeIDE | `tfmcubeideproject/STM32CubeIDE/sign_kit/` | `sign_kit/` 目录（post-build 也是这里） |
+
+Linux：
+
+```bash
+cd tfmmakeproject/sign_kit
+./sign.sh ../out/tfm_ns.bin     # → ../out/tfm_ns_signed.bin
+./sign.sh s ../sapp.bin         # 安全侧
+```
+
+Windows：
+
+```bat
+cd tfmmakeproject\sign_kit
+sign.bat tfm_ns.bin
+sign.bat sapp.bin
+```
+
+文件名带 `ns` 按非安全签；带 `sapp` / `tfm_s` 按安全签。看不出来时：`./sign.sh ns app.bin`。  
+签完大小：NS **1200 KB** 烧 `0x0C090000`（升级槽 `0x0C258000`）；S **352 KB** 烧 `0x0C038000`（升级槽 `0x0C200000`）。  
+第一次会建 `sign_kit/.venv`，或复用 `tfmmakeproject/.sign-venv`。不要用仓库根目录 TF-M 的 `.venv`（cryptography 对不上会报 `Loaded python version: 50.0.0, shared object version: b'50.0.1'`）。
+
+详细用法：`tfmmakeproject/sign_kit/README.md`、`tfmcubeideproject/STM32CubeIDE/sign_kit/README.md`。
 
 ### 烧录
 
@@ -66,7 +99,7 @@ git pull origin stm32h5f4
 
 `windows-tfm-tools` 只保留 ST-Link 脚本。详细步骤见 `windows-tfm-tools/本目录工具使用说明.txt`。
 
-1. `git checkout stm32h5f4` 后 `git pull origin stm32h5f4`。双击后窗口 rev 应为 `h5f4-20260901e`（或更新）。
+1. `git checkout stm32h5f4` 后 `git pull origin stm32h5f4`。双击后窗口 rev 应为 `h5f4-20260901g`（或更新）。
 2. Ubuntu/WSL 编好：`./buildtfm.sh prod` 或 `./buildtfm.sh test`。
 3. 安装 STM32CubeProgrammer。只有 hex 没有 bin 时才需要 Python 3。
 4. 把镜像放到 `windows-tfm-tools`（二选一）：
@@ -111,8 +144,11 @@ NS 大缓冲可放到 `.ram2` / `.bss.ram2`，或使用 `__ns_ram2_start__` / `_
 
 ## 文档
 
-- [TF-M 编译笔记](./tfmwork/tfm编译笔记.txt) — 环境搭建与踩坑记录（烧录请以上面脚本为准）
-- 编译不通过时可以删除 `.venv` 后重新执行 `./buildtfm.sh`
+- [TF-M 编译笔记](./tfm编译笔记.txt) — 环境搭建与踩坑记录（烧录 / 签名请以本文和 `sign_kit` 为准，不要跑旧 `TFM_UPDATE.sh`）
+- makefile 签名：[`tfmmakeproject/sign_kit/README.md`](./tfmmakeproject/sign_kit/README.md)
+- CubeIDE 签名：[`tfmcubeideproject/STM32CubeIDE/sign_kit/README.md`](./tfmcubeideproject/STM32CubeIDE/sign_kit/README.md)
+- Windows 烧录：[`windows-tfm-tools/本目录工具使用说明.txt`](./windows-tfm-tools/本目录工具使用说明.txt)
+- 编译不通过时可以删除仓库根目录 `.venv` 后重新执行 `./buildtfm.sh`（NS 签名不要用这个 `.venv`）
 
 ## 硬件平台
 
@@ -127,9 +163,9 @@ NS 大缓冲可放到 `.ram2` / `.bss.ram2`，或使用 `__ns_ram2_start__` / `_
 
 - 增加非安全测试代码 nsdev.tar.xz ，在 ubuntu22.04 解压后执行make即可运行，这个工程不含硬件浮点计算。
 
-- 增加 sign_kit 签名工具（H5F4）：`tfmmakeproject/sign_kit` 与 CubeIDE 的 `STM32CubeIDE/sign_kit`。只用来对未加密固件签名。NS 1200 KB @ `0x0C090000`，S 352 KB @ `0x0C038000`。Linux：`./sign.sh tfm_ns.bin`；Windows：`sign.bat tfm_ns.bin`。
+- 增加 H5F4 `sign_kit` 签名工具（替代旧 `sign_kit.tar.xz` / H573 签名 zip）：`tfmmakeproject/sign_kit` 与 `tfmcubeideproject/STM32CubeIDE/sign_kit`。只签未加密固件。NS 1200 KB @ `0x0C090000`，S 352 KB @ `0x0C038000`。Linux：`./sign.sh tfm_ns.bin`；Windows：`sign.bat tfm_ns.bin`。详细见各目录 README。
 
-- 增加 tfm-h573-flash签名固件下载固件快捷脚本.zip 签名回归烧录工具，里面有使用说明文档，用来签名未签名的固件和下载程序到flash。
+- 旧的 `tfm-h573-flash签名固件下载固件快捷脚本.zip` 不要再用（H573 地址）。Windows 烧录用 `windows-tfm-tools`，签名用上面的 `sign_kit`。
 
 - 增加 makefile 编译的非安全侧工程 tfmmakeproject（已改为 STM32H5F4）。在 `tfmmakeproject/` 下执行 `make`（内部调用 `sign_kit/sign.sh`）。MCU 宏 `STM32H5F4xx`，`BL2_TRAILER_SIZE=0x3000`。签完的 `out/tfm_ns_signed.bin` 用 `windows-tfm-tools` 或 `./flash_stm32h5f4.sh` 烧，不要跑工程里的 `TFM_UPDATE.sh`。
 

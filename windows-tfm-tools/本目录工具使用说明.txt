@@ -27,7 +27,7 @@ J-Link 脚本已经删掉。本目录只支持板载 ST-Link。
      git checkout stm32h5f4
      git pull origin stm32h5f4
    双击 tfm_update.bat 后，窗口第一行附近必须看到：
-     rev:  h5f4-20260901f
+     rev:  h5f4-20260901g
    如果还是更旧的 rev，说明没拉到新脚本。
 
 2. 编译（在 Ubuntu / WSL 仓库根目录）
@@ -179,16 +179,30 @@ NS 应用里走 PSA Firmware Update / MCUBoot 写 secondary 时，也必须用�
 八、只有未签名 bin 时怎么签
 ================================================================
 
-本目录只负责烧录，不签名。H5F4 签名工具：
+本目录只负责烧录，不签名。未签名的 tfm_s.bin / tfm_ns.bin 不能直接烧。
+H5F4 签名工具（替代旧 sign_kit.tar.xz / H573 签名 zip）：
 
   makefile 工程：  仓库\tfmmakeproject\sign_kit\
-                   sign.bat tfm_ns.bin     （NS，签完 1200 KB @ 0x0C090000）
-                   sign.bat sapp.bin       （S， 签完 352 KB  @ 0x0C038000）
+    sign.bat tfm_ns.bin          NS，输出写在输入文件旁边
+    sign.bat sapp.bin            S
+    也可：sign.bat ns app.bin     文件名看不出类型时显式指定
 
   CubeIDE 工程：   仓库\tfmcubeideproject\STM32CubeIDE\sign_kit\
+    CubeIDE 编译后 post-build 会自动签，产物在 sign_kit\tfm_ns_signed.bin
+    手动：sign.bat Debug\tfm_ns.bin   （输出仍在 sign_kit\ 目录）
 
-第一次会自动建 sign_kit\.venv，不要用仓库根目录 TF-M 的 .venv。
+签完大小必须对：
+  NS  1200 KB  烧 0x0C090000（升级槽 0x0C258000）
+  S    352 KB  烧 0x0C038000（升级槽 0x0C200000）
+
+签名需要 Python 3（第一次会自动建 sign_kit\.venv）。
+不要用仓库根目录 TF-M 的 .venv（cryptography 版本经常对不上）。
+不要用 trusted-firmware-m-mbedtls-411-ns-tls 里那份 H573 sign_kit
+（NS 地址还是 0x0C088000 / 576 KB）。
+
 签完的 *_signed.bin 放到本目录后再双击 tfm_update.bat。
+详细：tfmmakeproject\sign_kit\README.md
+      tfmcubeideproject\STM32CubeIDE\sign_kit\README.md
 
 ================================================================
 九、不要做的事

@@ -1,4 +1,11 @@
 使用环境 ubuntu22.04
+
+说明：本文是早期环境搭建笔记。当前仓库是 STM32H5F4（分支 stm32h5f4）。
+编译 SPE 用仓库根目录 ./buildtfm.sh；烧录用 ./flash_stm32h5f4.sh 或 windows-tfm-tools。
+自己编的未签名 bin 用 tfmmakeproject/sign_kit 或 CubeIDE 的 sign_kit 签名。
+不要执行工程里的 TFM_UPDATE.sh / regression.sh，也不要用 H573 的 0x0C088000。
+完整步骤见仓库根目录 readme.md。
+
 1.安装依赖
 	sudo apt-get update
 	sudo apt-get install -y git curl wget cmake ninja-build build-essential \
