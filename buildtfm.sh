@@ -19,23 +19,38 @@ STM32H5F4 TF-M 编译脚本（已启用硬件浮点 FPv5-SP-D16）
   ./buildtfm.sh              交互选择构建类型
   ./buildtfm.sh test         测试版（TEST_S + TEST_NS，INFO 日志）
   ./buildtfm.sh prod         正式版（TEST_S 关，TEST_NS 开，NS 测试可烧可跑，ERROR 日志）
+  ./buildtfm.sh test --no-clean   不清 build 目录（增量，仍用本地依赖缓存）
+
+默认每次编译会先调用 scripts/clean_tfm_build.sh：只清编译结果，
+把已下载的 mcuboot/cmsis/… 留在 trusted-firmware-m/.deps-cache，不重新联网。
 
 别名: test|debug|回归    prod|release|formal|正式
 EOF
 }
 
 BUILD_TYPE=""
-case "${1:-}" in
-    -h|--help) usage; exit 0 ;;
-    test|debug|回归) BUILD_TYPE="test"; shift || true ;;
-    prod|release|formal|正式) BUILD_TYPE="prod"; shift || true ;;
-    "") ;;
-    *)
-        echo "未知参数: $1"
-        usage
-        exit 2
-        ;;
-esac
+# 默认每次编译先清 build 产物并还原本地依赖缓存（避免 rm -rf 后重新下载）。
+# 增量编译：./buildtfm.sh test --no-clean  或  BUILDTFM_NO_CLEAN=1 ./buildtfm.sh test
+DO_CLEAN=1
+[[ "${BUILDTFM_NO_CLEAN:-0}" == "1" ]] && DO_CLEAN=0
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -h|--help) usage; exit 0 ;;
+        test|debug|回归) BUILD_TYPE="test" ;;
+        prod|release|formal|正式) BUILD_TYPE="prod" ;;
+        clean|--clean) DO_CLEAN=1 ;;
+        --no-clean|noclean) DO_CLEAN=0 ;;
+        "")
+            ;;
+        *)
+            echo "未知参数: $1"
+            usage
+            exit 2
+            ;;
+    esac
+    shift || true
+done
 
 if [[ -z "${BUILD_TYPE}" ]]; then
     echo "请选择构建类型:"
@@ -115,14 +130,73 @@ echo ">>> 构建类型:  ${BUILD_LABEL}  (硬件浮点 ON, fpv5-sp-d16)"
 
 LIB_EXT_S="${TFM_ROOT}/build_s/build-spe/lib/ext"
 LIB_EXT_NS="${TFM_ROOT}/build_ns/lib/ext"
+CLEAN_SH="${WORK_ROOT}/scripts/clean_tfm_build.sh"
 
 # 测试版 <-> 正式版或 TEST_* 变化时清掉 SPE 缓存（须在离线检查之前）
 STAMP="${TFM_ROOT}/build_s/.buildtfm_type"
-STAMP_VAL="${BUILD_TYPE} ${TEST_FLAGS[*]} ${LOG_FLAGS[*]}"
+# Include signature type so RSA <-> EC-P256 switches force a clean SPE rebuild
+# (CMake caches MCUBOOT_KEY_S/NS paths derived from the old algorithm).
+SIG_TYPE="$(sed -n 's/^[[:space:]]*set(MCUBOOT_SIGNATURE_TYPE[[:space:]]*"\([^"]*\)".*/\1/p' \
+    "${TFM_ROOT}/platform/ext/target/stm/stm32h5f4/config.cmake" 2>/dev/null \
+    | head -1)"
+SIG_TYPE="${SIG_TYPE:-RSA-3072}"
+STAMP_VAL="${BUILD_TYPE} ${TEST_FLAGS[*]} ${LOG_FLAGS[*]} SIG=${SIG_TYPE}"
 if [[ -f "${STAMP}" ]] && [[ "$(cat "${STAMP}")" != "${STAMP_VAL}" ]]; then
-    echo ">>> 构建配置已切换，清理 build_s"
-    rm -rf "${TFM_ROOT}/build_s"
+    echo ">>> 构建配置已切换，将清除编译产物（保留依赖缓存）"
+    DO_CLEAN=1
 fi
+echo ">>> MCUBOOT_SIGNATURE_TYPE: ${SIG_TYPE}"
+
+# 若仓库根目录 keys/ 放了固定文件名的公私钥，则覆盖各工程同名文件 + BL2 root-EC/RSA*.pem。
+# 缺失源文件或目标目录不存在只告警，不中断编译。
+sync_user_signing_keys() {
+    local sync_sh="${WORK_ROOT}/scripts/sync_user_signing_keys.sh"
+    if [[ ! -f "${sync_sh}" ]]; then
+        echo "警告: 缺少 ${sync_sh}，跳过 keys/ 用户密钥同步"
+        return 0
+    fi
+    bash "${sync_sh}" "${WORK_ROOT}" "${SIG_TYPE}" || true
+}
+
+# 根据当前签名私钥同步 STM OTP 表里的 bl2_rotpk_*（及 provisioning.c dummy 哈希）。
+# 换 root-EC-P256*.pem / root-RSA-*.pem 后，下次 ./buildtfm.sh 会自动改 OTP，无需手改。
+sync_stm_otp_rotpk() {
+    local sync_py="${WORK_ROOT}/scripts/sync_stm_otp_rotpk.py"
+    local key_s key_ns
+    if [[ ! -f "${sync_py}" ]]; then
+        echo "警告: 缺少 ${sync_py}，跳过 OTP ROTPK 同步"
+        return 0
+    fi
+    case "${SIG_TYPE}" in
+        EC-P256)
+            key_s="${TFM_ROOT}/bl2/ext/mcuboot/root-EC-P256.pem"
+            key_ns="${TFM_ROOT}/bl2/ext/mcuboot/root-EC-P256_1.pem"
+            ;;
+        EC-P384)
+            key_s="${TFM_ROOT}/bl2/ext/mcuboot/root-EC-P384.pem"
+            key_ns="${TFM_ROOT}/bl2/ext/mcuboot/root-EC-P384_1.pem"
+            ;;
+        RSA-2048)
+            key_s="${TFM_ROOT}/bl2/ext/mcuboot/root-RSA-2048.pem"
+            key_ns="${TFM_ROOT}/bl2/ext/mcuboot/root-RSA-2048_1.pem"
+            ;;
+        RSA-3072)
+            key_s="${TFM_ROOT}/bl2/ext/mcuboot/root-RSA-3072.pem"
+            key_ns="${TFM_ROOT}/bl2/ext/mcuboot/root-RSA-3072_1.pem"
+            ;;
+        *)
+            echo "警告: 未知 SIG=${SIG_TYPE}，跳过 OTP ROTPK 同步"
+            return 0
+            ;;
+    esac
+    [[ -n "${MCUBOOT_KEY_S:-}" ]] && key_s="${MCUBOOT_KEY_S}"
+    [[ -n "${MCUBOOT_KEY_NS:-}" ]] && key_ns="${MCUBOOT_KEY_NS}"
+    "${PYTHON}" "${sync_py}" \
+        --tfm-root "${TFM_ROOT}" \
+        --sig-type "${SIG_TYPE}" \
+        --key-s "${key_s}" \
+        --key-ns "${key_ns}"
+}
 
 # Python：用 python -m pip，避免拷贝来的 venv shebang 失效
 VENV_DIR="${WORK_ROOT}/.venv"
@@ -139,10 +213,31 @@ source "${VENV_DIR}/bin/activate"
 export PATH="${VENV_DIR}/bin:${PATH}"
 PYTHON="${VENV_DIR}/bin/python"
 "${PYTHON}" -m pip install -q --upgrade pip setuptools wheel || true
+"${PYTHON}" -c "import cryptography" 2>/dev/null || \
+    "${PYTHON}" -m pip install -q cryptography
 if ! command -v hex_generation >/dev/null 2>&1; then
     "${PYTHON}" -m pip install -q -e "${TFM_ROOT}"
 fi
 command -v hex_generation >/dev/null || { echo "错误: hex_generation 未安装"; exit 1; }
+
+sync_user_signing_keys
+sync_stm_otp_rotpk
+
+# 清编译产物 / 还原本地依赖（避免每次 rm -rf build_s 后重新下载）
+if [[ -f "${CLEAN_SH}" ]]; then
+    if [[ "${DO_CLEAN}" -eq 1 ]]; then
+        bash "${CLEAN_SH}" "${TFM_ROOT}"
+    else
+        echo ">>> --no-clean：保留 build 目录，仅确保依赖缓存可用"
+        bash "${CLEAN_SH}" --save-only "${TFM_ROOT}" || true
+        bash "${CLEAN_SH}" --restore-only "${TFM_ROOT}" || true
+    fi
+else
+    echo "警告: 缺少 ${CLEAN_SH}，退回旧逻辑"
+    if [[ "${DO_CLEAN}" -eq 1 ]]; then
+        rm -rf "${TFM_ROOT}/build_s" "${TFM_ROOT}/build_ns"
+    fi
+fi
 
 # cmake FetchContent 增量配置可能把已拉取的 MCUBoot 重置回 tag。
 # 不要用 git apply 打 format-patch：可能返回 0 却不改文件。
@@ -164,7 +259,7 @@ apply_mcuboot_0002() {
     done < <(find "${TFM_ROOT}/build_s" -type d -name 'mcuboot-src' 2>/dev/null)
     if [[ "${found}" -eq 0 ]]; then
         echo "错误: 找不到 mcuboot-src，无法打 MCUBoot swap 防护"
-        echo "内层 TF-M configure 应已拉取 MCUBoot。请检查网络后: rm -rf ${TFM_ROOT}/build_s && ./buildtfm.sh ${BUILD_TYPE}"
+        echo "内层 TF-M configure 应已拉取 MCUBoot。请检查网络后: ${CLEAN_SH} && ./buildtfm.sh ${BUILD_TYPE}"
         exit 1
     fi
 }
@@ -212,6 +307,7 @@ cmake -S "${TFM_TESTS}/tests_reg/spe" -B build_s -GNinja \
     -DTFM_PSA_API=ON \
     -DTFM_ISOLATION_LEVEL=1 \
     -DBL2_TRAILER_SIZE=0x3000 \
+    -DMCUBOOT_SIGNATURE_TYPE="${SIG_TYPE}" \
     "${TEST_FLAGS[@]}" \
     "${FP_FLAGS[@]}" \
     "${LOG_FLAGS[@]}" \
@@ -219,10 +315,14 @@ cmake -S "${TFM_TESTS}/tests_reg/spe" -B build_s -GNinja \
 
 # tests_reg/spe 是一层 wrapper，已有的 build-spe CMakeCache 不会吃上面的
 # -DBL2_TRAILER_SIZE。必须再配一次内层 TF-M，否则仍是 0x2000。
+# Drop cached key paths when switching RSA <-> EC so defaults rematerialize.
 ensure_mcuboot_src
 if [[ -f "${TFM_ROOT}/build_s/build-spe/CMakeCache.txt" ]]; then
-    echo ">>> 内层 TF-M: BL2_TRAILER_SIZE=0x3000"
-    cmake -DBL2_TRAILER_SIZE=0x3000 "${TFM_ROOT}/build_s/build-spe"
+    echo ">>> 内层 TF-M: BL2_TRAILER_SIZE=0x3000 SIG=${SIG_TYPE}"
+    cmake -UMCUBOOT_KEY_S -UMCUBOOT_KEY_NS \
+        -DBL2_TRAILER_SIZE=0x3000 \
+        -DMCUBOOT_SIGNATURE_TYPE="${SIG_TYPE}" \
+        "${TFM_ROOT}/build_s/build-spe"
 fi
 
 apply_mcuboot_0002
@@ -230,16 +330,36 @@ apply_mcuboot_0002
 ninja -C build_s install -j"$(nproc)"
 mkdir -p "$(dirname "${STAMP}")"
 echo "${STAMP_VAL}" > "${STAMP}"
+# 编译成功后刷新本地依赖缓存，供下次清目录后离线使用
+if [[ -f "${CLEAN_SH}" ]]; then
+    bash "${CLEAN_SH}" --save-only "${TFM_ROOT}" || true
+fi
 
 SPE_CONFIG="${TFM_ROOT}/build_s/api_ns/cmake/spe_config.cmake"
 [[ -f "${SPE_CONFIG}" ]] && \
     sed -i 's/^set(CHECK_TFM_TESTS_VERSION.*$/set(CHECK_TFM_TESTS_VERSION OFF)/' "${SPE_CONFIG}"
 
 echo ">>> build_ns (回归测试程序，可烧录可跑)"
-rm -rf build_ns
+# 只清 NS 编译树；依赖从 .deps-cache / SPE 还原，不联网
+if [[ -f "${CLEAN_SH}" ]]; then
+    if [[ -d "${TFM_ROOT}/build_ns" ]]; then
+        bash "${CLEAN_SH}" --save-only "${TFM_ROOT}" || true
+        rm -rf "${TFM_ROOT}/build_ns"
+    fi
+    bash "${CLEAN_SH}" --restore-only "${TFM_ROOT}" || true
+else
+    rm -rf build_ns
+    mkdir -p "${LIB_EXT_NS}"
+    for lib in qcbor t_cose; do
+        [[ -d "${LIB_EXT_S}/${lib}-src" ]] && cp -a "${LIB_EXT_S}/${lib}-src" "${LIB_EXT_NS}/"
+    done
+fi
+# 再确保 NS 有 qcbor/t_cose（restore 可能只写了 cache）
 mkdir -p "${LIB_EXT_NS}"
 for lib in qcbor t_cose; do
-    [[ -d "${LIB_EXT_S}/${lib}-src" ]] && cp -a "${LIB_EXT_S}/${lib}-src" "${LIB_EXT_NS}/"
+    if [[ ! -d "${LIB_EXT_NS}/${lib}-src" && -d "${LIB_EXT_S}/${lib}-src" ]]; then
+        cp -a "${LIB_EXT_S}/${lib}-src" "${LIB_EXT_NS}/"
+    fi
 done
 
 cmake -S "${TFM_TESTS}/tests_reg" -B build_ns -GNinja \
@@ -271,7 +391,7 @@ if [[ "${BUILD_TYPE}" == "test" ]] && ! grep -a -F -q "Starting bootloader S-sec
 fi
 if ! grep -a -F -q "H5F4SWP2" "${BL2_BIN}"; then
     echo "错误: ${BL2_BIN} 没有 MCUBoot 0002 标记 H5F4SWP2（image 0 会在 0x30180000 BusFault）"
-    echo "cmake 可能冲掉了补丁。请再跑一次 ./buildtfm.sh ${BUILD_TYPE}；仍失败则: rm -rf ${TFM_ROOT}/build_s && ./buildtfm.sh ${BUILD_TYPE}"
+    echo "cmake 可能冲掉了补丁。请再跑一次 ./buildtfm.sh ${BUILD_TYPE}；仍失败则: ${CLEAN_SH} && ./buildtfm.sh ${BUILD_TYPE}"
     exit 1
 fi
 if ! grep -q '^slot2=0xc200000$' TFM_UPDATE.sh; then

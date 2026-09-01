@@ -4,6 +4,13 @@
 
 当前开发分支：`stm32h5f4`。平台名：`stm/stm32h5f4`。
 
+
+### keys/ 与清编译（不重新下载依赖）
+
+- 把两对固定文件名公私钥放入仓库根目录 `keys/`，`./buildtfm.sh` 会自动覆盖各工程同名密钥并同步 OTP ROTPK。见 `keys/README.md`。
+- 不要手动 `rm -rf trusted-firmware-m/build_s`。脚本默认先跑 `scripts/clean_tfm_build.sh`：只清编译产物，依赖缓存在 `trusted-firmware-m/.deps-cache/`。增量可用 `./buildtfm.sh test --no-clean`。
+
+
 ## 编译与烧录
 
 SPE / BL2 / 官方 NS 测试固件只使用仓库根目录的 `./buildtfm.sh` 编译。烧录用 Linux 的 `./flash_stm32h5f4.sh`，或 Windows 的 `windows-tfm-tools\tfm_update.bat`。  
