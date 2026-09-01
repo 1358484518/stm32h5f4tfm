@@ -372,7 +372,7 @@ def cmd_self_test():
     assert " -e all" in erase
     assert "SECWM1_STRT=255" in erase
     assert "H5F4_SECWM_FULL" not in erase
-    assert "h5f4-20260901g" in env
+    assert "h5f4-20260901h" in env
     src = open(os.path.join(script_dir, "h5f4_win_images.py"), encoding="utf-8").read()
     assert all(not ln.strip().startswith("import argparse") for ln in src.splitlines())
     with tempfile.TemporaryDirectory() as td:

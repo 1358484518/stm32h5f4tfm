@@ -13,7 +13,8 @@ Linux 命令行：在 STM32CubeIDE/ 下执行 make，再 ./sign_kit/sign.sh buil
 Windows 的 sign.bat 必须是 CRLF；若 post-build 报 1KIT:~0,-1 或 et 不是内部命令，先 git pull 更新 sign_kit。
 详细：STM32CubeIDE/sign_kit/README.md
 
-烧录不要用本工程 spe/api_ns 里的脚本。把 sign_kit/tfm_ns_signed.bin 放到 windows-tfm-tools 后双击 tfm_update.bat，或 Linux 用仓库根目录 ./flash_stm32h5f4.sh。
+烧录：把 sign_kit/tfm_ns_signed.bin 放到 windows-tfm-tools 后双击 tfm_update.bat，或 Linux 用仓库根目录 ./flash_stm32h5f4.sh。
+本工程 spe/api_ns 已去掉 TFM_UPDATE.sh / regression.sh / TFM_BIN2HEX.sh。从 SPE 重新拷 api_ns 时不要把这几个脚本拷进来。
 
 s_veneers.o 必须和板上的 SPE 一起重新导出（trusted-firmware-m/build_s/api_ns/interface/lib）。换过 SPE 后请拷新的 s_veneers.o 和 sign_kit/layout/signing_layout_*.o。
 

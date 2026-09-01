@@ -43,7 +43,7 @@ CubeIDE post-build 也是签到这里，不在 `Debug\`。
 | `*_s_signed.bin` | `0x0C038000` | 352 KB |
 | `*_ns_signed.bin` | `0x0C090000` | 1200 KB |
 
-签完把 `tfm_ns_signed.bin` 放到 `windows-tfm-tools`，双击 `tfm_update.bat` 下载。Linux 用仓库根目录 `./flash_stm32h5f4.sh`。不要用本工程 `spe/api_ns` 里的旧脚本烧片。
+签完把 `tfm_ns_signed.bin` 放到 `windows-tfm-tools`，双击 `tfm_update.bat` 下载。Linux 用仓库根目录 `./flash_stm32h5f4.sh`。
 
 升级下载（同一份 `*_signed.bin`）：S `0x0C200000`，NS `0x0C258000`。不要用 H573 的 `0x0C088000` / `0x0C118000` / `0x0C168000`。
 

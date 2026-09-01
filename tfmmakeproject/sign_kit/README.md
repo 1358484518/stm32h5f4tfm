@@ -50,7 +50,7 @@ sign.bat sapp.bin
 | `*_ns_signed.bin` | `0x0C090000` | 1200 KB |
 
 签完把 `tfm_ns_signed.bin` 放到 `windows-tfm-tools`，双击 `tfm_update.bat`。
-Linux 也可用仓库根目录 `./flash_stm32h5f4.sh`。不要用本工程 `api_ns` 里的 `TFM_UPDATE.sh` / `regression.sh`。
+Linux 也可用仓库根目录 `./flash_stm32h5f4.sh`。
 
 升级下载（同一份 `*_signed.bin`，地址不同）：S `0x0C200000`，NS `0x0C258000`。不要用 H573 的 `0x0C118000` / `0x0C168000`。
 

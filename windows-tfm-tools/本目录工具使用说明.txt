@@ -27,7 +27,7 @@ J-Link 脚本已经删掉。本目录只支持板载 ST-Link。
      git checkout stm32h5f4
      git pull origin stm32h5f4
    双击 tfm_update.bat 后，窗口第一行附近必须看到：
-     rev:  h5f4-20260901g
+     rev:  h5f4-20260901h
    如果还是更旧的 rev，说明没拉到新脚本。
 
 2. 编译（在 Ubuntu / WSL 仓库根目录）
@@ -141,7 +141,7 @@ STM32H5F4 内部 Flash 4 MB，双 bank，TrustZone 下同一片 Flash 有两个�
 tfm_update.bat 只烧「当前运行槽」（primary）。MCUBoot 升级要把新镜像写到
 「升级槽」（secondary），复位后 BL2 校验再换槽。不要把升级包写到 primary。
 
-  槽            TFM_UPDATE.sh    安全别名 0x0C          非安全 0x08        大小
+  槽            槽名             安全别名 0x0C          非安全 0x08        大小
   ------------- ---------------  ---------------------  ----------------  --------
   BL2           boot=0xc00e000   0x0C00E000             0x0800E000        96 KB
   S 当前运行    slot0=0xc038000  0x0C038000             0x08038000        352 KB
@@ -170,7 +170,6 @@ NS 应用里走 PSA Firmware Update / MCUBoot 写 secondary 时，也必须用�
 
 测试版常见 [INF] H5F4BL2。
 如果只有 Starting bootloader、没有 H5F4BL2：BL2 没写进去或写的是旧 H573 镜像。
-不要用 tfmmakeproject / CubeIDE 里的旧 TFM_UPDATE.sh 补烧。
 重新双击 tfm_update.bat（不要 images-only），让它先擦再烧。
 
 开发密钥是 dummy RSA-3072，日志里的 NOT SECURE 是预期现象。
@@ -209,7 +208,6 @@ H5F4 签名工具（替代旧 sign_kit.tar.xz / H573 签名 zip）：
 ================================================================
 
 - 不要用本目录以前附带的 H573 hex（已从仓库删掉）
-- 不要用 tfmmakeproject、CubeIDE spe/api_ns 里的 regression.sh / TFM_UPDATE.sh
 - 不要把 NS 烧到 0x0C088000
 - 不要用 WRPSGn1、SECWM 只配到 127（那是 H573）
 - 不要把升级包烧到 primary（0x0C038000 / 0x0C090000）；升级请用 0x0C200000 / 0x0C258000

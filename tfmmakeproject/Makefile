@@ -19,7 +19,6 @@
 # or compiled from the SPE api_ns export.
 #
 # Flash the signed image with windows-tfm-tools or ./flash_stm32h5f4.sh.
-# Do not run api_ns/TFM_UPDATE.sh or regression.sh.
 # Signing uses sign_kit/ (H5F4 slot sizes, local venv). Standalone:
 #   ./sign_kit/sign.sh out/tfm_ns.bin
 

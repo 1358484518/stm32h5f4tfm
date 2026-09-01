@@ -30,6 +30,7 @@ SPE 配套
   以及 sign_kit/layout/signing_layout_*.o。
 
 烧录
-  不要用本工程 api_ns 里的 TFM_UPDATE.sh / regression.sh。
   把签好的 bin 放到 windows-tfm-tools 后双击 tfm_update.bat，
   或 Linux 用仓库根目录 ./flash_stm32h5f4.sh。
+  本工程 api_ns 已去掉 TFM_UPDATE.sh / regression.sh / TFM_BIN2HEX.sh。
+  从 SPE 重新拷 api_ns 时不要把这几个脚本拷进来。

@@ -9,7 +9,7 @@
 # Output: build/tfm_ns.elf  build/tfm_ns.bin
 # Sign:  ./sign_kit/sign.sh build/tfm_ns.bin
 #        (this kit writes tfm_ns_signed.bin into sign_kit/, not build/)
-# Flash with windows-tfm-tools or ./flash_stm32h5f4.sh — not spe/api_ns/*.sh.
+# Flash with windows-tfm-tools or ./flash_stm32h5f4.sh.
 
 CROSS   ?= arm-none-eabi-
 CC      := $(CROSS)gcc
