@@ -58,14 +58,8 @@
    application
   */
 
-#if !defined (STM32H573xx)  && !defined (STM32H563xx) \
-    && !defined (STM32H562xx) && !defined (STM32H503xx) \
-    && !defined (STM32H5F4xx)
+#if !defined (STM32H5F4xx)
   /* #define STM32H5F4xx  */   /*!< STM32H5F4xx Devices   */
-  /* #define STM32H573xx  */   /*!< STM32H5753xx Devices  */
-  /* #define STM32H563xx  */   /*!< STM32H563xx Devices   */
-  /* #define STM32H562xx  */   /*!< STM32H562xx Devices   */
-  /* #define STM32H503xx  */   /*!< STM32H503xx Devices   */  
 #endif
 
 /*  Tip: To avoid modifying this file each time you need to switch between these
@@ -102,16 +96,8 @@
 
 #if defined(STM32H5F4xx)
   #include "stm32h5f4xx.h"
-#elif defined(STM32H573xx)
-  #include "stm32h573xx.h"
-#elif defined(STM32H563xx)
-  #include "stm32h563xx.h"
-#elif defined(STM32H562xx)
-  #include "stm32h562xx.h"
-#elif defined(STM32H503xx)
-  #include "stm32h503xx.h"
 #else
-  #error "Please select first the target STM32H5xx device used in your application (in stm32h5xx.h file)"
+  #error "tfmmakeproject only supports STM32H5F4xx (define STM32H5F4xx)"
 #endif
 
 
