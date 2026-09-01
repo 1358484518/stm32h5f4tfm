@@ -2,8 +2,71 @@
 
 基于 STM32H5F4 的 TF-M（Trusted Firmware-M）移植与开发项目（由 STM32H573 平台最小改动移植）。
 
-当前开发分支：`stm32h5f4`（默认 **RSA-3072** 签名）。  
-变体分支：`stm32h5f4-p256`（仅把 MCUboot 镜像签名改为 **EC-P256**）。平台名：`stm/stm32h5f4`。
+平台名：`stm/stm32h5f4`。
+
+| 分支 | 签名算法 | 说明 |
+|------|----------|------|
+| `stm32h5f4` | **RSA-3072** | 默认开发支线 |
+| `stm32h5f4p256`（及 `stm32h5f4-p256`） | **EC-P256** | 仅改 MCUboot 镜像签名算法与配套密钥 |
+
+本文档所在分支为 **`stm32h5f4p256`**。
+
+### 相对 `stm32h5f4` 改了什么
+
+本支线相对 `stm32h5f4` **只围绕签名换成 EC-P256**，Flash 布局 / 槽位地址 / NS 工程逻辑不变。主要包括：
+
+1. `trusted-firmware-m/platform/ext/target/stm/stm32h5f4/config.cmake`：`MCUBOOT_SIGNATURE_TYPE=EC-P256`
+2. makefile / CubeIDE / `sign_kit` 下的 S、NS 公私钥：换成 TF-M 自带 dummy **EC-P256**（不再用 RSA-3072）
+3. `buildtfm.sh`：算法写入 stamp（RSA↔EC 会强制清 `build_s`）；正确解析 `SIG_TYPE`；内层 cmake `-UMCUBOOT_KEY_S/NS`
+4. 按 EC-P256 重编后刷新跟踪的 `build_s/bin/bl2.hex`（及 veneers）
+5. 文档与说明文字改为 EC-P256；并修复损坏的 MCUBoot `0002` mailbox patch（否则 SPE 编不过）
+
+从 `stm32h5f4` 切到本支线后，必须 **整片重烧 BL2 + S + NS**，并只用本支线的 `sign_kit/keys`。不要把 RSA 密钥 / BL2 与 P256 混用。
+
+### 更换密钥（量产 / 自用）
+
+算法必须仍是 **EC-P256**。只换 `sign_kit/keys`、不重编不重烧 BL2，板上验签会失败（ROTPK 在 BL2 里）。
+
+**1. 生成新密钥对（S / NS 各一把）**
+
+```bash
+# 可用 sign_kit 自己的 .venv，或仓库根目录 .venv（需已装 imgtool）
+imgtool keygen -k root-EC-P256-s.pem  -t ecdsa-p256
+imgtool keygen -k root-EC-P256-ns.pem -t ecdsa-p256
+```
+
+**2. 编进 BL2（公钥进芯片）**
+
+覆盖 TF-M 默认路径（或 cmake 传 `-DMCUBOOT_KEY_S=... -DMCUBOOT_KEY_NS=...`）：
+
+- S：`trusted-firmware-m/bl2/ext/mcuboot/root-EC-P256.pem`
+- NS：`trusted-firmware-m/bl2/ext/mcuboot/root-EC-P256_1.pem`
+
+然后清 SPE 再编：
+
+```bash
+git checkout stm32h5f4p256
+rm -rf trusted-firmware-m/build_s
+./buildtfm.sh test    # 或 prod
+```
+
+**3. 同步给签名工具**
+
+把**同一对**私钥拷到实际在用的目录（文件名固定）：
+
+| 文件 | 用途 |
+|------|------|
+| `image_s_signing_private_key.pem` | 签 Secure |
+| `image_ns_signing_private_key.pem` | 签 Non-Secure |
+
+常见位置：`tfmmakeproject/sign_kit/keys/`、`tfmmakeproject/api_ns/image_signing/keys/`，以及 CubeIDE 的 `sign_kit/keys/`、`spe/api_ns/image_signing/keys/`。  
+公钥可从 `trusted-firmware-m/build_s/api_ns/image_signing/keys/` 再拷一份对齐。
+
+**4. 整片重烧**
+
+用新密钥签过的镜像，重烧 **BL2 + S + NS**（`./flash_stm32h5f4.sh` 或 `windows-tfm-tools\tfm_update.bat`）。只烧 NS 不够。
+
+仓库默认仍是 TF-M **开发用 dummy** 密钥；量产请用自己的密钥并妥善保管私钥。
 
 ## 编译与烧录
 
@@ -25,8 +88,8 @@ SPE / BL2 / 官方 NS 测试固件只使用仓库根目录的 `./buildtfm.sh` �
 在仓库根目录：
 
 ```bash
-git checkout stm32h5f4
-git pull origin stm32h5f4
+git checkout stm32h5f4p256
+git pull origin stm32h5f4p256
 
 # 测试版：TEST_S + TEST_NS，INFO 日志（硬件回归用这个）
 ./buildtfm.sh test
@@ -92,7 +155,7 @@ sign.bat sapp.bin
 烧完复位，串口第一行必须有 **`H5F4BL2`**（测试版常见 `[INF] H5F4BL2`）。  
 如果仍是 `Starting bootloader` 且没有 `H5F4BL2`，说明 BL2 没写进去，不要继续用旧工程脚本补烧。
 
-开发镜像用 TF-M dummy 密钥（`stm32h5f4` 为 RSA-3072；`stm32h5f4-p256` 为 EC-P256），启动日志里的 `NOT SECURE` 是预期现象。切换算法分支后必须整片重烧 BL2 + S + NS，并使用对应分支的 `sign_kit/keys`。
+开发镜像用 TF-M dummy **EC-P256** 密钥（`stm32h5f4` 支线仍为 RSA-3072），启动日志里的 `NOT SECURE` 是预期现象。与 RSA 支线互切后必须整片重烧 BL2 + S + NS，并使用本支线的 `sign_kit/keys`。更换自有密钥见上文「更换密钥」。
 
 `./flash_stm32h5f4.sh` 只写当前运行槽（BL2 / S primary / NS primary）。**升级下载**请写 MCUBoot secondary：S `0x0C200000`（`slot2`）、NS `0x0C258000`（`slot3`）。不要用 H573 的 `0x0C118000` / `0x0C168000`。完整表见下面 Windows 一节。
 
@@ -100,7 +163,7 @@ sign.bat sapp.bin
 
 `windows-tfm-tools` 只保留 ST-Link 脚本。详细步骤见 `windows-tfm-tools/本目录工具使用说明.txt`。
 
-1. `git checkout stm32h5f4` 后 `git pull origin stm32h5f4`。双击后窗口 rev 应为 `h5f4-20260901h`（或更新）。
+1. `git checkout stm32h5f4p256` 后 `git pull origin stm32h5f4p256`。双击后窗口 rev 应为 `h5f4-20260901h`（或更新）。
 2. Ubuntu/WSL 编好：`./buildtfm.sh prod` 或 `./buildtfm.sh test`。
 3. 安装 STM32CubeProgrammer。只有 hex 没有 bin 时才需要 Python 3。
 4. 把镜像放到 `windows-tfm-tools`（二选一）：
@@ -165,7 +228,7 @@ NS 大缓冲可放到 `.ram2` / `.bss.ram2`，或使用 `__ns_ram2_start__` / `_
 
 - 增加非安全测试代码 nsdev.tar.xz ，在 ubuntu22.04 解压后执行make即可运行，这个工程不含硬件浮点计算。
 
-- 增加 H5F4 `sign_kit` 签名工具：`tfmmakeproject/sign_kit` 与 `tfmcubeideproject/STM32CubeIDE/sign_kit`。只签未加密固件。NS 1200 KB @ `0x0C090000`，S 352 KB @ `0x0C038000`。Linux：`./sign.sh tfm_ns.bin`；Windows：`sign.bat tfm_ns.bin`。根目录旧的 `sign_kit.zip`（H573）已从 `stm32h5f4` 删除。分支 `stm32h5f4-p256` 仅把 MCUboot 签名改为 EC-P256（平台 `config.cmake` + 配套密钥）。
+- 增加 H5F4 `sign_kit` 签名工具：`tfmmakeproject/sign_kit` 与 `tfmcubeideproject/STM32CubeIDE/sign_kit`。只签未加密固件。NS 1200 KB @ `0x0C090000`，S 352 KB @ `0x0C038000`。Linux：`./sign.sh tfm_ns.bin`；Windows：`sign.bat tfm_ns.bin`。根目录旧的 `sign_kit.zip`（H573）已从 `stm32h5f4` 删除。支线 `stm32h5f4p256` 仅把 MCUboot 签名改为 EC-P256（相对 `stm32h5f4` 的差异与换密钥步骤见上文）。
 
 - 根目录旧的 `tfm-h573-flash签名固件下载固件快捷脚本.zip`（H573 地址：NS `0x0C088000` / 576 KB）已从 `stm32h5f4` 删除。Windows 烧录用 `windows-tfm-tools`，签名用上面的 `sign_kit`。
 
