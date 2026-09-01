@@ -160,6 +160,29 @@ rm -rf trusted-firmware-m/build_s
 
 仓库默认仍是 TF-M **开发用 dummy** 密钥；量产请用自己的密钥并妥善保管私钥。
 
+### 一键回归烧录（Linux）
+
+仓库根目录 `./flash_stm32h573.sh`：先写 option bytes（含全片擦除），再烧 **BL2 + S + NS**。需已安装 `STM32_Programmer_CLI`，板子用 ST-Link。
+
+```bash
+git checkout stm32h573p256
+./buildtfm.sh test          # 或 prod
+./flash_stm32h573.sh        # 一键：回归 + 烧录
+# ./flash_stm32h573.sh download     # 只烧，不擦片
+# ./flash_stm32h573.sh regression   # 只回归
+# ./flash_stm32h573.sh all <ST-LINK SN>
+```
+
+| 镜像 | 地址 | 默认文件 |
+|------|------|----------|
+| BL2 | `0x0C00E000` | `trusted-firmware-m/build_s/api_ns/bin/bl2.bin` |
+| S | `0x0C038000` | `…/api_ns/bin/tfm_s_signed.bin` |
+| NS | `0x0C088000` | `trusted-firmware-m/build_ns/bin/tfm_ns_signed.bin` |
+
+可用环境变量 `TFM_NS_BIN=` 指定其它已签名 NS。`BOOT_UBE=0xB4`（OEM-iRoT）。串口 **115200**。
+
+Windows 一键：`windows-tfm-tools\tfm_update.bat`（会调 `regression.bat`）。无装包还可解压根目录 `tfm-h573-flash…zip` 里的 `flash_all.sh`。
+
 ## 文档
 
 
@@ -188,6 +211,8 @@ rm -rf trusted-firmware-m/build_s
 - 增加 tfmcubeideproject.7z 非安全侧工程可以使用stm32cubeide开发，包含.o链接，因为git会忽略链接文件，所以压缩上传。本分支（`stm32h573p256`）压缩包内 `sign_kit`/`spe` 密钥与样例签名镜像已改为 **EC-P256**（与树内工程一致）；`master` 上仍为 RSA-3072。
 
 - 增加 windows-tfm-tools 该工具是windows系统的使用的回归脚本和烧录工具。
+
+- 本分支增加 Linux 一键回归烧录脚本 `flash_stm32h573.sh`（对应 Windows 的 `windows-tfm-tools\tfm_update.bat`）。
 
 ## 文件统计
 
