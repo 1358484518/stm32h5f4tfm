@@ -131,6 +131,46 @@ if [[ -f "${STAMP}" ]] && [[ "$(cat "${STAMP}")" != "${STAMP_VAL}" ]]; then
 fi
 echo ">>> MCUBOOT_SIGNATURE_TYPE: ${SIG_TYPE}"
 
+# 根据当前签名私钥同步 STM OTP 表里的 bl2_rotpk_*（及 provisioning.c dummy 哈希）。
+# 换 root-EC-P256*.pem / root-RSA-*.pem 后，下次 ./buildtfm.sh 会自动改 OTP，无需手改。
+sync_stm_otp_rotpk() {
+    local sync_py="${WORK_ROOT}/scripts/sync_stm_otp_rotpk.py"
+    local key_s key_ns
+    if [[ ! -f "${sync_py}" ]]; then
+        echo "警告: 缺少 ${sync_py}，跳过 OTP ROTPK 同步"
+        return 0
+    fi
+    case "${SIG_TYPE}" in
+        EC-P256)
+            key_s="${TFM_ROOT}/bl2/ext/mcuboot/root-EC-P256.pem"
+            key_ns="${TFM_ROOT}/bl2/ext/mcuboot/root-EC-P256_1.pem"
+            ;;
+        EC-P384)
+            key_s="${TFM_ROOT}/bl2/ext/mcuboot/root-EC-P384.pem"
+            key_ns="${TFM_ROOT}/bl2/ext/mcuboot/root-EC-P384_1.pem"
+            ;;
+        RSA-2048)
+            key_s="${TFM_ROOT}/bl2/ext/mcuboot/root-RSA-2048.pem"
+            key_ns="${TFM_ROOT}/bl2/ext/mcuboot/root-RSA-2048_1.pem"
+            ;;
+        RSA-3072)
+            key_s="${TFM_ROOT}/bl2/ext/mcuboot/root-RSA-3072.pem"
+            key_ns="${TFM_ROOT}/bl2/ext/mcuboot/root-RSA-3072_1.pem"
+            ;;
+        *)
+            echo "警告: 未知 SIG=${SIG_TYPE}，跳过 OTP ROTPK 同步"
+            return 0
+            ;;
+    esac
+    [[ -n "${MCUBOOT_KEY_S:-}" ]] && key_s="${MCUBOOT_KEY_S}"
+    [[ -n "${MCUBOOT_KEY_NS:-}" ]] && key_ns="${MCUBOOT_KEY_NS}"
+    "${PYTHON}" "${sync_py}" \
+        --tfm-root "${TFM_ROOT}" \
+        --sig-type "${SIG_TYPE}" \
+        --key-s "${key_s}" \
+        --key-ns "${key_ns}"
+}
+
 # Python：用 python -m pip，避免拷贝来的 venv shebang 失效
 VENV_DIR="${WORK_ROOT}/.venv"
 if [[ ! -x "${VENV_DIR}/bin/python" ]]; then
@@ -146,10 +186,14 @@ source "${VENV_DIR}/bin/activate"
 export PATH="${VENV_DIR}/bin:${PATH}"
 PYTHON="${VENV_DIR}/bin/python"
 "${PYTHON}" -m pip install -q --upgrade pip setuptools wheel || true
+"${PYTHON}" -c "import cryptography" 2>/dev/null || \
+    "${PYTHON}" -m pip install -q cryptography
 if ! command -v hex_generation >/dev/null 2>&1; then
     "${PYTHON}" -m pip install -q -e "${TFM_ROOT}"
 fi
 command -v hex_generation >/dev/null || { echo "错误: hex_generation 未安装"; exit 1; }
+
+sync_stm_otp_rotpk
 
 # cmake FetchContent 增量配置可能把已拉取的 MCUBoot 重置回 tag。
 # 不要用 git apply 打 format-patch：可能返回 0 却不改文件。
