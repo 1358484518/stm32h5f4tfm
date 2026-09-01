@@ -5,7 +5,7 @@ rem
 rem  Default:
 rem    1) erase_flash.bat      mass-erase user flash
 rem    2) regression.bat       option bytes (WRPSG11, SECWM, BOOT_UBE)
-rem    3) find .bin in cwd / this folder / TF-M build output
+rem    3) find .bin in cwd / this folder, else build_s and build_ns here
 rem       if no .bin, convert matching .hex to .bin
 rem    4) download BL2/S/NS to 0x0C00E000 / 0x0C038000 / 0x0C090000
 rem

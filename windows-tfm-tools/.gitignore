@@ -1,5 +1,7 @@
-# Copied / generated flash images. Use build_s/api_ns/bin after ./buildtfm.sh.
+# Copied flash images and TF-M build trees. Do not commit them.
 *.bin
 *.hex
 *.addr
+build_s/
+build_ns/
 __pycache__/

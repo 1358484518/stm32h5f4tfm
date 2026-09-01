@@ -1,7 +1,7 @@
 @echo off
-rem Find TF-M images. Prefer .bin; if none, convert matching .hex to .bin.
-rem Search cwd, this folder, then TF-M build output including build_s\bin
-rem (git tracks bl2.hex there; api_ns\bin is gitignored).
+rem Find TF-M images in this folder.
+rem 1) current directory, then this folder: .bin first, else .hex
+rem 2) build_s / build_ns copied next to this bat (api_ns\bin or bin)
 rem Do not use CALL :label.
 
 set "TFM_BL2="
@@ -16,32 +16,38 @@ set "TFM_BL2_HEX="
 set "TFM_S_HEX="
 set "TFM_NS_HEX="
 set "TFM_SNS_HEX="
-set "H5F4_BIN_S=%~dp0..\trusted-firmware-m\build_s\api_ns\bin"
-set "H5F4_BIN_S2=%~dp0..\trusted-firmware-m\build_s\bin"
-set "H5F4_BIN_NS=%~dp0..\trusted-firmware-m\build_ns\bin"
 
-echo [info] search bin then hex in:
+echo [info] prefer cwd / this folder, then build_s and build_ns here
 echo        %CD%
 echo        %~dp0
-echo        %H5F4_BIN_S%
-echo        %H5F4_BIN_S2%
-echo        %H5F4_BIN_NS%
+echo        %~dp0build_s
+echo        %~dp0build_ns
 
-for %%D in ("%CD%" "%~dp0." "%H5F4_BIN_S%" "%H5F4_BIN_S2%" "%H5F4_BIN_NS%") do (
+for %%D in ("%CD%" "%~dp0.") do (
     if not defined TFM_BL2 if exist "%%~fD\bl2.bin" set "TFM_BL2=%%~fD\bl2.bin"
     if not defined TFM_S_SIGNED if exist "%%~fD\tfm_s_signed.bin" set "TFM_S_SIGNED=%%~fD\tfm_s_signed.bin"
     if not defined TFM_NS_SIGNED if exist "%%~fD\tfm_ns_signed.bin" set "TFM_NS_SIGNED=%%~fD\tfm_ns_signed.bin"
     if not defined TFM_S_NS_SIGNED if exist "%%~fD\tfm_s_ns_signed.bin" set "TFM_S_NS_SIGNED=%%~fD\tfm_s_ns_signed.bin"
 )
-for %%D in ("%CD%" "%~dp0." "%H5F4_BIN_S%" "%H5F4_BIN_S2%" "%H5F4_BIN_NS%") do (
+for %%D in ("%CD%" "%~dp0.") do (
     if not defined TFM_BL2 if not defined TFM_BL2_HEX if exist "%%~fD\bl2.hex" set "TFM_BL2_HEX=%%~fD\bl2.hex"
     if not defined TFM_S_SIGNED if not defined TFM_S_HEX if exist "%%~fD\tfm_s_signed.hex" set "TFM_S_HEX=%%~fD\tfm_s_signed.hex"
     if not defined TFM_NS_SIGNED if not defined TFM_NS_HEX if exist "%%~fD\tfm_ns_signed.hex" set "TFM_NS_HEX=%%~fD\tfm_ns_signed.hex"
     if not defined TFM_S_NS_SIGNED if not defined TFM_SNS_HEX if exist "%%~fD\tfm_s_ns_signed.hex" set "TFM_SNS_HEX=%%~fD\tfm_s_ns_signed.hex"
 )
 
-if not defined TFM_BL2 if exist "%~dp0..\trusted-firmware-m\build_s\bin\bl2.hex" set "TFM_BL2_HEX=%~dp0..\trusted-firmware-m\build_s\bin\bl2.hex"
-if not defined TFM_S_NS_SIGNED if exist "%~dp0..\trusted-firmware-m\build_ns\bin\tfm_s_ns_signed.hex" set "TFM_SNS_HEX=%~dp0..\trusted-firmware-m\build_ns\bin\tfm_s_ns_signed.hex"
+for %%D in ("%~dp0build_s" "%~dp0build_s\bin" "%~dp0build_s\api_ns\bin" "%~dp0build_ns" "%~dp0build_ns\bin") do (
+    if not defined TFM_BL2 if not defined TFM_BL2_HEX if exist "%%~fD\bl2.bin" set "TFM_BL2=%%~fD\bl2.bin"
+    if not defined TFM_S_SIGNED if not defined TFM_S_HEX if exist "%%~fD\tfm_s_signed.bin" set "TFM_S_SIGNED=%%~fD\tfm_s_signed.bin"
+    if not defined TFM_NS_SIGNED if not defined TFM_NS_HEX if exist "%%~fD\tfm_ns_signed.bin" set "TFM_NS_SIGNED=%%~fD\tfm_ns_signed.bin"
+    if not defined TFM_S_NS_SIGNED if not defined TFM_SNS_HEX if exist "%%~fD\tfm_s_ns_signed.bin" set "TFM_S_NS_SIGNED=%%~fD\tfm_s_ns_signed.bin"
+)
+for %%D in ("%~dp0build_s" "%~dp0build_s\bin" "%~dp0build_s\api_ns\bin" "%~dp0build_ns" "%~dp0build_ns\bin") do (
+    if not defined TFM_BL2 if not defined TFM_BL2_HEX if exist "%%~fD\bl2.hex" set "TFM_BL2_HEX=%%~fD\bl2.hex"
+    if not defined TFM_S_SIGNED if not defined TFM_S_HEX if exist "%%~fD\tfm_s_signed.hex" set "TFM_S_HEX=%%~fD\tfm_s_signed.hex"
+    if not defined TFM_NS_SIGNED if not defined TFM_NS_HEX if exist "%%~fD\tfm_ns_signed.hex" set "TFM_NS_HEX=%%~fD\tfm_ns_signed.hex"
+    if not defined TFM_S_NS_SIGNED if not defined TFM_SNS_HEX if exist "%%~fD\tfm_s_ns_signed.hex" set "TFM_SNS_HEX=%%~fD\tfm_s_ns_signed.hex"
+)
 
 if not defined TFM_BL2 if defined TFM_BL2_HEX if defined PYCMD %PYCMD% "%~dp0h5f4_win_images.py" hex2bin "%TFM_BL2_HEX%" "%TEMP%\h5f4_bl2.bin"
 if not defined TFM_BL2 if exist "%TEMP%\h5f4_bl2.bin" if defined TFM_BL2_HEX set "TFM_BL2=%TEMP%\h5f4_bl2.bin"
@@ -61,9 +67,9 @@ if not defined TFM_S_NS_SIGNED if defined TFM_SNS_HEX set "TFM_S_NS_SIGNED=%TFM_
 
 if not defined TFM_BL2 (
     echo [FAIL] no bl2.bin or bl2.hex
-    echo        Looked in cwd, this folder, build_s\api_ns\bin, build_s\bin, build_ns\bin
-    echo        Copy bl2.bin tfm_s_signed.bin tfm_ns_signed.bin next to this bat
-    echo        or run ./buildtfm.sh on this same tree so those folders exist.
+    echo        Put files in this folder:
+    echo          bl2.bin  tfm_s_signed.bin  tfm_ns_signed.bin
+    echo        or copy TF-M build_s and build_ns into this folder.
     exit /b 1
 )
 if not defined TFM_S_SIGNED if not defined TFM_S_NS_SIGNED (

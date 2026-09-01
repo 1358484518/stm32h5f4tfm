@@ -62,15 +62,12 @@ git pull origin stm32h5f4
 
 ### Windows 烧录
 
-`windows-tfm-tools` 已改成 STM32H5F4（option bytes 用 `WRPSG11/12/21/22`，SECWM 0–255，NS 槽 `0x0C090000`）。  
-脚本会从 `trusted-firmware-m\build_s\api_ns\bin` 取镜像，并拒绝没有 `H5F4BL2` / `H5F4SWP2` 的旧 BL2。本目录不再附带 hex。
+`windows-tfm-tools` 是 STM32H5F4 的 Windows ST-Link 烧录目录（option bytes 用 `WRPSG11/12/21/22`，SECWM 0–255，NS 槽 `0x0C090000`）。
 
-1. 先在 Ubuntu/WSL 编好：`./buildtfm.sh test`（或把 `build_s\api_ns\bin` 与 `build_ns\bin` 拷到 Windows 仓库里）。
-2. 安装 STM32CubeProgrammer 和 Python 3。
-3. ST-Link：双击 `windows-tfm-tools\tfm_update.bat`（或 `flash_h5f4.bat`）。第一次会整片擦除，然后**自动下载** BL2/S/NS。只重烧镜像：`tfm_update.bat images-only`。
-4. 也可把 `bl2.bin`/`bl2.hex`、`tfm_s_signed.bin`、`tfm_ns_signed.bin`（或 `tfm_s_ns_signed.bin`）直接放到 `windows-tfm-tools` 同目录再双击 `tfm_update.bat`。文件名必须一致；`bl2` 须含 `H5F4BL2`/`H5F4SWP2`。仓库里若已有 `build_s\api_ns\bin`，会优先用那份。
-5. J-Link：双击 `jlink_tfm_update.bat`（走 `0x08` 窗口，烧完恢复 SECWM）。
-6. 只擦 Flash、不烧程序：双击 `erase_flash.bat`（ST-Link）或 `jlink_erase_flash.bat`（J-Link）。要烧 TF-M 时直接跑 `tfm_update.bat`，不必先擦。
+1. 先在 Ubuntu/WSL 编好：`./buildtfm.sh prod` 或 `./buildtfm.sh test`。
+2. 安装 STM32CubeProgrammer。只有 hex 没有 bin 时才需要 Python 3。
+3. 把 `bl2.bin` / `tfm_s_signed.bin` / `tfm_ns_signed.bin` 放到 `windows-tfm-tools`，或把整份 `build_s`、`build_ns` 拷进该目录。当前目录的文件优先。
+4. 双击 `windows-tfm-tools\tfm_update.bat`。只重烧镜像：`tfm_update.bat images-only`。只擦：`erase_flash.bat`。
 
 说明见 `windows-tfm-tools/本目录工具使用说明.txt`。
 
@@ -110,7 +107,7 @@ NS 大缓冲可放到 `.ram2` / `.bss.ram2`，或使用 `__ns_ram2_start__` / `_
 
 - 增加 tfmcubeideproject 非安全侧 CubeIDE 工程（已改为 STM32H5F4）。打开 `tfmcubeideproject/STM32CubeIDE` 下的 `tfmminiproject`。已带 mbedtls 4.1.1（TLS/X.509 辅助，PSA crypto 仍走 SPE）。`s_veneers.o` 与 `signing_layout_*.o` 已纳入仓库。签完的 NS 镜像用 `windows-tfm-tools` 或 `./flash_stm32h5f4.sh` 烧，不要跑工程里的 `TFM_UPDATE.sh`。
 
-- 增加 windows-tfm-tools：Windows 上给 STM32H5F4 用的回归/烧录脚本（ST-Link：`tfm_update.bat`；J-Link：`jlink_tfm_update.bat`）。必须先 `./buildtfm.sh test`，不要用旧 H573 hex。
+- 增加 windows-tfm-tools：Windows 上给 STM32H5F4 用的 ST-Link 烧录脚本（`tfm_update.bat`）。把 bin/hex 或 `build_s`/`build_ns` 放到该目录。不要用旧 H573 hex。
 
 ## 文件统计
 

@@ -1,51 +1,45 @@
-STM32H5F4 Windows 烧录（ST-Link / J-Link）
+STM32H5F4 Windows 烧录（ST-Link）
 
-不要再用以前的 H573 hex。那些文件已从仓库删掉。
+本目录只留 ST-Link 脚本。把镜像放到这里再双击 tfm_update.bat。
 
 tfm_update.bat 默认顺序：
   1. erase_flash.bat     整片擦除
   2. regression.bat      烧 option bytes（WRPSG11、SECWM、BOOT_UBE）
-  3. 找镜像：当前目录 / 本目录 的 .bin；没有 bin 就把同名 .hex 用 Python 转成 bin
-     再没有才用：
-       trusted-firmware-m\build_s\api_ns\bin
-       trusted-firmware-m\build_s\bin          （仓库里有 bl2.hex）
-       trusted-firmware-m\build_ns\bin         （仓库里有 tfm_s_ns_signed.hex）
+  3. 找镜像（bin 优先，没有再用 hex；hex 会用 Python 转成 bin）
+       优先：当前目录 / 本目录里的 bl2、tfm_s_signed、tfm_ns_signed
+       其次：本目录下的 build_s、build_ns（整份拷过来即可）
   4. 按地址下载
        BL2  0x0C00E000
        S    0x0C038000
        NS   0x0C090000
 
-准备
-  1. Ubuntu / WSL 仓库根目录：  ./buildtfm.sh prod   或  ./buildtfm.sh test
-  2. Windows 安装 STM32CubeProgrammer（STM32_Programmer_CLI）
-  3. 只有 hex、没有 bin 时才需要 Python 3（hex2bin）。已经是 bin 可以不装。
-
-镜像文件名（bin 优先，没有再用 hex）：
-    BL2     bl2.bin              或  bl2.hex
-    S       tfm_s_signed.bin     或  tfm_s_signed.hex
-    NS      tfm_ns_signed.bin    或  tfm_ns_signed.hex
-    或者 S+NS 拼在一个文件：  tfm_s_ns_signed.bin / .hex
+怎么放镜像（二选一）
+  A. 三个文件直接放在本目录：
+       bl2.bin              或  bl2.hex
+       tfm_s_signed.bin     或  tfm_s_signed.hex
+       tfm_ns_signed.bin    或  tfm_ns_signed.hex
+     也可以用一个 tfm_s_ns_signed.bin/.hex 代替单独的 NS。
+  B. 把编译好的 build_s、build_ns 整个拷到本目录：
+       windows-tfm-tools\build_s\...
+       windows-tfm-tools\build_ns\...
 
 必须用签名后的 *_signed，不要放未签名的 tfm_s.bin / tfm_ns.bin。
-双击时当前目录就是本文件夹，把三个文件拷到这里即可。
 
-ST-Link（推荐）
-  双击  tfm_update.bat     或  flash_h5f4.bat
-  窗口 rev 应为 h5f4-20260901d（或更新）。
-  只重烧镜像、不擦不改 option bytes：  tfm_update.bat images-only
+准备
+  1. Ubuntu / WSL：  ./buildtfm.sh prod   或  ./buildtfm.sh test
+  2. Windows 安装 STM32CubeProgrammer（STM32_Programmer_CLI）
+  3. 只有 hex、没有 bin 时才需要 Python 3。已经是 bin 可以不装。
 
-J-Link
-  双击  jlink_tfm_update.bat
-  同样：擦除 → 回归 option bytes → 找 bin/hex → 烧 0x08 窗口。
-
-只擦、不烧 TF-M
-  双击  erase_flash.bat            ST-Link
-  双击  jlink_erase_flash.bat      J-Link
+用法
+  双击  tfm_update.bat
+  窗口 rev 应为 h5f4-20260901e（或更新）。
+  只重烧镜像：  tfm_update.bat images-only
+  只擦不烧：    erase_flash.bat
 
 地址（H5F4，不是 H573）
-  BL2  0x0C00E000 / 0x0800E000
-  S    0x0C038000 / 0x08038000
-  NS   0x0C090000 / 0x08090000     （H573 的 NS 是 0x0C088000，禁止再用）
+  BL2  0x0C00E000
+  S    0x0C038000
+  NS   0x0C090000     （H573 的 NS 是 0x0C088000，禁止再用）
   option bytes: WRPSG11/12/21/22，SECWM 每 bank 0-255
 
 烧完串口 USART1 PA9/PA10 115200 必须出现 H5F4BL2。

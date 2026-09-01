@@ -115,15 +115,16 @@ def update_sh_error(path):
 
 
 def search_dirs(extra_cwd=None):
-    root = repo_root()
     script = os.path.dirname(os.path.abspath(__file__))
     cwd = os.path.abspath(extra_cwd or os.getcwd())
     dirs = [
         cwd,
         script,
-        os.path.join(root, "trusted-firmware-m", "build_s", "api_ns", "bin"),
-        os.path.join(root, "trusted-firmware-m", "build_s", "bin"),
-        os.path.join(root, "trusted-firmware-m", "build_ns", "bin"),
+        os.path.join(script, "build_s"),
+        os.path.join(script, "build_s", "bin"),
+        os.path.join(script, "build_s", "api_ns", "bin"),
+        os.path.join(script, "build_ns"),
+        os.path.join(script, "build_ns", "bin"),
     ]
     seen = set()
     out = []
@@ -166,7 +167,7 @@ def locate(extra_cwd=None):
             break
     if not info["BL2"]:
         info["STATUS"] = "FAIL"
-        info["ERROR"] = "bl2.bin / bl2.hex not found in cwd, windows-tfm-tools, or TF-M build output"
+        info["ERROR"] = "bl2.bin / bl2.hex not found in cwd or windows-tfm-tools (build_s/build_ns)"
         return info
 
     for cand in first_existing(dirs, ("tfm_s_signed.bin",)):
@@ -314,12 +315,6 @@ def cmd_self_test():
     if os.path.isfile(real_bl2):
         err = bl2_marker_error(real_bl2)
         assert err is None, err
-        loc = locate()
-        assert loc["STATUS"] == "OK", loc
-        assert loc["BL2"].endswith("bl2.bin"), loc
-        print("locate BL2=%s" % loc["BL2"])
-        print("locate S_SIGNED=%s" % loc["S_SIGNED"])
-        print("locate NS_SIGNED=%s" % loc["NS_SIGNED"])
     script_dir = os.path.dirname(os.path.abspath(__file__))
     env = open(os.path.join(script_dir, "h5f4_env.bat"), encoding="utf-8").read()
     assert 'set "H5F4_ADDR_NS_S=0x0C090000"' in env
@@ -339,7 +334,9 @@ def cmd_self_test():
     find_bat = open(os.path.join(script_dir, "h5f4_find_images.bat"), encoding="utf-8").read()
     assert "bl2.bin" in find_bat
     assert "hex2bin" in find_bat
-    assert "build_s\\bin" in find_bat
+    assert "%~dp0build_s" in find_bat
+    assert "%~dp0build_ns" in find_bat
+    assert "trusted-firmware-m" not in find_bat
     assert "call :" not in find_bat
     assert "goto :eof" not in find_bat
     update = open(os.path.join(script_dir, "tfm_update.bat"), encoding="utf-8").read()
@@ -348,23 +345,20 @@ def cmd_self_test():
     assert "erase_flash.bat" in update
     assert "h5f4_find_images.bat" in update
     assert "regression.bat" in update
-    jupdate = open(os.path.join(script_dir, "jlink_tfm_update.bat"), encoding="utf-8").read()
-    assert "erase_flash.bat" in jupdate
-    assert "h5f4_find_images.bat" in jupdate
+    assert not os.path.isfile(os.path.join(script_dir, "jlink_tfm_update.bat"))
+    assert not os.path.isfile(os.path.join(script_dir, "flash_h5f4.bat"))
+    assert not os.path.isfile(os.path.join(script_dir, "h5f4_win_images.ps1"))
     for name in (
         "regression.bat",
         "tfm_update.bat",
-        "jlink_regression.bat",
-        "jlink_tfm_update.bat",
         "erase_flash.bat",
-        "jlink_erase_flash.bat",
     ):
         text = open(os.path.join(script_dir, name), encoding="utf-8", errors="ignore").read()
         assert "WRPSG11" in text, name
         assert "WRPSGn1=" not in text, name
         assert "0x08088000" not in text, name
         assert "STM32H573I-DK" not in text, name
-        if name in ("regression.bat", "jlink_regression.bat", "erase_flash.bat"):
+        if name in ("regression.bat", "erase_flash.bat"):
             assert "call :run_cli %" not in text, (
                 "%s still uses call :run_cli %%args%% which strips '='" % name
             )
@@ -374,21 +368,20 @@ def cmd_self_test():
     assert "CLI_ARGS" in run_cli
     assert "STM32_Programmer_CLI %CLI_ARGS%" in run_cli
     assert "call :" not in run_cli
-    ps1 = open(os.path.join(script_dir, "h5f4_win_images.ps1"), encoding="utf-8").read()
-    assert "0xc090000" in ps1
-    assert "H5F4BL2" in ps1
-    assert "H5F4SWP2" in ps1
-    assert "Encoding Ascii" in ps1
     erase = open(os.path.join(script_dir, "erase_flash.bat"), encoding="utf-8").read()
     assert " -e all" in erase
     assert "SECWM1_STRT=255" in erase
     assert "H5F4_SECWM_FULL" not in erase
-    assert "h5f4-20260901d" in env
+    assert "h5f4-20260901e" in env
     src = open(os.path.join(script_dir, "h5f4_win_images.py"), encoding="utf-8").read()
     assert all(not ln.strip().startswith("import argparse") for ln in src.splitlines())
+    with tempfile.TemporaryDirectory() as td:
+        for name in ("bl2.bin", "tfm_s_signed.bin", "tfm_ns_signed.bin"):
+            open(os.path.join(td, name), "wb").write(b"x")
+        loc = locate(extra_cwd=td)
+        assert loc["STATUS"] == "OK", loc
+        assert loc["BL2"] == os.path.join(td, "bl2.bin"), loc
     rc = main(["--locate"])
-    assert rc in (0, 1), rc
-    rc = main(["locate"])
     assert rc in (0, 1), rc
     print("h5f4_win_images.py self-test OK")
 

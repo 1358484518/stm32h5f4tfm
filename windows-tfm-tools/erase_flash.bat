@@ -132,7 +132,7 @@ echo.
 echo ============================================================
 echo  FLASH ERASE OK
 echo  User Flash is blank. This is not a TF-M download.
-echo  Next: tfm_update.bat  or  jlink_tfm_update.bat
+echo  Next: tfm_update.bat
 echo ============================================================
 goto :finish
 
