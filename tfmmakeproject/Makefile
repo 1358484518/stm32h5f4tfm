@@ -45,11 +45,10 @@ CC          := $(CROSS)-gcc
 OBJCOPY     := $(CROSS)-objcopy
 NM          := $(CROSS)-nm
 
-ifeq ($(wildcard $(ROOT)/.venv/bin/python),$(ROOT)/.venv/bin/python)
-PYTHON      ?= $(ROOT)/.venv/bin/python
-else
-PYTHON      ?= python3
-endif
+# Do not default to the TF-M SPE .venv: a half-upgraded cryptography wheel
+# (50.0.0 vs 50.0.1) makes imgtool crash in default_backend().
+# h5f4_sign_python.sh uses python3, or creates tfmmakeproject/.sign-venv.
+PYTHON      ?=
 
 CPU         := -mcpu=cortex-m33+nodsp -mthumb -mfloat-abi=hard -mfpu=fpv5-sp-d16
 
@@ -163,19 +162,19 @@ $(OUT)/tfm_ns.hex: $(OUT)/tfm_ns.axf
 
 .PHONY: python-deps
 python-deps:
-	$(PYTHON) -m pip install intelhex click cryptography cbor2 pyyaml
+	python3 -m venv $(NS_APP)/.sign-venv
+	$(NS_APP)/.sign-venv/bin/python -m pip install intelhex click cryptography cbor2 pyyaml
 
 BL2_PY := $(OUT)/pypath
 
 $(OUT)/tfm_ns_signed.bin: $(OUT)/tfm_ns.bin $(OUT)/tfm_ns.hex
 	@echo "SIGN $(notdir $@)"
-	@$(PYTHON) -c "import intelhex, click, cryptography, cbor2" || \
-		(echo "Missing imgtool Python deps. Run: make python-deps"; \
-		 echo "or: $(PYTHON) -m pip install intelhex click cryptography cbor2"; exit 1)
-	mkdir -p $(BL2_PY)/bl2
-	touch $(BL2_PY)/bl2/__init__.py
-	cp -f $(SPE)/image_signing/scripts/macro_parser.py $(BL2_PY)/bl2/macro_parser.py
-	cd $(SPE)/image_signing/scripts && PYTHONPATH=$(BL2_PY):$$PYTHONPATH $(PYTHON) wrapper.py \
+	@PY=$$(PYTHON="$(PYTHON)" $(NS_APP)/h5f4_sign_python.sh); \
+	echo "  python $$PY"; \
+	mkdir -p $(BL2_PY)/bl2; \
+	touch $(BL2_PY)/bl2/__init__.py; \
+	cp -f $(SPE)/image_signing/scripts/macro_parser.py $(BL2_PY)/bl2/macro_parser.py; \
+	cd $(SPE)/image_signing/scripts && PYTHONPATH=$(BL2_PY) $$PY wrapper.py \
 		--version 0.0.0 \
 		--layout $(SPE)/image_signing/layout_files/signing_layout_ns.o \
 		--key $(SPE)/image_signing/keys/image_ns_signing_private_key.pem \

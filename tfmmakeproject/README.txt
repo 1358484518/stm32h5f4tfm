@@ -1,6 +1,9 @@
 STM32H5F4 非安全侧 makefile 工程。
 
 在本目录执行 make，生成 out/tfm_ns_signed.bin。
+签名用本目录 .sign-venv（第一次 make 会自动建），不要用仓库根目录 TF-M 的 .venv。
+若根目录 .venv 里 cryptography 版本对不上，imgtool 会报
+“Loaded python version: 50.0.0, shared object version: b'50.0.1'”。
 MCU：STM32H5F4xx，BL2_TRAILER_SIZE=0x3000。
 NS 槽 1200 KB @ 0x0C090000；S 槽 352 KB @ 0x0C038000。
 USART1 PA9/PA10，115200。

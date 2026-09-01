@@ -19,7 +19,6 @@
 Cryptographic key management for imgtool.
 """
 
-from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ec import (
     EllipticCurvePrivateKey,
@@ -66,8 +65,7 @@ def load(path, passwd=None):
     try:
         pk = serialization.load_pem_private_key(
                 raw_pem,
-                password=passwd,
-                backend=default_backend())
+                password=passwd)
     # Unfortunately, the crypto library raises unhelpful exceptions,
     # so we have to look at the text.
     except TypeError as e:
@@ -78,9 +76,7 @@ def load(path, passwd=None):
     except ValueError:
         # This seems to happen if the key is a public key, let's try
         # loading it as a public key.
-        pk = serialization.load_pem_public_key(
-                raw_pem,
-                backend=default_backend())
+        pk = serialization.load_pem_public_key(raw_pem)
 
     if isinstance(pk, RSAPrivateKey):
         if pk.key_size not in RSA_KEY_SIZES:

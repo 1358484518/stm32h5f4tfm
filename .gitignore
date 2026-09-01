@@ -14,6 +14,7 @@ tfmcubeideproject/STM32CubeIDE/build/
 tfmcubeideproject/STM32CubeIDE/Debug/
 tfmcubeideproject/STM32CubeIDE/Release/
 tfmmakeproject/out/
+tfmmakeproject/.sign-venv/
 *.ko
 *.obj
 *.elf
