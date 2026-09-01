@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TF-M 学习笔记（含 STM32H573 → STM32H5F4 移植）</title>
+<style>
+:root {
+  --ink: #1a1a1a;
+  --muted: #5b6570;
+  --line: #d5dde6;
+  --accent: #1f4e79;
+  --accent-2: #2e75b6;
+  --bg: #f7f5f0;
+  --card: #fff;
+  --code-bg: #1e2430;
+  --code-fg: #e8eef5;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  font-family: "Noto Serif SC", "Source Han Serif SC", "Songti SC", "SimSun", serif;
+  color: var(--ink);
+  background: var(--bg);
+  line-height: 1.7;
+}
+.layout {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 920px);
+  gap: 24px;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 24px 20px 64px;
+}
+nav.toc {
+  position: sticky;
+  top: 16px;
+  align-self: start;
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px 14px 20px;
+}
+nav.toc h2 {
+  margin: 0 0 10px;
+  font-size: 15px;
+  color: var(--accent);
+  font-family: "Noto Sans SC", "Source Han Sans SC", "Microsoft YaHei", sans-serif;
+}
+nav.toc a {
+  display: block;
+  color: #314155;
+  text-decoration: none;
+  font-size: 13px;
+  padding: 3px 6px;
+  border-radius: 6px;
+  font-family: "Noto Sans SC", "Microsoft YaHei", sans-serif;
+}
+nav.toc a:hover { background: #eef4fa; color: var(--accent); }
+nav.toc .l2 { padding-left: 12px; }
+nav.toc .l3 { padding-left: 24px; color: var(--muted); }
+nav.toc .l4 { padding-left: 36px; color: var(--muted); font-size: 12px; }
+article {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 28px 36px 48px;
+}
+h1, h2, h3, h4 {
+  font-family: "Noto Sans SC", "Source Han Sans SC", "Microsoft YaHei", sans-serif;
+  line-height: 1.35;
+  color: var(--accent);
+}
+h1 { font-size: 28px; border-bottom: 3px solid var(--accent); padding-bottom: 10px; }
+h2 { font-size: 20px; margin-top: 36px; }
+h3 { font-size: 17px; color: var(--accent-2); margin-top: 24px; }
+h4 { font-size: 15px; color: #3d5a80; }
+p.p, p.web { margin: 10px 0; }
+a { color: var(--accent-2); }
+figure.fig { margin: 16px 0; text-align: center; }
+figure.fig img {
+  max-width: 100%;
+  height: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+.table-wrap { overflow-x: auto; margin: 14px 0 22px; }
+table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 13.5px;
+  font-family: "Noto Sans SC", "Microsoft YaHei", sans-serif;
+}
+th, td {
+  border: 1px solid #8faadc;
+  padding: 7px 8px;
+  vertical-align: top;
+}
+th { background: #1f4e79; color: #fff; text-align: left; }
+tr:nth-child(even) td { background: #f4f7fb; }
+pre.textbox, pre.cmd {
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 12.5px;
+  line-height: 1.45;
+  background: var(--code-bg);
+  color: var(--code-fg);
+  padding: 14px 16px;
+  border-radius: 8px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.banner {
+  background: #e8f1fa;
+  border: 1px solid #b7cde4;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin: 0 0 22px;
+  font-family: "Noto Sans SC", "Microsoft YaHei", sans-serif;
+  font-size: 14px;
+}
+.banner strong { color: var(--accent); }
+.meta { color: var(--muted); font-size: 13px; margin-top: 8px; }
+@media (max-width: 960px) {
+  .layout { grid-template-columns: 1fr; }
+  nav.toc { position: static; max-height: 240px; }
+  article { padding: 20px 16px 40px; }
+}
+</style>
+</head>
+<body>
+<div class="layout">
+<nav class="toc">
+<h2>目录</h2>
+<a class="l1" href="#s-1">TF-M学习笔记</a><a class="l1" href="#s-2">TF-M主要代码</a><a class="l2" href="#s-3">1.1 Secure Boot（安全启动）</a><a class="l2" href="#s-4">1.2 TF-M Core（核心）</a><a class="l2" href="#s-5">1.3. Secure Services（安全服务分区）</a><a class="l2" href="#s-6">1.4. Interface（NS 侧接口）</a><a class="l1" href="#s-7">TF-M依赖库和测试库</a><a class="l2" href="#s-8">2.1编译后生成的文件</a><a class="l2" href="#s-9">QCBOR：编解码器</a><a class="l2" href="#s-10">t_cose：签名层</a><a class="l1" href="#s-11">代码仓库结构（trusted-firmware-m）</a><a class="l2" href="#s-12">3.1相关外部仓库</a><a class="l2" href="#s-13">3.2 H573I-DK 实际用到的部分</a><a class="l2" href="#s-14">3.3 平台相关的代码</a><a class="l3" href="#s-15">3.3.1 flash分配</a><a class="l1" href="#s-16">TFM整体开发</a><a class="l2" href="#s-17">4.1复制编译好的非安全侧开发包</a><a class="l2" href="#s-18">4.2编写main.c测试文件(这是测试代码内容比较长，需要复制全选即可)</a><a class="l2" href="#s-19">4.3 Makefile文件（内容比较长选中文本框全复制即可）</a><a class="l2" href="#s-20">4.4 编译执行</a><a class="l2" href="#s-21">4.5验证结果</a><a class="l2" href="#s-22">4.6 程序签名下载说明</a><a class="l3" href="#s-23">4.6.1 flash地址分布</a><a class="l3" href="#s-24">4.6.2 程序签名说明</a><a class="l1" href="#s-25">使用stm32cubeIDE开发</a><a class="l2" href="#s-26">5.1 建立一个stm32cubeide工程</a><a class="l2" href="#s-27">5.2 非工程移植</a><a class="l2" href="#s-28">5.3 工程配置</a><a class="l2" href="#s-29">6.1 配置trustzone</a><a class="l2" href="#s-30">7.1 链接脚本分析</a><a class="l2" href="#s-31">7.2复位函数执行</a><a class="l2" href="#s-32">7.3 main函数分析</a><a class="l3" href="#s-33">7.3.1 平台相关初始化</a><a class="l1" href="#s-34">程序调试</a><a class="l4" href="#s-35">（1）使用stlink连接单片机，开发板子上电，开启一个命令窗口执行如下命令：</a><a class="l4" href="#s-36">（2）新开窗口执行命令：</a><a class="l1" href="#s-37">STM32H573 移植到 STM32H5F4</a><a class="l2" href="#s-38">8.1 移植原则与总体过程</a><a class="l2" href="#s-39">8.2 芯片与平台对照</a><a class="l2" href="#s-40">8.3 Flash 布局差异（必须改对）</a><a class="l3" href="#s-41">8.3.1 为什么 S 升级槽必须从 bank 2 开头</a><a class="l3" href="#s-42">8.3.2 为什么 S 槽要从 320 KB 加到 352 KB</a><a class="l3" href="#s-43">8.3.3 烧录 / 签名用的绝对地址</a><a class="l2" href="#s-44">8.4 SRAM 与 GTZC 差异</a><a class="l2" href="#s-45">8.5 选项字节、WRP、HDP</a><a class="l2" href="#s-46">8.6 MCUBoot 补丁与 BL2 识别串</a><a class="l2" href="#s-47">8.7 HAL / CMSIS / 公共代码改动要点</a><a class="l2" href="#s-48">8.8 非安全工程与签名工具</a><a class="l2" href="#s-49">8.9 当前编译、烧录流程（H5F4）</a><a class="l2" href="#s-50">8.10 常见踩坑（H573 习惯带到 H5F4）</a><a class="l2" href="#s-51">8.11 和前文笔记怎么对照着看</a>
+</nav>
+<article>
+<div class="banner">
+<strong>说明：</strong>本页由仓库根目录 <code>TF-M学习笔记.docx</code> 导出，图片在同级 <code>media/</code> 目录。
+第 1～7 章仍是 STM32H573 实验记录；文末「STM32H573 移植到 STM32H5F4」是 H5F4 移植过程与差异。
+当前开发分支 <code>stm32h5f4</code>，平台名 <code>stm/stm32h5f4</code>。
+<div class="meta">双击本文件夹里的 index.html 即可用浏览器打开，不需要联网。</div>
+</div>
+<h1 id="s-1">TF-M学习笔记</h1>
+<h1 id="s-2">TF-M主要代码</h1>
+<p class="p">TF-M最主要由4大板块组成，都由ARM来维护，各个厂商做芯片的移植适配工作，如图所示：</p>
+<figure class="fig"><img src="media/image1.png" alt="image1.png" style="max-width:min(100%,376px)"></figure>
+<figure class="fig"><img src="media/image2.png" alt="image2.png" style="max-width:min(100%,157px)"></figure>
+<h2 id="s-3">1.1 Secure Boot（安全启动）</h2>
+<div class="table-wrap"><table><tr><th>组件</th><th>说明</th></tr><tr><td>BL1（可选）</td><td>第一级不可变 Bootloader（部分平台有）</td></tr><tr><td>BL2</td><td>第二级 Bootloader，默认用 MCUboot，验签 S/NS 镜像</td></tr></table></div>
+<p class="p">代码目录：bl1/、bl2/</p>
+<h2 id="s-4">1.2 TF-M Core（核心）</h2>
+<p class="web">核心是 SPM（Secure Partition Manager）：</p>
+<p class="p">管理安全分区生命周期</p>
+<p class="p">实现 NS ↔ Secure 的 IPC 通信</p>
+<p class="p">执行 TrustZone 隔离策略</p>
+<p class="p">实现 PSA FF-M 规范</p>
+<p class="web">代码目录：secure_fw/spm/</p>
+<h2 id="s-5">1.3. Secure Services（安全服务分区）</h2>
+<p class="p">各服务以独立 Secure Partition 形式存在：</p>
+<div class="table-wrap"><table><tr><th>分区</th><th>功能</th><th>目录</th></tr><tr><td>Crypto</td><td>密码学（哈希、加解密、签名、密钥管理）</td><td>secure_fw/partitions/crypto/</td></tr><tr><td>ITS</td><td>Internal Trusted Storage，设备绑定数据</td><td>secure_fw/partitions/internal_trusted_storage/</td></tr><tr><td>PS</td><td>Protected Storage，加密+防回滚存储</td><td>secure_fw/partitions/protected_storage/</td></tr><tr><td>Attestation</td><td>初始证明（设备身份/度量报告）</td><td>secure_fw/partitions/initial_attestation/</td></tr><tr><td>FWU</td><td>固件升级</td><td>secure_fw/partitions/firmware_update/</td></tr><tr><td>Platform</td><td>平台相关服务</td><td>secure_fw/partitions/platform/</td></tr><tr><td>NS Agent</td><td>NS 侧代理（TZ/Mailbox）</td><td>secure_fw/partitions/ns_agent_tz/</td></tr></table></div>
+<p class="p">可按 Kconfig/CMake 裁剪，不必全部启用。</p>
+<h2 id="s-6">1.4. Interface（NS 侧接口）</h2>
+<p class="p">给非安全应用调用的 API 层：</p>
+<p class="p">·  psa/crypto.h、psa/its.h、psa/storage.h 等</p>
+<p class="p">·  tfm_crypto_api.c 等 IPC 转发实现</p>
+<p class="p">代码目录：interface/</p>
+<h1 id="s-7">TF-M依赖库和测试库</h1>
+<p class="p">TF-M在编译的过程中会从git获取相关依赖代码，先编译安全代码库，再编译非安全库，因为安全库会依赖非安全库。</p>
+<p class="p">在编译的过程中会从git拉取这些库：</p>
+<div class="table-wrap"><table><tr><th>库</th><th>版本</th><th>SPE</th><th>NSPE</th><th>用途</th></tr><tr><td>MCUboot</td><td>v2.4.0</td><td>是</td><td>否（只测 FWU API）</td><td>BL2 启动/验签；FWU 分区用 bootutil_public</td></tr><tr><td>TF-PSA-Crypto</td><td>v1.2.0</td><td>是</td><td>否（走 PSA API）</td><td>Crypto 分区 + BL2 验签</td></tr><tr><td>CMSIS_6</td><td>v6.2.0</td><td>是（Core）</td><td>否</td><td>Cortex-M 内核头</td></tr><tr><td>CMSIS-RTX</td><td>随 tf-m-tests</td><td>否</td><td>是 → libRTX_OS.a</td><td>NS 侧 RTOS</td></tr><tr><td>QCBOR</td><td>v1.2</td><td>是</td><td>是（各编一份）</td><td>CBOR；attest token</td></tr><tr><td>t_cose</td><td>v2.0-alpha-2</td><td>是</td><td>是（各编一份）</td><td>COSE Sign1；attest</td></tr><tr><td>tf-m-extras</td><td>d6648c73</td><td>拉了</td><td>否</td><td>本次配置未启用 dTPM 等</td></tr></table></div>
+<h2 id="s-8">2.1编译后生成的文件</h2>
+<div class="table-wrap"><table><tr><th>镜像</th><th>路径</th><th>大小</th></tr><tr><td>BL2</td><td>build_s/bin/bl2.bin</td><td>129 KB</td></tr><tr><td>安全镜像</td><td>build_s/bin/tfm_s.bin / tfm_s_signed.bin</td><td>311 / 320 KB</td></tr><tr><td>非安全镜像</td><td>build_ns/bin/tfm_ns.bin / tfm_ns_signed.bin</td><td>146 / 576 KB</td></tr><tr><td>S+NS 合体</td><td>build_ns/bin/tfm_s_ns_signed.bin</td><td>896 KB</td></tr></table></div>
+<p class="p">BL2（bl2.bin）</p>
+<figure class="fig"><img src="media/image3.png" alt="image3.png" style="max-width:min(100%,488px)"></figure>
+<p class="p">SPE（tfm_s.bin）</p>
+<figure class="fig"><img src="media/image4.png" alt="image4.png" style="max-width:min(100%,553px)"></figure>
+<p class="p">启用的安全测试：TEST_S_{ATTESTATION,CRYPTO,ITS,PS,PLATFORM,SFN_BACKEND}。</p>
+<p class="p">未启用：IPC / FPU / FIH / FWU(S)。</p>
+<p class="p">NSPE（tfm_ns.bin）</p>
+<figure class="fig"><img src="media/image5.png" alt="image5.png" style="max-width:min(100%,536px)"></figure>
+<p class="p">启用的非安全测试：TEST_NS_{PS,ITS,CRYPTO,ATTESTATION,PLATFORM,FWU,SFN_BACKEND}。</p>
+<figure class="fig"><img src="media/image6.png" alt="image6.png" style="max-width:min(100%,553px)"></figure>
+<p class="web">签名用的是仓库里的 dummy RSA-3072（bl2/ext/mcuboot/root-RSA-3072.pem 签 S，root-RSA-3072_1.pem 签 NS）。编出来会有 NOT SECURE 警告，这是预期行为。</p>
+<p class="web">烧录顺序仍是：postbuild.sh → regression.sh → TFM_UPDATE.sh。板子上要把 BOOT_UBE 设成 OEM-iRoT（0xB4），否则 BL2 会直接进 Error_Handler()，UART 上看不到回归日志。</p>
+<h2 id="s-9">QCBOR：编解码器</h2>
+<p class="web">QCBOR = Quantum-safe / Quite Compact CBOR 的实现，实际就是 CBOR（Concise Binary Object Representation，RFC 8949）的 C 库。</p>
+<p class="web">CBOR 可以看成 JSON 的二进制版：同样能表示 map、数组、整数、字符串，但更小、不必解析文本。例如证明 token 里的 challenge、ueid、security-lifecycle 都是 CBOR map 里的字段。</p>
+<p class="web">TF-M 关掉了浮点（QCBOR_OPT_DISABLE_FLOAT_ALL=ON），只编整数/字节串/map，省 Flash。</p>
+<h2 id="s-10">t_cose：签名层</h2>
+<p class="web">t_cose = tiny COSE。COSE（CBOR Object Signing and Encryption，RFC 9052）是“在 CBOR 上做签名/加密”，类似 JWT 之于 JSON。</p>
+<p class="web">TF-M 主要用 COSE_Sign1：一个签名者、一份载荷。流程是：</p>
+<p class="p">QCBOR 把 claims 编成 CBOR</p>
+<p class="p">t_cose 按 COSE_Sign1 包一层并签名</p>
+<p class="p">密码运算走 PSA Crypto（SPE 里直接调 TF-PSA-Crypto；NS 侧经 veneer 进安全分区）</p>
+<figure class="fig"><img src="media/image7.png" alt="image7.png" style="max-width:min(100%,442px)"></figure>
+<h1 id="s-11">代码仓库结构（trusted-firmware-m）</h1>
+<figure class="fig"><img src="media/image8.png" alt="image8.png" style="max-width:min(100%,464px)"></figure>
+<h2 id="s-12">3.1相关外部仓库</h2>
+<div class="table-wrap"><table><tr><th>仓库</th><th>作用</th></tr><tr><td>trusted-firmware-m</td><td>主代码</td></tr><tr><td>tf-m-tests</td><td>回归测试、PSA 测试</td></tr><tr><td>tf-m-tools</td><td>测试/验证工具</td></tr><tr><td>tf-m-extras</td><td>扩展功能（dTPM、Measured Boot 等，可选）</td></tr></table></div>
+<h2 id="s-13">3.2 H573I-DK 实际用到的部分</h2>
+<figure class="fig"><img src="media/image9.png" alt="image9.png" style="max-width:min(100%,449px)"></figure>
+<p class="p">NS 侧应用通过 build_s/api_ns/ 导出的接口调用这些服务。</p>
+<div class="table-wrap"><table><tr><th>目录</th><th>用途</th></tr><tr><td>include/psa/</td><td>PSA 标准 API 头文件（最核心）</td></tr><tr><td>include/mbedtls/</td><td>Mbed TLS 加密库头文件</td></tr><tr><td>include/os_wrapper/</td><td>操作系统抽象层</td></tr><tr><td>src/os_wrapper/</td><td>裸机和 RTOS 两种实现</td></tr><tr><td>src/*.c</td><td>各服务（加解密、存储、固件升级等）的 API 实现</td></tr></table></div>
+<figure class="fig"><img src="media/image10.png" alt="image10.png" style="max-width:min(100%,200px)"></figure>
+<h2 id="s-14">3.3 平台相关的代码</h2>
+<h3 id="s-15">3.3.1 flash分配</h3>
+<p class="p">Flash布局需要参考相关平台下的布局头文件，以STM32H573为例：</p>
+<p class="p">说明：上文及第 4～7 章是按 STM32H573 / H573I-DK 写的实验记录。当前仓库开发分支是 stm32h5f4，平台名 stm/stm32h5f4。H573 → H5F4 的移植过程、Flash/SRAM/选项字节差异见文末「STM32H573 移植到 STM32H5F4」。</p>
+<p class="p">在文件夹（其他平台也类似都由相关的flash布局文件flash_layout.h）/home/klp/test/tfmwork/trusted-firmware-m/platform/ext/target/stm/stm32h573i_dk/include/flash_layout.h</p>
+<figure class="fig"><img src="media/image11.png" alt="image11.png" style="max-width:min(100%,553px)"></figure>
+<p class="p">在flash_layout.h文件里面有各个分区大小说明：</p>
+<figure class="fig"><img src="media/image12.png" alt="image12.png" style="max-width:min(100%,553px)"></figure>
+<h1 id="s-16">TFM整体开发</h1>
+<p class="p">在做非安全侧开发之前，需要编译测试好官方代码，确认硬件没有问题，编译测试参考：</p>
+<p class="p">Arm官方说明文档：</p>
+<p class="p">https://trustedfirmware-m.readthedocs.io/en/latest/getting_started/tfm_getting_started.html</p>
+<p class="p">https://trustedfirmware-m.readthedocs.io/en/latest/building/run_tfm_examples_on_arm_platforms.html</p>
+<p class="p">stm32h573平台说明文档：</p>
+<p class="p">https://trustedfirmware-m.readthedocs.io/en/latest/platform/stm/stm32h573i_dk/readme.html</p>
+<p class="p">GITEE仓库，里面包含编译说明，直接整个克隆到ubuntu22.04，使用一键编译脚本编译即可:</p>
+<p class="p">https://gitee.com/already_use/trusted-firmware-m.git</p>
+<p class="p">重点：这个仓库包含编译说明，一键编译脚本，而且下载好了所有的库代码非常好用，建议使用这个库。</p>
+<h2 id="s-17">4.1复制编译好的非安全侧开发包</h2>
+<p class="p">非安全侧开发包如图所示：</p>
+<figure class="fig"><img src="media/image13.png" alt="image13.png" style="max-width:min(100%,553px)"></figure>
+<p class="p">编译后输出的安全侧的开发包 api_ns 直接复制整个目录出来，把打印相关的一些测试需要用到c文件也放进来，如图所示：</p>
+<figure class="fig"><img src="media/image14.png" alt="image14.png" style="max-width:min(100%,553px)"></figure>
+<p class="p">注意：main.c和makefiel是自己写的。</p>
+<h2 id="s-18">4.2编写main.c测试文件(这是测试代码内容比较长，需要复制全选即可)</h2>
+<pre class="textbox">/*
+ * Bare-metal NS smoke test for STM32H573I-DK + TF-M SPE.
+ *
+ * Bring-up follows tf-m-tests/app_broker/main_ns.c (without RTX):
+ *   tfm_ns_platform_init() -&gt; stdio_init()
+ *   tfm_ns_cp_init()
+ *   tfm_ns_interface_init()
+ *
+ * Logging matches tf-m-tests: LOG_MSG -&gt; tfm_log_printf -&gt; stdio_output_string.
+ * Do not use newlib printf (official NS tests never do).
+ *
+ * All other C files come from TF-M or tf-m-tests (or the SPE api_ns export).
+ *
+ * Requires the matching flashed tfm_s.bin (s_veneers.o addresses must match).
+ * USART1 / ST-Link VCP: 115200 8N1, JP1 not fitted.
+ *
+ * If SPE was built with TEST_S=ON, colored &quot;PASSED&quot; / &quot;*** End of Secure
+ * test suites ***&quot; prints first. This app then prints NS-SMOKE.
+ */
+#include &lt;string.h&gt;
+#include &lt;stdint.h&gt;
+#include &quot;Driver_USART.h&quot;
+#include &quot;tfm_plat_ns.h&quot;
+#include &quot;tfm_ns_interface.h&quot;
+#include &quot;os_wrapper/common.h&quot;
+#include &quot;test_log.h&quot;
+#include &quot;psa/crypto.h&quot;
+#include &quot;psa/error.h&quot;
+#include &quot;psa/internal_trusted_storage.h&quot;
+#include &quot;psa/update.h&quot;
+static int g_fail;
+/* tfm_log_printf has no %02x; print two lowercase hex digits per byte. */
+static void log_hex(const uint8_t *buf, size_t len)
+{
+    size_t i;
+    for (i = 0; i &lt; len; i++) {
+        LOG_MSG(&quot;%x%x&quot;, (unsigned)((buf[i] &gt;&gt; 4) &amp; 0xfu),
+                (unsigned)(buf[i] &amp; 0xfu));
+    }
+}
+static void check(const char *what, psa_status_t status)
+{
+    if (status == PSA_SUCCESS) {
+        LOG_MSG(&quot;  [PASS] %s\r\n&quot;, what);
+    } else {
+        LOG_MSG(&quot;  [FAIL] %s status=%d\r\n&quot;, what, (int)status);
+        g_fail++;
+    }
+}
+static void test_crypto(void)
+{
+    static const uint8_t msg[] = &quot;abc&quot;;
+    /* FIPS 180-2 SHA-256(&quot;abc&quot;) */
+    static const uint8_t expect[32] = {
+        0xba, 0x78, 0x16, 0xbf, 0x8f, 0x01, 0xcf, 0xea,
+        0x41, 0x41, 0x40, 0xde, 0x5d, 0xae, 0x22, 0x23,
+        0xb0, 0x03, 0x61, 0xa3, 0x96, 0x17, 0x7a, 0x9c,
+        0xb4, 0x10, 0xff, 0x61, 0xf2, 0x00, 0x15, 0xad
+    };
+    uint8_t hash[32];
+    size_t hash_len = 0;
+    psa_status_t status;
+    LOG_MSG(&quot;PSA Crypto\r\n&quot;);
+    status = psa_crypto_init();
+    check(&quot;psa_crypto_init&quot;, status);
+    if (status != PSA_SUCCESS) {
+        return;
+    }
+    status = psa_hash_compute(PSA_ALG_SHA_256, msg, sizeof(msg) - 1u,
+                              hash, sizeof(hash), &amp;hash_len);
+    check(&quot;psa_hash_compute(SHA-256)&quot;, status);
+    if (status == PSA_SUCCESS) {
+        LOG_MSG(&quot;  hash=&quot;);
+        log_hex(hash, hash_len);
+        LOG_MSG(&quot;\r\n&quot;);
+        if ((hash_len != sizeof(expect)) ||
+            (memcmp(hash, expect, sizeof(expect)) != 0)) {
+            LOG_MSG(&quot;  [FAIL] SHA-256 known-answer mismatch\r\n&quot;);
+            g_fail++;
+        } else {
+            LOG_MSG(&quot;  [PASS] SHA-256 known-answer\r\n&quot;);
+        }
+    }
+}
+static void test_its(void)
+{
+    const psa_storage_uid_t uid = 0x0000000000001001ULL;
+    static const uint8_t payload[] = &quot;ns-its&quot;;
+    uint8_t readback[16];
+    size_t read_len = 0;
+    psa_status_t status;
+    LOG_MSG(&quot;PSA ITS\r\n&quot;);
+    (void)psa_its_remove(uid);
+    status = psa_its_set(uid, sizeof(payload), payload, PSA_STORAGE_FLAG_NONE);
+    check(&quot;psa_its_set&quot;, status);
+    memset(readback, 0, sizeof(readback));
+    status = psa_its_get(uid, 0, sizeof(readback), readback, &amp;read_len);
+    check(&quot;psa_its_get&quot;, status);
+    if ((status == PSA_SUCCESS) &amp;&amp;
+        ((read_len != sizeof(payload)) ||
+         (memcmp(readback, payload, sizeof(payload)) != 0))) {
+        LOG_MSG(&quot;  [FAIL] ITS payload mismatch\r\n&quot;);
+        g_fail++;
+    }
+    status = psa_its_remove(uid);
+    check(&quot;psa_its_remove&quot;, status);
+}
+static void test_fwu_query(void)
+{
+    psa_fwu_component_info_t info;
+    psa_status_t status;
+    LOG_MSG(&quot;PSA FWU query\r\n&quot;);
+    memset(&amp;info, 0, sizeof(info));
+    status = psa_fwu_query(FWU_COMPONENT_ID_SECURE, &amp;info);
+    check(&quot;psa_fwu_query(S)&quot;, status);
+    if (status == PSA_SUCCESS) {
+        LOG_MSG(&quot;  S  state=%u max_size=%u\r\n&quot;,
+                (unsigned)info.state, (unsigned)info.max_size);
+    }
+    memset(&amp;info, 0, sizeof(info));
+    status = psa_fwu_query(FWU_COMPONENT_ID_NONSECURE, &amp;info);
+    check(&quot;psa_fwu_query(NS)&quot;, status);
+    if (status == PSA_SUCCESS) {
+        LOG_MSG(&quot;  NS state=%u max_size=%u\r\n&quot;,
+                (unsigned)info.state, (unsigned)info.max_size);
+    }
+}
+int main(void)
+{
+    if (tfm_ns_platform_init() != ARM_DRIVER_OK) {
+        for (;;) {
+        }
+    }
+    if (tfm_ns_cp_init() != ARM_DRIVER_OK) {
+        for (;;) {
+        }
+    }
+    LOG_MSG(&quot;\r\nNS-SMOKE\r\n&quot;);
+    LOG_MSG(&quot;Non-Secure system starting...\r\n&quot;);
+    if (tfm_ns_interface_init() != OS_WRAPPER_SUCCESS) {
+        LOG_MSG(&quot;tfm_ns_interface_init failed\r\n&quot;);
+        for (;;) {
+        }
+    }
+    LOG_MSG(&quot;tfm_ns_interface_init ok\r\n&quot;);
+    test_crypto();
+    test_its();
+    test_fwu_query();
+    if (g_fail == 0) {
+        LOG_MSG(&quot;ALL PASSED\r\n&quot;);
+    } else {
+        LOG_MSG(&quot;FAILED count=%d\r\n&quot;, g_fail);
+    }
+    for (;;) {
+    }
+}</pre>
+<h2 id="s-19">4.3 Makefile文件（内容比较长选中文本框全复制即可）</h2>
+<pre class="textbox"># Bare-metal NS image for STM32H573I-DK, linked against TF-M SPE export.
+#
+# Supported layouts:
+#   Makefile, main.c, api_ns/     (siblings)
+#   ns_app/{Makefile,main.c}  +  ../build_s/api_ns
+#
+#   make
+#   make SPE=/path/to/api_ns
+#   make TOOLCHAIN_DIR=/path/to/arm-gnu-toolchain/bin
+#   make clean
+#
+# CPU/ABI must match SPE: cortex-m33+nodsp+nofp, soft float.
+# s_veneers.o is linked as a raw object (absolute NSC addresses).
+#
+# NS bring-up matches tf-m-tests/app_broker/main_ns.c without RTX.
+# Logging matches official NS tests: LOG_MSG / tfm_log_raw.c / -DTFM_NS_LOG.
+# Only main.c is local. Other sources are copied from TF-M / tf-m-tests
+# or compiled from the SPE api_ns export.
+NS_APP      := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
+ROOT        := $(abspath $(NS_APP)/..)
+ifeq ($(wildcard $(NS_APP)/api_ns/interface/lib/s_veneers.o),)
+SPE         ?= $(ROOT)/build_s/api_ns
+else
+SPE         ?= $(NS_APP)/api_ns
+endif
+OUT         := $(NS_APP)/out
+OBJDIR      := $(OUT)/obj
+CROSS       ?= arm-none-eabi
+TOOLCHAIN_DIR ?=
+ifneq ($(TOOLCHAIN_DIR),)
+export PATH := $(TOOLCHAIN_DIR):$(PATH)
+endif
+CC          := $(CROSS)-gcc
+OBJCOPY     := $(CROSS)-objcopy
+NM          := $(CROSS)-nm
+ifeq ($(wildcard $(ROOT)/.venv/bin/python),$(ROOT)/.venv/bin/python)
+PYTHON      ?= $(ROOT)/.venv/bin/python
+else
+PYTHON      ?= python3
+endif
+CPU         := -mcpu=cortex-m33+nodsp+nofp -mthumb -mfloat-abi=soft
+CPPFLAGS    := \
+-DSTM32H573xx \
+-DUSE_HAL_DRIVER \
+-DDOMAIN_NS=1 \
+-DCONFIG_TFM_FLOAT_ABI=0 \
+-DPLATFORM_DEFAULT_CRYPTO_KEYS \
+-DCONFIG_TFM_USE_TRUSTZONE \
+-DTFM_ISOLATION_LEVEL=1 \
+-DTFM_PARTITION_CRYPTO \
+-DTFM_PARTITION_INTERNAL_TRUSTED_STORAGE \
+-DTFM_PARTITION_PROTECTED_STORAGE \
+-DTFM_PARTITION_FIRMWARE_UPDATE \
+-DTFM_PARTITION_INITIAL_ATTESTATION \
+-DTFM_PARTITION_PLATFORM \
+-DTFM_PSA_CRYPTO_CLIENT_ONLY \
+-DTF_PSA_CRYPTO_CONFIG_FILE=&#x27;&quot;mbedtls/tf_psa_crypto_config.h&quot;&#x27; \
+-DTARGET_CONFIG_HEADER_FILE=&#x27;&quot;config_tfm_target.h&quot;&#x27; \
+-DBL2 \
+-DBL2_HEADER_SIZE=0x400 \
+-DBL2_TRAILER_SIZE=0x2000 \
+-DMCUBOOT_IMAGE_NUMBER=2 \
+-DTFM_NS_LOG \
+-I$(NS_APP) \
+-I$(SPE)/interface/include \
+-I$(SPE)/interface/include/crypto_keys \
+-I$(SPE)/platform/include \
+-I$(SPE)/platform/boards \
+-I$(SPE)/platform/Device/Include \
+-I$(SPE)/platform/ext/cmsis/Include \
+-I$(SPE)/platform/ext/cmsis/Include/m-profile \
+-I$(SPE)/platform/ext/common \
+-I$(SPE)/platform/hal/Inc
+CFLAGS      := $(CPU) -std=gnu11 -g -ffunction-sections -fdata-sections \
+-fno-builtin -funsigned-char -Wall -DNDEBUG $(CPPFLAGS)
+LDFLAGS     := $(CPU) -specs=nano.specs -specs=nosys.specs \
+-Wl,--gc-sections -Wl,--print-memory-usage \
+-Wl,-Map=$(OUT)/tfm_ns.map \
+-T $(OUT)/appli_ns.pp.ld
+APP_SRCS := \
+$(NS_APP)/main.c \
+$(NS_APP)/syscalls_stub.c \
+$(NS_APP)/platform_init_def.c \
+$(NS_APP)/tfm_log_raw.c
+SPE_SRCS := \
+$(SPE)/interface/src/os_wrapper/tfm_ns_interface_bare_metal.c \
+$(SPE)/interface/src/tfm_tz_psa_ns_api.c \
+$(SPE)/interface/src/tfm_crypto_api.c \
+$(SPE)/interface/src/tfm_its_api.c \
+$(SPE)/interface/src/tfm_ps_api.c \
+$(SPE)/interface/src/tfm_fwu_api.c \
+$(SPE)/interface/src/tfm_attest_api.c \
+$(SPE)/interface/src/tfm_platform_api.c \
+$(SPE)/platform/Device/Source/startup_stm32h5xx_ns.c \
+$(SPE)/platform/Device/Source/system_stm32h5xx.c \
+$(SPE)/platform/ext/common/uart_stdout.c \
+$(SPE)/platform/hal/CMSIS_Driver/low_level_com.c \
+$(SPE)/platform/hal/Src/stm32h5xx_hal.c \
+$(SPE)/platform/hal/Src/stm32h5xx_hal_cortex.c \
+$(SPE)/platform/hal/Src/stm32h5xx_hal_dma.c \
+$(SPE)/platform/hal/Src/stm32h5xx_hal_dma_ex.c \
+$(SPE)/platform/hal/Src/stm32h5xx_hal_gpio.c \
+$(SPE)/platform/hal/Src/stm32h5xx_hal_pwr.c \
+$(SPE)/platform/hal/Src/stm32h5xx_hal_pwr_ex.c \
+$(SPE)/platform/hal/Src/stm32h5xx_hal_rcc.c \
+$(SPE)/platform/hal/Src/stm32h5xx_hal_rcc_ex.c \
+$(SPE)/platform/hal/Src/stm32h5xx_hal_uart.c \
+$(SPE)/platform/hal/Src/stm32h5xx_hal_uart_ex.c
+SRCS        := $(APP_SRCS) $(SPE_SRCS)
+OBJS        := $(addprefix $(OBJDIR)/,$(notdir $(SRCS:.c=.o)))
+VENEERS     := $(SPE)/interface/lib/s_veneers.o
+LDSCRIPT_IN := $(SPE)/platform/linker_scripts/appli_ns.ld
+LDSCRIPT    := $(OUT)/appli_ns.pp.ld
+.PHONY: all clean
+all: $(OUT)/tfm_ns_signed.bin
+$(OBJDIR) $(OUT):
+mkdir -p $@
+$(LDSCRIPT): $(LDSCRIPT_IN) | $(OUT)
+@echo &quot;PP  $(notdir $&lt;)&quot;
+$(CC) $(CFLAGS) -E -P -xc $&lt; -o $@
+define COMPILE_C
+$(OBJDIR)/$(notdir $(1:.c=.o)): $(1) | $(OBJDIR)
+@echo &quot;CC  $$(notdir $$&lt;)&quot;
+$(CC) $(CFLAGS) -c $$&lt; -o $$@
+endef
+$(foreach src,$(SRCS),$(eval $(call COMPILE_C,$(src))))
+$(OUT)/tfm_ns.axf: $(OBJS) $(VENEERS) $(LDSCRIPT) | $(OUT)
+@echo &quot;LD  $(notdir $@)&quot;
+$(CC) $(LDFLAGS) -o $@ $(OBJS) $(VENEERS)
+$(NM) $@ | grep &#x27; tfm_psa_call_veneer$$&#x27; || true
+$(OUT)/tfm_ns.bin: $(OUT)/tfm_ns.axf
+$(OBJCOPY) -O binary $&lt; $@
+$(OUT)/tfm_ns.hex: $(OUT)/tfm_ns.axf
+$(OBJCOPY) -O ihex $&lt; $@
+.PHONY: python-deps
+python-deps:
+$(PYTHON) -m pip install intelhex click cryptography cbor2 pyyaml
+BL2_PY := $(OUT)/pypath
+$(OUT)/tfm_ns_signed.bin: $(OUT)/tfm_ns.bin $(OUT)/tfm_ns.hex
+@echo &quot;SIGN $(notdir $@)&quot;
+@$(PYTHON) -c &quot;import intelhex, click, cryptography, cbor2&quot; || \
+(echo &quot;Missing imgtool Python deps. Run: make python-deps&quot;; \
+ echo &quot;or: $(PYTHON) -m pip install intelhex click cryptography cbor2&quot;; exit 1)
+mkdir -p $(BL2_PY)/bl2
+touch $(BL2_PY)/bl2/__init__.py
+cp -f $(SPE)/image_signing/scripts/macro_parser.py $(BL2_PY)/bl2/macro_parser.py
+cd $(SPE)/image_signing/scripts &amp;&amp; PYTHONPATH=$(BL2_PY):$$PYTHONPATH $(PYTHON) wrapper.py \
+--version 0.0.0 \
+--layout $(SPE)/image_signing/layout_files/signing_layout_ns.o \
+--key $(SPE)/image_signing/keys/image_ns_signing_private_key.pem \
+--public-key-format full \
+--align 16 \
+--pad \
+--pad-header \
+-H 0x400 \
+-s 1 \
+-L 128 \
+-d &quot;(0, 0.0.0+0)&quot; \
+--measured-boot-record \
+$(OUT)/tfm_ns.bin \
+$(OUT)/tfm_ns_signed.bin
+$(VENEERS):
+$(error SPE export not found: $@  (set SPE=/path/to/build_s/api_ns))
+clean:
+rm -rf $(OUT)</pre>
+<h2 id="s-20">4.4 编译执行</h2>
+<p class="p">编译：</p>
+<p class="p">直接执行make命令执行代码编译，会生成 out文件夹</p>
+<p class="p">烧写：</p>
+<p class="p">在ubuntu22.04执行命令即可烧写，前提是需要安装 STM32_Programmer 编程软件。</p>
+<p class="p">STM32_Programmer_CLI -c port=SWD mode=UR -d out/tfm_ns_signed.bin 0x0C088000 -v</p>
+<p class="p">注意：烧写这个之前需要先烧写测试代码，测试代码的烧写过程，参考上面提到的Gitee仓库里的编译说明。</p>
+<h2 id="s-21">4.5验证结果</h2>
+<p class="p">打开串口助手 115200 8N1，复位单片机。Secure 测试结束后必须是可读 NS 文本：</p>
+<pre class="textbox">*** End of Secure test suites ***
+NS-SMOKE
+Non-Secure system starting...
+tfm_ns_interface_init ok
+PSA Crypto
+  [PASS] psa_crypto_init
+  [PASS] psa_hash_compute(SHA-256)
+  hash=ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad
+  [PASS] SHA-256 known-answer
+PSA ITS
+  [PASS] psa_its_set
+  [PASS] psa_its_get
+  [PASS] psa_its_remove
+PSA FWU query
+  [PASS] psa_fwu_query(S)
+  S  state=5 max_size=327680
+  [PASS] psa_fwu_query(NS)
+  NS state=5 max_size=589824
+ALL PASSED</pre>
+<h2 id="s-22">4.6 程序签名下载说明</h2>
+<p class="p">程序bin文件并不是直接烧写到flash相应位置的，而是要经过签名才能烧写到下载区域或者执行区域，MCUBOOT验签通过后再复制到可执行区域执行，或者默认不执行。例如我们使用烧写器烧写签名后的固件到下载区域，设定好地址（可以是升级地址，或者执行地址，需要注意编程器的连接方式必须是Under reset，程序下载地址必须填对，可以参考flash地址分布）</p>
+<figure class="fig"><img src="media/image15.png" alt="image15.png" style="max-width:min(100%,442px)"></figure>
+<h3 id="s-23">4.6.1 flash地址分布</h3>
+<p class="p">TFM架构使用的boot是mcuboot，升级过程需要按照mcuboot的规则来，boot固定不能升级，s侧app先下载到下载槽，重启boot会检测这个下载槽是否有被签名加密的bin文件，如果有则解密验签，复制到执行地址，非安全侧程序同理。</p>
+<p class="p">Flash布局参考tfm的sdk包stm32h573，flash_layout.h文件，这里放个基本的描述说明：</p>
+<figure class="fig"><img src="media/image16.png" alt="image16.png" style="max-width:min(100%,473px)"></figure>
+<p class="p">如图所示，指明了各个下载执行区域：</p>
+<div class="table-wrap"><table><tr><th>BL2 - MCUBoot (0x0001_0000)</th><th>96 KB</th><th>Bootloader 本体。芯片上电先跑这里的代码，负责校验固件签名、<br>决定启动哪个镜像、执行升级操作。</th></tr><tr><td>SCRATCH (0x0000_0000)</td><td>48 KB</td><td>“交换缓冲区”。MCUboot 在升级时采用“交换算法”（Swap），<br>更新过程中需要临时把扇区数据搬到这里暂存，防止断电变砖。</td></tr><tr><td>BL2 - counters (0x0000_C000)</td><td>16 KB</td><td>启动计数器。记录镜像尝试启动的次数，配合“回滚保护”<br>使用（比如：尝试启动 3 次都失败，就自动回退到旧版本）</td></tr><tr><td>OTP Write Protect</td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td>(0x0002_8000)</td><td>16 KB</td><td>一次性可编程（或写保护）区域。存放硬件唯一密钥、生命周期状态等<br>永远不能修改的根信任锚点。</td></tr><tr><td>NV counters area</td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td>(0x0002_C000)</td><td>16 KB</td><td>非易失性计数器。用于防回滚攻击（Secure Boot 要求镜像版本号只能递增，<br>这个计数器由硬件保护的 TrustZone 管理）。</td></tr><tr><td>Secure Storage Area</td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td>(0x0003_0000)</td><td>16 KB</td><td>受保护存储（PS）。存放加密的客户端私钥、证书等敏感数据，<br>只有安全固件（TF-M）能读写。</td></tr><tr><td>Internal Trusted Storage Area</td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td>(0x0003_4000)</td><td>16 KB</td><td>内部可信存储（ITS）。存放安全固件自己的内部状态数据<br>（比如断电恢复标志、电量计校准值等）。</td></tr><tr><td>Secure image primary slot</td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td>(0x0003_8000)</td><td>320 KB</td><td>当前正在运行的安全固件（TF-M）。存放带 TrustZone 的加密服务、<br>安全启动代码。</td></tr><tr><td>Non-secure image primary slot</td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td>(0x0008_8000)</td><td>576 KB</td><td>当前正在运行的非安全固件（应用程序）。你的业务逻辑（比如蓝牙协议栈、<br>传感器采集）跑在这里。</td></tr><tr><td>Secure image secondary slot</td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td>(0x0011_8000)</td><td>320 KB</td><td>安全固件的升级备份区。OTA 下载的新固件先放在这里，校验通过后，<br>下次重启与 Primary 互换。</td></tr><tr><td>Non-secure image secondary slot</td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td>(0x0016_8000)</td><td>576 KB</td><td>非安全固件的升级备份区。同上，应用程序的下载缓冲区。</td></tr><tr><td>Non-secure free data</td><td>&nbsp;</td><td>&nbsp;</td></tr><tr><td>(0x001f_8000)</td><td>32 KB</td><td>剩给非安全域（你的 App）的额外存储空间。可以用来存放日志、配置参数、蓝牙绑定信息等，不受安全保护。</td></tr></table></div>
+<p class="p">0x0000_0000 SCRATCH (48 KB) —— 升级“交换缓冲区”&emsp;核心作用：保证断电续传。如果在搬运过程中突然断电，重新上电后，MCUboot 发现 SCRATCH 里有残存数据，就能凭借它恢复现场，继续完成交换，从而极大降低升级变砖的风险。</p>
+<p class="p">0x0000_C000 BL2 - counters (16 KB) —— 启动“记账本”&emsp;核心作用：实现 “回滚保护（Anti-rollback）”和 “启动失败重试”。</p>
+<p class="p">核心解惑：为什么 SCRATCH 和 counters 占着 0x0000_0000（Flash开头）？</p>
+<p class="p">你肯定知道，ARM Cortex-M 芯片上电后，CPU 默认从 0x0000_0000 读取堆栈指针（SP），从 0x0000_0004 读取复位向量（PC）跳转执行。</p>
+<p class="p">如果 0x0000_0000 是 SCRATCH（临时数据），芯片上电时读到的全是乱码，怎么启动？</p>
+<p class="p">答案藏在这个芯片的硬件重映射（Remap）机制里：</p>
+<p class="p">这类带安全启动（如 nRF53/nRF91 或部分 STM32）的芯片，内部有一个不可更改的 Boot ROM。</p>
+<p class="p">芯片上电瞬间，CPU 并不是直接读 Flash 的 0x0000_0000，而是强制先执行内部 Boot ROM 代码。</p>
+<p class="p">Boot ROM 初始化硬件后，会读取 Flash 特定位置的配置（比如 0x0001_0000 处的 MCUboot 头部签名），然后通过硬件重映射（Remap） 或向量表偏移寄存器（VTOR），把中断向量表指向 0x0001_0000 或更后面的位置。</p>
+<p class="p">结论：物理上的 0x0000_0000~0x0000_BFFF（48KB）确实是 SCRATCH 数据区，但在硬件上电的那一瞬间，CPU 眼里看到的启动地址被 Boot ROM 强行“劫持”到了 0x0001_0000（BL2 代码区）。这 48KB 空间在芯片上电瞬间不会被 CPU 当做指令去取指，而是可以放心地用作数据临时存储。</p>
+<h3 id="s-24">4.6.2 程序签名说明</h3>
+<p class="p">注意：被签名的是 Secure / Non-Secure 固件，不是 BL2。BL2 是 MCUboot，上电后用公钥验签 S/NS，验过才跳转。</p>
+<p class="p">MCUBOOT平台配置是 MCUBOOT_IMAGE_NUMBER=2，S 和 NS 各自独立签名，再用 assemble.py 拼成一张方便烧录的图。</p>
+<div class="table-wrap"><table><tr><th>镜像</th><th>输入</th><th>输出</th><th>私钥（仓库自带 dummy）</th><th>版本 / 安全计数器</th></tr><tr><td>Secure</td><td>tfm_s.bin</td><td>tfm_s_signed.bin</td><td>bl2/ext/mcuboot/root-RSA-3072.pem</td><td>2.3.0 / 1</td></tr><tr><td>Non-Secure</td><td>tfm_ns.bin</td><td>tfm_ns_signed.bin</td><td>bl2/ext/mcuboot/root-RSA-3072_1.pem</td><td>0.0.0 / 1</td></tr><tr><td>合并（不重签）</td><td>上面两张已签名图</td><td>tfm_s_ns_signed.bin</td><td>无</td><td>—</td></tr></table></div>
+<p class="p">这两把私钥编 SPE 时会拷到 build_s/api_ns/image_signing/keys/。它们是 开发用 dummy RSA-3072，imgtool 会打 NOT SECURE 警告，这是预期的。量产要换成自己的密钥，并同步改 BL2 里的 ROTPK。</p>
+<figure class="fig"><img src="media/image17.png" alt="image17.png" style="max-width:min(100%,553px)"></figure>
+<p class="p">这次 STM32H573 的槽位：</p>
+<p class="p">S primary：0x0C038000，320 KB（0x50000）</p>
+<p class="p">NS primary：0x0C088000，576 KB（0x90000）</p>
+<p class="p">所以签完后 tfm_s_signed.bin 是 320 KB，tfm_ns_signed.bin 是 576 KB（带 --pad）。</p>
+<p class="p">程序签名的过程是在程序编译的完成后，调用py脚本完成的，py脚本路径：<br> bl2/ext/mcuboot/scripts/wrapper.py。</p>
+<p class="p">程序签名执行过程</p>
+<figure class="fig"><img src="media/image18.png" alt="image18.png" style="max-width:min(100%,177px)"></figure>
+<h1 id="s-25">使用stm32cubeIDE开发</h1>
+<p class="p">注意：系统时钟在安全侧已经配置为240MHZ使用内部时钟PLL倍频。</p>
+<h2 id="s-26">5.1 建立一个stm32cubeide工程</h2>
+<p class="p">首先使用stm32cubemax，创建一个点灯工程，随意建个工程，控制GPIO的工程就行，时钟不用管，tfm默认使用内部时钟倍频道240MHZ。</p>
+<h2 id="s-27">5.2 非工程移植</h2>
+<p class="p">工程已经移植好了，存放在gitee：</p>
+<p class="p">https://gitee.com/already_use/trusted-firmware-m/tree/master/tfmcubeideproject<br>直接下载就可以使用。</p>
+<p class="p">工程移植说明：工程移植使用的ai先建立的一个make能编译的ns侧开发工程，再基于这个工程移植到cubeide的，关于依赖文件以及宏定义参考make工程即可。<br>https://gitee.com/already_use/trusted-firmware-m/tree/master/tfmmakeproject</p>
+<h2 id="s-28">5.3 工程配置</h2>
+<p class="p">工程宏定义：</p>
+<figure class="fig"><img src="media/image19.png" alt="image19.png" style="max-width:min(100%,552px)"></figure>
+<p class="p">头文件路径配置：</p>
+<figure class="fig"><img src="media/image20.png" alt="image20.png" style="max-width:min(100%,552px)"></figure>
+<p class="p">链接脚本配置：</p>
+<figure class="fig"><img src="media/image21.png" alt="image21.png" style="max-width:min(100%,552px)"></figure>
+<p class="p">配置安全侧的动态链接库：</p>
+<figure class="fig"><img src="media/image22.png" alt="image22.png" style="max-width:min(100%,552px)"></figure>
+<p class="p">路径和符号配置：</p>
+<figure class="fig"><img src="media/image23.png" alt="image23.png" style="max-width:min(100%,552px)"></figure>
+<p class="p">具体请参考工程 trusted-firmware-m-mbedtls-411-ns-tls 地址为：</p>
+<p class="p">https://gitee.com/already_use/trusted-firmware-m.git</p>
+<p class="p">单独下载bin文件执行</p>
+<p class="p">在工程trusted-firmware-m-mbedtls-411-ns-tls里面有打包好的boot（bl2.hex）文件和工程文件tfm_s_ns_signed.hex（这个是官方固件编译出来的安全和非安全侧各自签名打包到一起的hex文件），tfm_ns_signed.bin（这个是我们的工程编译后生成的签名文件下载到0x0C088000）可以使用编程器进行下载然后修改选项字节然后复位单片机即可执行程序。</p>
+<p class="p">程序文件如图所示：</p>
+<figure class="fig"><img src="media/image24.png" alt="image24.png" style="max-width:min(100%,553px)"></figure>
+<p class="p">配置启动地址：</p>
+<figure class="fig"><img src="media/image25.png" alt="image25.png" style="max-width:min(100%,552px)"></figure>
+<p class="p">配置使用oemurot：</p>
+<figure class="fig"><img src="media/image26.png" alt="image26.png" style="max-width:min(100%,552px)"></figure>
+<p class="p">产品状态设置</p>
+<p class="p">参考：<br>&emsp;https://wiki.st.com/stm32mcu/wiki/Security:How_to_start_with_DA_access_on_STM32H573_and_H563-TrustZone_disabled_-_stm32mcu</p>
+<h2 id="s-29">6.1 配置trustzone</h2>
+<figure class="fig"><img src="media/image27.png" alt="image27.png" style="max-width:min(100%,552px)"></figure>
+<p class="p">使能TZ功能。</p>
+<p class="p">6.2烧写OBK和程序</p>
+<p class="p">使用SDK包当中的编程脚本，例如在我的电脑中路径为：</p>
+<p class="p">C:\Users\13584\STM32Cube\Repository\STM32Cube_FW_H5_V1.5.1\Projects\STM32H573I-DK\ROT_Provisioning\DA\provisioning.bat<br><br>双击脚本provisioning.bat 按照脚本指引执行OBK烧写，程序烧写：</p>
+<figure class="fig"><img src="media/image28.png" alt="image28.png" style="max-width:min(100%,552px)"></figure>
+<figure class="fig"><img src="media/image29.png" alt="image29.png" style="max-width:min(100%,552px)"></figure>
+<p class="p">TFM BL2程序分析</p>
+<p class="p">注意：在运行BL2时，已经烧写了选项字节开启了TZ，设置了FLASH安全和非安全flash区域。</p>
+<figure class="fig"><img src="media/image30.png" alt="image30.png" style="max-width:min(100%,553px)"></figure>
+<p class="p">回归脚本写了写了这些选项字节：</p>
+<figure class="fig"><img src="media/image31.png" alt="image31.png" style="max-width:min(100%,553px)"></figure>
+<p class="p">脚本没写、但启动要用的：</p>
+<figure class="fig"><img src="media/image32.png" alt="image32.png" style="max-width:min(100%,552px)"></figure>
+<p class="p">所以回归脚本只保证：TrustZone 开、产品 OPEN、入口指向 BL2、Flash 全空且暂无 HDP/WRP、两 Bank 先当全安全、SRAM2 复位擦+ECC。<br>它不负责 BOOT_UBE，也不烧镜像。</p>
+<h2 id="s-30">7.1 链接脚本分析</h2>
+<p class="p">TFM上电后首先运行BL2程序，BL2是mcubooot，首先参考BL2的链接脚本分析程序运行过程，链接脚本地址在：</p>
+<p class="p">platform\ext\target\stm\common\stm32h5xx\template\gcc\bl2.ld</p>
+<p class="p">分析链接脚本可以知道，在复位向量前还可能有其他区域，复位执行不再使用.s汇编语言，而是使用c替代，文件路径为：</p>
+<p class="p">platform\ext\target\stm\common\stm32h5xx\Device\Source\startup_stm32h5xx_bl2.c</p>
+<figure class="fig"><img src="media/image33.png" alt="image33.png" style="max-width:min(100%,553px)"></figure>
+<p class="p">注意：程序地址的定义在这个文件里面：</p>
+<p class="p">platform\ext\target\stm\stm32h573i_dk\include\region_defs.h</p>
+<figure class="fig"><img src="media/image34.png" alt="image34.png" style="max-width:min(100%,552px)"></figure>
+<p class="p">在使用回归脚本的时候，回归脚本会把启动位置设置为：</p>
+<p class="p">BOOT_UBE = OEM_IROT</p>
+<p class="p">BootAddr = 0x0C010000（也就是 BL2_BOOT_VTOR_ADDR）</p>
+<h2 id="s-31">7.2复位函数执行</h2>
+<p class="p">复位函数在c文件中：</p>
+<p class="p">platform\ext\target\stm\common\stm32h5xx\Device\Source\startup_stm32h5xx_bl2.c</p>
+<p class="p">如图所示：</p>
+<figure class="fig"><img src="media/image35.png" alt="image35.png" style="max-width:min(100%,553px)"></figure>
+<p class="p">复位函数作用如图：</p>
+<figure class="fig"><img src="media/image36.png" alt="image36.png" style="max-width:min(100%,553px)"></figure>
+<figure class="fig"><img src="media/image37.png" alt="image37.png" style="max-width:min(100%,553px)"></figure>
+<figure class="fig"><img src="media/image38.png" alt="image38.png" style="max-width:min(100%,553px)"></figure>
+<figure class="fig"><img src="media/image39.png" alt="image39.png" style="max-width:min(100%,553px)"></figure>
+<figure class="fig"><img src="media/image40.png" alt="image40.png" style="max-width:min(100%,553px)"></figure>
+<figure class="fig"><img src="media/image41.png" alt="image41.png" style="max-width:min(100%,553px)"></figure>
+<figure class="fig"><img src="media/image42.png" alt="image42.png" style="max-width:min(100%,552px)"></figure>
+<figure class="fig"><img src="media/image43.png" alt="image43.png" style="max-width:min(100%,553px)"></figure>
+<p class="p">复位总结：</p>
+<p class="p">硬件装 MSP / PC</p>
+<p class="p">→ 锁住栈底 (MSPLIM)</p>
+<p class="p">→ 时钟 64 → ~240 MHz</p>
+<p class="p">→ 解锁并打开 RTC/TAMP</p>
+<p class="p">→ 若备份域里还有 Tamper：开发则抹掉并记账，量产则停死</p>
+<p class="p">→ 再确认 HSI48（给后面 RNG）</p>
+<p class="p">→ 先不开 Tamper IRQ</p>
+<p class="p">→ 拷数据、清 BSS，进入 main()</p>
+<p class="p">初始化栈指针之后，在复位向量中初始化栈限制指针，系统时钟250Mhz（PLL 算出来是 240 MHz），拷贝flash到ram和初始化bss后，跳转到文件：</p>
+<p class="p">bl2\ext\mcuboot\bl2_main.c&emsp;&emsp;执行main 函数。</p>
+<h2 id="s-32">7.3 main函数分析</h2>
+<p class="p">这就开始进入MCUBOOT的执行流程，main函数主要功能是：</p>
+<figure class="fig"><img src="media/image44.png" alt="image44.png" style="max-width:min(100%,553px)"></figure>
+<h3 id="s-33">7.3.1 平台相关初始化</h3>
+<p class="p">err = boot_platform_init();</p>
+<p class="p">该函数调用文件路径为：</p>
+<p class="p">platform\ext\target\stm\common\stm32h5xx\bl2\boot_hal_bl2.c</p>
+<h1 id="s-34">程序调试</h1>
+<p class="p">在执行命令之前需要安装stm32cubeide，因为 ST-LINK_gdbserver 也在里面，然后设置环境染命令窗口能找到 ST-LINK_gdbserver，还需要安装stm32cubeprogrammer 因为 STM32_Programmer_CLI在这里面，同样设置STM32_Programmer_CLI 它的环境。</p>
+<p class="p">我一般习惯使用DDD工具进行调试，不用进行复杂的配置直接就可以进行对代码进行调试，所以最好也安装DDD工具。</p>
+<p class="p">调试步骤如下：</p>
+<h4 id="s-35">（1）使用stlink连接单片机，开发板子上电，开启一个命令窗口执行如下命令：</h4>
+<p class="p">ST-LINK_gdbserver -p 61234 -d -m 1 -l 31 -cp &quot;$(dirname &quot;$(which STM32_Programmer_CLI)&quot;)&quot;</p>
+<p class="p">命令说明</p>
+<figure class="fig"><img src="media/image45.png" alt="image45.png" style="max-width:min(100%,553px)"></figure>
+<h4 id="s-36">（2）新开窗口执行命令：</h4>
+<p class="p">ddd --debugger arm-none-eabi-gdb \</p>
+<p class="p">~/test/tfmwork/trusted-firmware-m/build_s/bin/bl2.elf</p>
+<figure class="fig"><img src="media/image46.png" alt="image46.png" style="max-width:min(100%,552px)"></figure>
+<p class="p">再当前DDD命令窗口依次执行如下命令（按键盘tab会辅助输入）：</p>
+<p class="p">target remote localhost:61234</p>
+<p class="p">monitor reset</p>
+<p class="p">monitor halt</p>
+<p class="p">thbreak boot_platform_init</p>
+<p class="p">continue</p>
+<p class="p">执行以上命令后正常会停止在这个函数 boot_platform_init这里如果想查看变量，可以在停住后，再DDD源码里点变量 → 右键 Display / Print；或 Data 菜单。图形窗口里是 display 的树状视图。如果想复位重来可以再DDD里面执行如下命令：<br>&emsp;monitor reset</p>
+<p class="p">break main</p>
+<p class="p">continue</p>
+<p class="p">就会停止在main函数</p>
+<h1 id="s-37">STM32H573 移植到 STM32H5F4</h1>
+<p class="p">前面几章是在 STM32H573I-DK 上把 TF-M 跑通之后的学习笔记（Flash 槽位、签名、CubeIDE、BL2 启动）。后来要把同一套 TF-M 放到 STM32H5F4（4 MB Flash / 1536 KB SRAM）上，原则是：尽量少改，沿用 stm32h5xx 公共 HAL / startup / GTZC，只换平台目录和跟容量、选项字节相关的地方。本章记录实际做过的步骤、踩过的坑，以及和 H573 的对照表。当前开发分支：stm32h5f4。</p>
+<h2 id="s-38">8.1 移植原则与总体过程</h2>
+<p class="p">H5F4 和 H573 同属 STM32H5、Cortex-M33 + TrustZone，外设和启动路径大部分能共用。官方 TF-M 里已有 stm/stm32h573i_dk，没有 stm32h5f4。做法是把 H573 平台目录复制一份，改成新平台名，再按硅片手册改 Flash/SRAM/CMSIS/选项字节。</p>
+<p class="p">实际过程可以分成下面几步：</p>
+<p class="p">1）复制平台目录。把 platform/ext/target/stm/stm32h573i_dk 拷成 stm32h5f4，CMakeLists 里的 STM32H573I_DK_DIR 改成 STM32H5F4_DIR。cpuarch.cmake 的编译宏从 STM32H573xx 改成 STM32H5F4xx。平台名变成 stm/stm32h5f4。</p>
+<p class="p">2）补 CMSIS 器件头。在 common/stm32h5xx/Device/Include 增加 stm32h5f4xx.h（可从 H573 头改，Flash/SRAM/选项字节寄存器按 H5F4 手册核对）。stm32h5xx.h 里增加 STM32H5F4xx 分支。HAL 里凡是 #if defined(STM32H573xx) 的外设/GPIO 判断，把 STM32H5F4xx 并进去。</p>
+<p class="p">3）改 Flash 布局（最关键）。H5F4 是 4 MB 双 bank（每 bank 2 MB、8 KB 扇区），H573 是 2 MB 双 bank（每 bank 1 MB）。NS 槽加大到 1200 KB 之后，S 升级槽不能再紧挨 NS primary，否则会跨 bank，BL2 读槽会挂死。S 槽还要从 320 KB 加到 352 KB，否则 TEST_S + RSA-3072 TLV + 按 150 个扇区算的 swap trailer 装不进，MCUBoot 报 Image in the primary slot is not valid。</p>
+<p class="p">4）改 SRAM / GTZC。H5F4 SRAM1=256 KB 全部给 NS；SRAM2=128 KB 给 S/BL2（顶上 1 KB 共享区）；SRAM3+4+5=1152 KB 作为 NS 的 RAM2。target_cfg.c 里 MPCBB 锁大小按 256/128/384 KB 三块改。H573 是 SRAM2 只有 64 KB，还从 SRAM1 划了 64 KB 给 S。</p>
+<p class="p">5）改选项字节脚本。H5F4 写保护寄存器名是 WRPSG11/12/21/22，不是 H573 的 WRPSGn1/WRPSGn2。每 bank 256 个扇区，SECWM 起止是 0～255（H573 是 0～127）。开发阶段 boot_hal_cfg.h 不要让 BL2 自己上 WRP/HDP，否则 CubeProgrammer 写不进 0x0C010000。</p>
+<p class="p">6）MCUBoot 补丁。NS 槽 1200 KB / 8 KB = 150 个扇区，MCUBOOT_MAX_IMG_SECTORS 变大，swap trailer 变长。出厂镜像 magic=good 且 copy_done 未置时，MCUBoot 会当成“交换做到一半”，swap_size=0xffffffff 会把扇区表走出 SRAM。补丁 0002-bootutil-Bound-scratch-swap-sector-walk.patch 丢掉非法 swap status；BL2 里有标记字符串 H5F4SWP2。BL2_TRAILER_SIZE 从 H573 的 0x2000 改成 0x3000。</p>
+<p class="p">7）工程与工具。buildtfm.sh 指定 -DTFM_PLATFORM=stm/stm32h5f4。Linux 烧录 flash_stm32h5f4.sh，Windows 用 windows-tfm-tools/tfm_update.bat。NS 工程 tfmmakeproject、tfmcubeideproject 改 MCU 宏 STM32H5F4xx、链接地址、sign_kit 槽位。仓库根目录旧的 H573 sign_kit.zip（NS 0x0C088000 / 576 KB）已删除。</p>
+<p class="p">8）验证。bl2.bin 必须能搜到 H5F4BL2 和 H5F4SWP2；串口 115200 USART1 PA9/PA10，复位第一行要有 H5F4BL2。如果只有 Starting bootloader，说明烧进去的还是旧 H573 BL2。</p>
+<h2 id="s-39">8.2 芯片与平台对照</h2>
+<div class="table-wrap"><table><tr><th>项目</th><th>STM32H573（笔记前文）</th><th>STM32H5F4（当前仓库）</th></tr><tr><td>TF-M 平台名</td><td>stm/stm32h573i_dk</td><td>stm/stm32h5f4</td></tr><tr><td>编译宏</td><td>STM32H573xx</td><td>STM32H5F4xx</td></tr><tr><td>内核</td><td>Cortex-M33 + TrustZone</td><td>同左，沿用 stm32h5xx 公共代码</td></tr><tr><td>内部 Flash</td><td>2 MB，双 bank，每 bank 1 MB</td><td>4 MB，双 bank，每 bank 2 MB</td></tr><tr><td>扇区</td><td>8 KB（0x2000）</td><td>同左</td></tr><tr><td>每 bank 扇区数</td><td>128（SECWM 0～127）</td><td>256（SECWM 0～255）</td></tr><tr><td>SRAM 合计</td><td>约 640 KB（SRAM1 256 + SRAM2 64 + SRAM3 320）</td><td>1536 KB（SRAM1 256 + SRAM2 128 + SRAM3/4/5 各 384）</td></tr><tr><td>控制台</td><td>USART1 PA9/PA10，115200</td><td>同左（board.h 未改引脚）</td></tr><tr><td>系统时钟</td><td>内部 HSI PLL，约 240 MHz</td><td>同左</td></tr><tr><td>加密加速</td><td>CRYPTO_HW_ACCELERATOR stm</td><td>同左</td></tr><tr><td>开发分支</td><td>早期 master / H573 工程</td><td>stm32h5f4</td></tr></table></div>
+<p class="p">公共代码仍在 platform/ext/target/stm/common/stm32h5xx/（HAL、startup_stm32h5xx_*.c、bl2.ld、GTZC）。H5F4 专用差异用 #if defined(STM32H5F4xx) 包起来，避免破坏还能编的 H573 平台目录。</p>
+<h2 id="s-40">8.3 Flash 布局差异（必须改对）</h2>
+<p class="p">H573 和 H5F4 前面几块（SCRATCH、BL2 counters、BL2 96 KB、OTP/NV/PS/ITS）偏移相同，都从 Flash 开头排到 0x0003_8000。分叉从 S/NS 槽大小和升级槽位置开始。头文件：</p>
+<p class="p">platform/ext/target/stm/stm32h573i_dk/include/flash_layout.h</p>
+<p class="p">platform/ext/target/stm/stm32h5f4/include/flash_layout.h</p>
+<p class="p">偏移是相对 Flash 基址。安全别名加 0x0C000000，非安全别名加 0x08000000。</p>
+<div class="table-wrap"><table><tr><th>区域</th><th>H573 偏移 / 大小</th><th>H5F4 偏移 / 大小</th><th>说明</th></tr><tr><td>SCRATCH</td><td>0x0000_0000 / 48 KB</td><td>同左</td><td>MCUBoot 交换缓冲，未改</td></tr><tr><td>BL2 counters</td><td>0x0000_C000 / 16 KB</td><td>同左</td><td>回滚计数，未改</td></tr><tr><td>BL2 / MCUBoot</td><td>0x0001_0000 / 96 KB</td><td>同左</td><td>烧写地址 0x0C00E000 起（含前面的计数初始化）；向量 0x0C010000</td></tr><tr><td>OTP WRP</td><td>0x0002_8000 / 16 KB</td><td>同左</td><td>未改</td></tr><tr><td>NV counters</td><td>0x0002_C000 / 16 KB</td><td>同左</td><td>未改</td></tr><tr><td>PS</td><td>0x0003_0000 / 16 KB</td><td>同左</td><td>未改</td></tr><tr><td>ITS</td><td>0x0003_4000 / 16 KB</td><td>同左</td><td>未改</td></tr><tr><td>S primary</td><td>0x0003_8000 / 320 KB<br>→ 0x0C038000</td><td>0x0003_8000 / 352 KB<br>→ 0x0C038000</td><td>H5F4 加大 32 KB，给 TEST_S + RSA TLV + 大 trailer</td></tr><tr><td>NS primary</td><td>0x0008_8000 / 576 KB<br>→ 0x0C088000</td><td>0x0009_0000 / 1200 KB<br>→ 0x0C090000</td><td>H573 地址禁止再用</td></tr><tr><td>S secondary（升级）</td><td>0x0011_8000 / 320 KB<br>→ 0x0C118000</td><td>0x0020_0000 / 352 KB<br>→ 0x0C200000</td><td>H5F4 必须从 bank 2 开头</td></tr><tr><td>NS secondary（升级）</td><td>0x0016_8000 / 576 KB<br>→ 0x0C168000</td><td>0x0025_8000 / 1200 KB<br>→ 0x0C258000</td><td>跟在 S 升级槽后面</td></tr><tr><td>NS 用户 Flash</td><td>0x001F_8000 / 32 KB</td><td>0x0038_4000 / 496 KB</td><td>MCUBoot 槽之外剩余空间</td></tr><tr><td>FLASH_B_SIZE</td><td>0x100000（1 MB）</td><td>0x200000（2 MB）</td><td>单 bank 容量</td></tr><tr><td>FLASH_TOTAL_SIZE</td><td>2 MB</td><td>4 MB</td><td>&nbsp;</td></tr><tr><td>FLASH_S_PARTITION_SIZE</td><td>0x50000</td><td>0x58000</td><td>320 KB → 352 KB</td></tr><tr><td>FLASH_NS_PARTITION_SIZE</td><td>0x90000</td><td>0x12C000</td><td>576 KB → 1200 KB</td></tr></table></div>
+<h3 id="s-41">8.3.1 为什么 S 升级槽必须从 bank 2 开头</h3>
+<p class="p">STM32H5 双 bank Flash，MCUBoot 的一个 slot 不能跨 bank。H573 的 NS primary 只有 576 KB，S secondary 紧挨着排在 0x118000，刚好落在它的 bank 2（bank 从 0x100000 起），所以旧布局能工作。</p>
+<p class="p">H5F4 把 NS primary 扩到 1200 KB 后：S primary 结束在 0x90000，NS primary 结束在 0x1BC000，仍在 bank 1（bank 1 到 0x200000）。若仍把 S secondary 紧挨 NS primary 后面，352 KB 会跨过 0x200000 进 bank 2，BL2 第一次读 image 0 的 secondary 就会卡住。因此 flash_layout.h 里 FLASH_AREA_2_OFFSET 直接定为 FLASH_B_SIZE（0x200000），bank 1 尾部约 272 KB 空着不用。头文件里用编译期 #error 检查四个 slot 是否跨 bank。</p>
+<h3 id="s-42">8.3.2 为什么 S 槽要从 320 KB 加到 352 KB</h3>
+<p class="p">MCUBoot 按最大镜像的扇区数给每个槽预留 swap trailer。NS 1200 KB / 8 KB = 150 扇区，MCUBOOT_MAX_IMG_SECTORS=150。trailer 大约是 150×3×16 + 80 字节，再加上 RSA-3072 TLV（约 1 KB）。TEST_S 编出来的 tfm_s 再套上这些之后，320 KB 槽装不下，BL2 报 Image in the primary slot is not valid。S 槽改成 352 KB（0x58000），同时 BL2_TRAILER_SIZE=0x3000（H573 config.cmake 里是 0x2000）。region_defs.h 里还有编译期检查：trailer 必须盖住 MCUBoot scratch trailer + TLV。</p>
+<h3 id="s-43">8.3.3 烧录 / 签名用的绝对地址</h3>
+<p class="p">TFM_UPDATE.sh 预处理宏对应关系（H5F4）：</p>
+<div class="table-wrap"><table><tr><th>槽</th><th>TFM_UPDATE.sh</th><th>安全别名 0x0C</th><th>非安全 0x08</th><th>签完大小</th></tr><tr><td>BL2</td><td>boot=0xc00e000</td><td>0x0C00E000</td><td>0x0800E000</td><td>96 KB 量级</td></tr><tr><td>S 当前运行</td><td>slot0=0xc038000</td><td>0x0C038000</td><td>0x08038000</td><td>352 KB</td></tr><tr><td>NS 当前运行</td><td>slot1=0xc090000</td><td>0x0C090000</td><td>0x08090000</td><td>1200 KB</td></tr><tr><td>S 升级下载</td><td>slot2=0xc200000</td><td>0x0C200000</td><td>0x08200000</td><td>352 KB</td></tr><tr><td>NS 升级下载</td><td>slot3=0xc258000</td><td>0x0C258000</td><td>0x08258000</td><td>1200 KB</td></tr></table></div>
+<p class="p">禁止再使用 H573 的 NS 0x0C088000、S 升级 0x0C118000、NS 升级 0x0C168000。NS 链接入口在 header 之后：0x08090400（0x08090000 + BL2_HEADER_SIZE 0x400）。H573 笔记里 4.4 节烧 NS 到 0x0C088000，那是旧地址，H5F4 板子上会写到错误区域。</p>
+<h2 id="s-44">8.4 SRAM 与 GTZC 差异</h2>
+<div class="table-wrap"><table><tr><th>块</th><th>H573</th><th>H5F4（当前）</th></tr><tr><td>SRAM1</td><td>256 KB；其中 64 KB 划给 S（S_TOTAL_RAM1_SIZE=0x10000）</td><td>256 KB 全部 NS（S_TOTAL_RAM1_SIZE=0）基址 0x20000000</td></tr><tr><td>SRAM2</td><td>64 KB − 1 KB 共享，给 S/BL2</td><td>128 KB − 1 KB 共享，给 S/BL2，基址 0x30040000</td></tr><tr><td>共享区</td><td>BOOT_TFM_SHARED_DATA 1 KB 在 SRAM2 顶</td><td>同结构，地址改为 0x3005FC00（128 KB 顶）</td></tr><tr><td>SRAM3</td><td>320 KB NS</td><td>384 KB，NS RAM2 的第一段，0x20060000</td></tr><tr><td>SRAM4 / SRAM5</td><td>无</td><td>各 384 KB，与 SRAM3 连续，合计 RAM2 1152 KB</td></tr><tr><td>GTZC MPCBB</td><td>按 H573 超块数量锁</td><td>SRAM1 锁 0xffff（16 超块全 NS）；SRAM3/4/5 各 0x00ffffff</td></tr><tr><td>NS 大缓冲</td><td>主要靠 SRAM3</td><td>放到 .ram2 / .bss.ram2，或 __ns_ram2_start__ / __ns_ram2_end__</td></tr></table></div>
+<p class="p">对应代码：stm32h5f4/include/region_defs.h，以及 common/stm32h5xx/secure/target_cfg.c 里 #if defined(STM32H5F4xx) 的 MPCBB_LOCK_SRAMx_SIZE。BL2 MPU 覆盖范围改到 SRAM5 末尾（BL2_SRAM_AREA_END）。</p>
+<h2 id="s-45">8.5 选项字节、WRP、HDP</h2>
+<p class="p">H5F4 选项字节名字和 bank 扇区数都和 H573 不同。照抄 H573 的 regression.sh 会写到不存在的 WRPSGn1，CubeProgrammer 直接失败。</p>
+<div class="table-wrap"><table><tr><th>选项字节</th><th>H573</th><th>H5F4</th></tr><tr><td>写保护</td><td>WRPSGn1 / WRPSGn2</td><td>WRPSG11 / WRPSG12 / WRPSG21 / WRPSG22</td></tr><tr><td>解除 WRP</td><td>WRPSGn1=0xffffffff</td><td>四个 WRPSGxx 都写成 0xffffffff</td></tr><tr><td>SECWM 解除</td><td>STRT=127 END=0</td><td>STRT=255 END=0</td></tr><tr><td>SECWM 全安全</td><td>STRT=0 END=127</td><td>STRT=0 END=255（两 bank）</td></tr><tr><td>PRODUCT_STATE</td><td>OPEN 0xED</td><td>同左（开发）</td></tr><tr><td>TZEN</td><td>0xB4 使能</td><td>同左</td></tr><tr><td>SECBOOTADD</td><td>0xC0100 → 0x0C010000（BL2 向量）</td><td>同左</td></tr><tr><td>BOOT_UBE</td><td>必须 OEM-iRoT 0xB4，否则 BL2 进 Error_Handler</td><td>同左</td></tr><tr><td>HDP</td><td>旧 BL2 可能把 HDP1 打到盖住整个 BL2</td><td>HDP 只能扩大不能缩小；要先整片擦掉旧 BL2 再清 HDP</td></tr><tr><td>开发期 WRP/HDP</td><td>H573 笔记里 BL2 可能自己上保护</td><td>boot_hal_cfg.h 在 TFM_DEV_MODE 下不定义 TFM_WRP_PROTECT_ENABLE / TFM_HDP_PROTECT_ENABLE</td></tr></table></div>
+<p class="p">regression.sh 在 stm32h5f4/regression.sh。Linux flash_stm32h5f4.sh 会先跑它再烧镜像。片上若还留着旧 H573 BL2 打的 HDP（盖住 0x0C00E000），必须整片擦除再烧，脚本参数 erase 可强制擦。Windows 双击 tfm_update.bat 同样是：擦除 → 写选项字节 → 烧当前运行槽。</p>
+<p class="p">H5F4 回归脚本会写的关键值：</p>
+<p class="p">PRODUCT_STATE=0xED   TZEN=0xB4</p>
+<p class="p">SECBOOTADD=0xC0100   BOOT_UBE=0xB4（OEM-iRoT）</p>
+<p class="p">SECWM1/2_STRT=0  SECWM1/2_END=255</p>
+<p class="p">WRPSG11=WRPSG12=WRPSG21=WRPSG22=0xffffffff</p>
+<h2 id="s-46">8.6 MCUBoot 补丁与 BL2 识别串</h2>
+<p class="p">NS 槽变大之后，出厂刚烧上的 S 镜像：magic 有效、copy_done 未写、trailer 里 swap_size 是擦除值 0xffffffff。MCUBoot SWAP_USING_SCRATCH 会把这当成“交换做到一半”，find_last_sector_idx 按 150 个扇区往下走，走出 SRAM（曾经 BusFault 在 0x30180000 一带）。</p>
+<p class="p">补丁文件：trusted-firmware-m/lib/ext/mcuboot/0002-bootutil-Bound-scratch-swap-sector-walk.patch。非法 swap_size（0、0xffffffff、大于槽大小）时丢掉这段 status。补丁里放了字符串 H5F4SWP2，buildtfm.sh / flash 脚本会检查 bl2.bin 里有没有它，避免又烧回没打补丁的旧 BL2。</p>
+<p class="p">BL2 另外有静态串 H5F4BL2（bl2/ext/mcuboot/bl2_main.c）。正式版 ERROR 日志也会打印这一行，用来区分是不是 H5F4 这份 bootloader。</p>
+<p class="p">开发密钥仍是仓库 dummy RSA-3072，启动日志里的 NOT SECURE 是预期现象，和 H573 一样。</p>
+<h2 id="s-47">8.7 HAL / CMSIS / 公共代码改动要点</h2>
+<p class="p">除了平台目录，common 里为 H5F4 加过这些（不全改会编过但跑飞或选项字节写失败）：</p>
+<div class="table-wrap"><table><tr><th>位置</th><th>改了什么</th></tr><tr><td>cpuarch.cmake</td><td>add_compile_definitions(STM32H5F4xx)</td></tr><tr><td>Device/Include/stm32h5f4xx.h</td><td>新 CMSIS 器件头；部分 HAL 兼容别名（H573 HAL 直接用）</td></tr><tr><td>Device/Include/stm32h5xx.h</td><td>增加 STM32H5F4xx 选择分支</td></tr><tr><td>startup_stm32h5xx_*.c</td><td>向量表 / 外设 IRQ 判断并入 STM32H5F4xx</td></tr><tr><td>stm32h5xx_hal_gpio_ex.h 等</td><td>GPIO AF、UART 等 #if 增加 STM32H5F4xx</td></tr><tr><td>stm32h5xx_hal.c</td><td>H5F4 模拟开关 booster 从 SBS_PMCR 挪到 PWR_PMCR</td></tr><tr><td>low_level_security.c</td><td>PAGE_MAX_NUMBER_IN_BANK 0xFF（每 bank 256 扇区）；WRP 组按新寄存器</td></tr><tr><td>target_cfg.c</td><td>SRAM4/SRAM5 SAU/GTZC、MPCBB 锁大小</td></tr><tr><td>common/scripts/TFM_UPDATE.sh</td><td>清 WRP 改写 WRPSG11/12/21/22</td></tr><tr><td>boot_hal_cfg.h</td><td>开发模式不上 WRP/HDP，避免锁死下载</td></tr></table></div>
+<h2 id="s-48">8.8 非安全工程与签名工具</h2>
+<p class="p">H573 时期笔记里的做法是：编完 SPE 把 build_s/api_ns 拷出去，自己写 Makefile/main.c，再签、再 STM32_Programmer_CLI -d ... 0x0C088000。H5F4 仓库里已经放了两份改好的 NS 工程，不要再按 0x0C088000 / 576 KB 去签。</p>
+<div class="table-wrap"><table><tr><th>工程</th><th>用途</th><th>和 H573 的差异</th></tr><tr><td>tfmmakeproject/</td><td>makefile NS。make 生成 out/tfm_ns_signed.bin</td><td>MCU 宏 STM32H5F4xx；BL2_TRAILER_SIZE=0x3000；链接 NS 0x08090400；自带 sign_kit/</td></tr><tr><td>tfmcubeideproject/</td><td>CubeIDE 工程 tfmminiproject</td><td>MCU STM32H5F4ZJTx；mbedtls 4.1.1 只做 TLS/X.509，PSA crypto 仍走 SPE；post-build 签到 sign_kit/</td></tr><tr><td>sign_kit</td><td>独立签名（imgtool）</td><td>NS 1200 KB @ 0x0C090000；S 352 KB @ 0x0C038000。venv 用 sign_kit/.venv 或 tfmmakeproject/.sign-venv，不要用仓库根目录 TF-M 的 .venv（cryptography 50.0.0 vs 50.0.1 会对不上）</td></tr></table></div>
+<p class="p">两个 NS 工程里已经删掉 ST 的 TFM_UPDATE.sh / regression.sh / TFM_BIN2HEX.sh / postbuild.sh。烧录只走仓库根目录 Linux 脚本或 windows-tfm-tools。SPE 编出来的 trusted-firmware-m/build_s/api_ns 里仍有那套脚本，给 flash_stm32h5f4.sh 用。</p>
+<p class="p">Linux 签名示例：</p>
+<p class="p">cd tfmmakeproject/sign_kit</p>
+<p class="p">./sign.sh ../out/tfm_ns.bin     # → ../out/tfm_ns_signed.bin</p>
+<p class="p">./sign.sh s ../sapp.bin         # 安全侧</p>
+<p class="p">Windows：sign.bat 同名参数。文件名带 ns 按非安全签，带 sapp / tfm_s 按安全签。</p>
+<h2 id="s-49">8.9 当前编译、烧录流程（H5F4）</h2>
+<p class="p">SPE / BL2 / 官方 NS 测试固件只在仓库根目录编：</p>
+<p class="p">git checkout stm32h5f4</p>
+<p class="p">git pull origin stm32h5f4</p>
+<p class="p">./buildtfm.sh test          # TEST_S + TEST_NS，INFO 日志</p>
+<p class="p"># ./buildtfm.sh prod        # SPE 不带 S 测试分区，ERROR 日志</p>
+<p class="p">成功时应看到编译完成提示，并且：</p>
+<p class="p">· bl2.bin 含字符串 H5F4BL2、H5F4SWP2</p>
+<p class="p">· 槽位：BL2 0xc00e000，S 0xc038000，NS 0xc090000，S 升级 0xc200000，NS 升级 0xc258000</p>
+<p class="p">Linux 烧录：</p>
+<p class="p">./flash_stm32h5f4.sh</p>
+<p class="p">./flash_stm32h5f4.sh erase   # 强制整片擦（旧 HDP 还在时）</p>
+<p class="p">Windows：把 bl2.bin、tfm_s_signed.bin、tfm_ns_signed.bin 放到 windows-tfm-tools 后双击 tfm_update.bat（或拷一份 build_s / build_ns）。只烧镜像：tfm_update.bat images-only。脚本只写当前运行槽。升级包请写 secondary：S 0x0C200000，NS 0x0C258000。</p>
+<p class="p">串口：115200 8N1，USART1 PA9/PA10。复位第一行必须有 H5F4BL2（测试版常见 [INF] H5F4BL2）。</p>
+<h2 id="s-50">8.10 常见踩坑（H573 习惯带到 H5F4）</h2>
+<p class="p">1. 烧错 NS 地址：仍往 0x0C088000 下 576 KB 镜像。H5F4 NS primary 是 0x0C090000 / 1200 KB。</p>
+<p class="p">2. 升级包写到 primary，或仍用 H573 升级地址 0x0C118000 / 0x0C168000。升级必须是 0x0C200000 / 0x0C258000。</p>
+<p class="p">3. 用根目录旧 sign_kit.zip（已删除）或 trusted-firmware-m-mbedtls-411-ns-tls 里那份 H573 sign_kit。签出来的长度和 load 地址都是错的。</p>
+<p class="p">4. NS 工程里再跑 TFM_UPDATE.sh：工程里已经删了。要用 flash_stm32h5f4.sh 或 tfm_update.bat。</p>
+<p class="p">5. 签名用仓库根 .venv：cryptography 扩展版本对不上。用 sign_kit 自己的 venv。</p>
+<p class="p">6. 选项字节写 WRPSGn1：H5F4 没有这个名字，必须 WRPSG11/12/21/22。</p>
+<p class="p">7. 不擦旧 BL2：旧镜像会重新打上 HDP/WRP，新 BL2 写不进。先 mass erase。</p>
+<p class="p">8. 串口只有 Starting bootloader、没有 H5F4BL2：板上还是 H573 BL2，不要再用旧脚本补烧。</p>
+<p class="p">9. S 槽仍按 320 KB 签：TEST_S 镜像会被 MCUBoot 判无效。</p>
+<p class="p">10. Windows bat 里 call 子程序传 FOO=bar：等号会被吃掉。tfm_update.bat 已避免这条路径。</p>
+<h2 id="s-51">8.11 和前文笔记怎么对照着看</h2>
+<p class="p">第 1～2 章 TF-M 四大块、依赖库（QCBOR / t_cose / dummy RSA）在 H5F4 上仍然成立，不用改理解。第 3.3.1 节和第 4.6.1 节的 Flash 表、第 4.4 节的 0x0C088000、第 4.6.2 节 320 KB / 576 KB，都是 H573 数字，请用本章 8.3 替换。第 5 章 CubeIDE、第 7 章 BL2 启动分析（startup_stm32h5xx_bl2.c → boot_hal_bl2.c → bl2_main.c）路径还在 common 里；region_defs.h 要看 stm32h5f4 这份，不要再打开 stm32h573i_dk。日常编译烧录以仓库根目录 readme.md 为准。</p>
+<p class="p">改过的关键文件清单：stm32h5f4/ 整个平台目录，flash_layout.h / region_defs.h / config.cmake / regression.sh / boot_hal_cfg.h / cpuarch.cmake；common 下 CMSIS/HAL/GTZC/security；lib/ext/mcuboot/0002-*.patch；buildtfm.sh、flash_stm32h5f4.sh、windows-tfm-tools；tfmmakeproject、tfmcubeideproject 及各自 sign_kit。</p>
+</article>
+</div>
+</body>
+</html>

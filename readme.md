@@ -144,6 +144,7 @@ NS 大缓冲可放到 `.ram2` / `.bss.ram2`，或使用 `__ns_ram2_start__` / `_
 
 ## 文档
 
+- [TF-M 学习笔记（HTML）](./TF-M学习笔记/index.html) — 由 `TF-M学习笔记.docx` 导出，图片在同目录 `media/`。文末有 STM32H573 → STM32H5F4 移植过程与差异。浏览器打开即可，请整夹拷贝。
 - [TF-M 编译笔记](./tfm编译笔记.txt) — 环境搭建与踩坑记录（烧录 / 签名请以本文和 `sign_kit` 为准）
 - makefile 签名：[`tfmmakeproject/sign_kit/README.md`](./tfmmakeproject/sign_kit/README.md)
 - CubeIDE 签名：[`tfmcubeideproject/STM32CubeIDE/sign_kit/README.md`](./tfmcubeideproject/STM32CubeIDE/sign_kit/README.md)
