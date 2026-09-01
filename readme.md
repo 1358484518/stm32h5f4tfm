@@ -23,6 +23,72 @@
 
 从 `stm32h5f4` 切到本支线后，必须 **整片重烧 BL2 + S + NS**，并只用本支线的 `sign_kit/keys`。不要把 RSA 密钥 / BL2 与 P256 混用。
 
+### S / NS 签名版本修改说明
+
+MCUboot 镜像头里的 **version**（以及可选的 **security counter**）在签名时写入。升级时 BL2 会按版本 / 计数器决定是否接受新镜像；改版本后需重新签名再烧录对应槽位。
+
+| 镜像 | 默认版本（本仓库常见配置） | 默认 security counter |
+|------|---------------------------|------------------------|
+| Secure（S） | `2.3.0`（随 `TFM_VERSION` / `MCUBOOT_IMAGE_VERSION_S`） | `1` |
+| Non-Secure（NS） | `0.0.0` | `1` |
+
+版本字符串格式：`major.minor.revision[+build]`，例如 `1.2.0`、`1.2.0+3`。
+
+#### 1. SPE / `./buildtfm.sh` 编出来的已签名镜像
+
+TF-M 默认在 `bl2/ext/mcuboot/mcuboot_default_config.cmake`：
+
+- `MCUBOOT_IMAGE_VERSION_S` ← 默认 `${TFM_VERSION}`
+- `MCUBOOT_IMAGE_VERSION_NS` ← 默认 `0.0.0`
+- `MCUBOOT_SECURITY_COUNTER_S` / `_NS` ← 默认 `1`（也可设为 `auto`）
+
+改法示例：
+
+```bash
+# cmake 传入（清 build 后重编）
+rm -rf trusted-firmware-m/build_s trusted-firmware-m/build_ns
+# 首次配置 / buildtfm 内层 cmake 增加，例如：
+#   -DMCUBOOT_IMAGE_VERSION_S=2.4.0
+#   -DMCUBOOT_IMAGE_VERSION_NS=1.0.0
+#   -DMCUBOOT_SECURITY_COUNTER_S=2
+#   -DMCUBOOT_SECURITY_COUNTER_NS=2
+./buildtfm.sh test
+```
+
+也可在平台 `trusted-firmware-m/platform/ext/target/stm/stm32h5f4/config.cmake` 里
+`set(MCUBOOT_IMAGE_VERSION_S ... CACHE STRING "" FORCE)` 固化。  
+改完必须重编 SPE（及需要的 NS 测试），再烧 **S / NS**（若只改 NS 版本则重签重烧 NS 即可；S 同理）。
+
+#### 2. 独立 `sign_kit`（makefile / CubeIDE post-build / 手动 `sign.sh`）
+
+本支线 `tfmmakeproject` 的 `make` 签名走 `sign_kit/sign.sh`，与 CubeIDE 一样读 `sign_kit/config`。编辑：
+
+- `tfmmakeproject/sign_kit/config`
+- `tfmcubeideproject/STM32CubeIDE/sign_kit/config`
+
+```text
+MCUBOOT_IMAGE_VERSION_S=2.3.0
+MCUBOOT_SECURITY_COUNTER_S=1
+MCUBOOT_NS_IMAGE_MIN_VER=0.0.0+0
+
+MCUBOOT_IMAGE_VERSION_NS=0.0.0
+MCUBOOT_SECURITY_COUNTER_NS=1
+MCUBOOT_S_IMAGE_MIN_VER=0.0.0+0
+```
+
+- 签 S 时用 `MCUBOOT_IMAGE_VERSION_S` + `MCUBOOT_SECURITY_COUNTER_S`
+- 签 NS 时用 `MCUBOOT_IMAGE_VERSION_NS` + `MCUBOOT_SECURITY_COUNTER_NS`
+- `*_IMAGE_MIN_VER` 是镜像依赖的对端最低版本（写入 dependency TLV），一般保持与板上已有镜像兼容，不要随意抬高
+
+改完后重新 `make`、执行 `./sign.sh` / `sign.bat`，或 CubeIDE 再编一次触发 post-build。
+
+#### 注意
+
+- 仅抬高 version / security counter 做升级时：用**同一套**签名密钥签新镜像，烧到升级槽或按现有升级流程即可；**不必**因改版本而换密钥或重烧 BL2。
+- 版本回退（比板上更低）在默认 MCUboot 策略下通常会被拒绝；需要回退请走你们自己的降级 / 确认流程，不要假设直接烧低版本一定能过。
+- `sign_kit/config` 与 SPE cmake 里的版本应尽量一致，避免测试镜像和自签镜像版本语义混乱。
+- H5F4 槽位（签完大小）：S **352 KB** @ `0x0C038000`（升级 `0x0C200000`）；NS **1200 KB** @ `0x0C090000`（升级 `0x0C258000`）。
+
 ### 更换密钥（量产 / 自用）
 
 算法必须仍是 **EC-P256**。只换 `sign_kit/keys`、不重编不重烧 BL2，板上验签会失败（ROTPK 在 BL2 里）。
@@ -31,12 +97,12 @@
 
 本支线默认 dummy 密钥下，下面两对文件 **内容相同**，只是名字和用途不同；换密钥时必须整对一起换，不能只改一边。
 
-| TF-M / BL2 路径（编 SPE 用） | `sign_kit` / `api_ns` 路径（签镜像用） | 用途 |
-|------------------------------|----------------------------------------|------|
+| TF-M / BL2 路径（编 SPE / 编进 BL2） | `sign_kit` / `api_ns` 路径（签镜像） | 用途 |
+|--------------------------------------|--------------------------------------|------|
 | `bl2/ext/mcuboot/root-EC-P256.pem` | `image_s_signing_private_key.pem` | Secure（S）私钥 |
 | `bl2/ext/mcuboot/root-EC-P256_1.pem` | `image_ns_signing_private_key.pem` | Non-Secure（NS）私钥 |
 
-编 SPE 时 TF-M 会把 `root-EC-P256*.pem` 拷成 `build_s/api_ns/image_signing/keys/image_*_signing_private_key.pem`；`sign_kit/keys/` 里同名文件应与之一致。
+编 SPE 时 TF-M 会把 `root-EC-P256*.pem` 拷成 `build_s/api_ns/image_signing/keys/image_*_signing_private_key.pem`；各工程 `sign_kit/keys/` 里同名文件应与之一致。
 
 **1. 生成新密钥对（S / NS 各一把）**
 
@@ -50,8 +116,8 @@ imgtool keygen -k root-EC-P256-ns.pem -t ecdsa-p256
 
 覆盖 TF-M 默认路径（或 cmake 传 `-DMCUBOOT_KEY_S=... -DMCUBOOT_KEY_NS=...`）：
 
-- S：`trusted-firmware-m/bl2/ext/mcuboot/root-EC-P256.pem`（= 下面的 `image_s_signing_private_key.pem`）
-- NS：`trusted-firmware-m/bl2/ext/mcuboot/root-EC-P256_1.pem`（= 下面的 `image_ns_signing_private_key.pem`）
+- S：`trusted-firmware-m/bl2/ext/mcuboot/root-EC-P256.pem`（内容 = `image_s_signing_private_key.pem`）
+- NS：`trusted-firmware-m/bl2/ext/mcuboot/root-EC-P256_1.pem`（内容 = `image_ns_signing_private_key.pem`）
 
 然后清 SPE 再编：
 
@@ -61,7 +127,7 @@ rm -rf trusted-firmware-m/build_s
 ./buildtfm.sh test    # 或 prod
 ```
 
-**3. 同步给签名工具**
+**3. 同步给各签名工具**
 
 把**与上表同一对**私钥拷到实际在用的目录（文件名用右边这一套）：
 
@@ -70,8 +136,15 @@ rm -rf trusted-firmware-m/build_s
 | `image_s_signing_private_key.pem` | 签 Secure（内容 = `root-EC-P256.pem`） |
 | `image_ns_signing_private_key.pem` | 签 Non-Secure（内容 = `root-EC-P256_1.pem`） |
 
-常见位置：`tfmmakeproject/sign_kit/keys/`、`tfmmakeproject/api_ns/image_signing/keys/`，以及 CubeIDE 的 `sign_kit/keys/`、`spe/api_ns/image_signing/keys/`。  
-公钥可从 `trusted-firmware-m/build_s/api_ns/image_signing/keys/` 再拷一份对齐。
+常见位置：
+
+- `tfmmakeproject/sign_kit/keys/`
+- `tfmmakeproject/api_ns/image_signing/keys/`
+- `tfmcubeideproject/STM32CubeIDE/sign_kit/keys/`
+- `tfmcubeideproject/STM32CubeIDE/spe/api_ns/image_signing/keys/`
+- 若使用 `ns_make_project.zip`，解压后其内 `sign_kit/keys/` 也需同步
+
+公钥可从 `trusted-firmware-m/build_s/api_ns/image_signing/keys/`（或 `bin/`）再拷一份对齐。
 
 **4. 整片重烧**
 
