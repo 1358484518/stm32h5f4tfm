@@ -20,7 +20,7 @@
 3. **tf-m-tests**：NS 测试镜像随 SPE 导出的 `api_ns` 密钥签名（无需单独改测试仓密钥）
 4. **makefile 工程**：`tfmmakeproject/api_ns/image_signing/keys/`（及 `sign_kit/keys/`）
 5. **CubeIDE 工程**：`sign_kit/keys/` 与 `spe/api_ns/image_signing/keys/`（含 `mbedtls-411` 平行树）
-6. **独立签名工具**：根目录 `sign_kit.zip`、`tfm-h573-flash…zip`、`ns_make_project.zip` 内密钥
+6. **独立签名工具 / 压缩包**：根目录 `sign_kit.zip`、`tfm-h573-flash…zip`、`ns_make_project.zip`、`tfmcubeideproject.7z` 内密钥与样例签名镜像
 
 ### 密钥文件名对应（同内容、不同路径）
 
@@ -70,7 +70,7 @@ rm -rf trusted-firmware-m/build_s
 
 - 增加 tfmcubeideproject 非安全侧工程可以使用stm32cubeide开发，这是基于make工程 tfmmakeproject 移植而来。
 
-- 增加 tfmcubeideproject.7z 非安全侧工程可以使用stm32cubeide开发，包含.o链接，因为git会忽略链接文件，所以压缩上传。
+- 增加 tfmcubeideproject.7z 非安全侧工程可以使用stm32cubeide开发，包含.o链接，因为git会忽略链接文件，所以压缩上传。本分支（`stm32h573p256`）压缩包内 `sign_kit`/`spe` 密钥与样例签名镜像已改为 **EC-P256**（与树内工程一致）；`master` 上仍为 RSA-3072。
 
 - 增加 windows-tfm-tools 该工具是windows系统的使用的回归脚本和烧录工具。
 
