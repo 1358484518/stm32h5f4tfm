@@ -111,6 +111,8 @@ MCUBOOT_S_IMAGE_MIN_VER=0.0.0+0
 
 ### 更换密钥（量产 / 自用）
 
+> 推荐流程见上文「keys/、versions/ 与清编译」；本节保留细节说明。
+
 算法必须仍是 **EC-P256**。
 
 **推荐：只往仓库根目录 `keys/` 放四份固定文件名，编译时自动覆盖全库。**
@@ -144,15 +146,40 @@ rm -rf trusted-firmware-m/build_s trusted-firmware-m/build_ns
 
 **可选：不用 `keys/` 时**，仍可手动覆盖 `trusted-firmware-m/bl2/ext/mcuboot/root-EC-P256*.pem` 与各 `sign_kit` / `image_signing/keys` 下同名文件，或传 `MCUBOOT_KEY_S` / `MCUBOOT_KEY_NS`。
 
-### 清编译（不重新下载依赖）
 
-不要手动 `rm -rf trusted-firmware-m/build_s`（会丢掉 FetchContent 源码）。`./buildtfm.sh` 默认先跑 `scripts/clean_tfm_build.sh`：只删编译产物，依赖留在 `trusted-firmware-m/.deps-cache/`。也可：
+## keys/、versions/ 与清编译
+
+### keys/（更换签名密钥）
+
+**本支线为 EC-P256。** 把两对固定文件名放到仓库根目录 `keys/`，再 `./buildtfm.sh`：
 
 ```bash
-./scripts/clean_tfm_build.sh
+imgtool keygen -k keys/image_s_signing_private_key.pem  -t ecdsa-p256
+imgtool keygen -k keys/image_ns_signing_private_key.pem -t ecdsa-p256
+imgtool getpub -k keys/image_s_signing_private_key.pem  > keys/image_s_signing_public_key.pem
+imgtool getpub -k keys/image_ns_signing_private_key.pem > keys/image_ns_signing_public_key.pem
 ./buildtfm.sh test
-./buildtfm.sh test --no-clean   # 增量
 ```
+
+编译会覆盖各工程同名 pem、BL2 的 `root-EC-P256*.pem`，并同步 OTP ROTPK。换密钥后须回归擦片并重烧 **BL2 + S + NS**。详见 `keys/README.md`。
+
+### versions/（S / NS 镜像版本）
+
+编辑 `versions/config`（或 `image_s_version.txt` / `image_ns_version.txt`），`./buildtfm.sh` 会把版本与 security counter 写进签名镜像，并同步各 `sign_kit/config`。
+
+```bash
+# 改 versions/config 后
+./buildtfm.sh test
+imgtool verify trusted-firmware-m/build_s/bin/tfm_s_signed.bin   # 看 Image version
+imgtool verify trusted-firmware-m/build_ns/bin/tfm_ns_signed.bin
+```
+
+详见 `versions/README.md`。改版本只需重编重烧对应槽位，不必换密钥。
+
+### 清编译（不重新下载依赖）
+
+不要手动 `rm -rf trusted-firmware-m/build_s`。`./buildtfm.sh` 默认先跑 `scripts/clean_tfm_build.sh`：只清编译产物，依赖缓存在 `trusted-firmware-m/.deps-cache/`。增量：`./buildtfm.sh test --no-clean`。
+
 
 ### 一键回归烧录（Linux）
 
@@ -179,10 +206,6 @@ git checkout stm32h573p256
 
 Windows 一键：`windows-tfm-tools\tfm_update.bat`（会调 `regression.bat`）。无装包还可解压根目录 `tfm-h573-flash…zip` 里的 `flash_all.sh`。
 
-
-### versions/（S / NS 镜像版本）
-
-编辑仓库根目录 `versions/config`（或拆分 txt），`./buildtfm.sh` 会在签名时写入对应版本与 security counter，并同步到各 `sign_kit/config`。说明见 `versions/README.md`。
 
 
 ## 文档
