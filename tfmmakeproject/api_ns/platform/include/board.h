@@ -2,7 +2,7 @@
   ******************************************************************************
   * @file    board.h
   * @author  MCD Application Team
-  * @brief   board header file for stm32h573_dk.
+  * @brief   board header file for stm32h5f4.
   ******************************************************************************
   * @attention
   *

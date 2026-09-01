@@ -13,6 +13,7 @@
 tfmcubeideproject/STM32CubeIDE/build/
 tfmcubeideproject/STM32CubeIDE/Debug/
 tfmcubeideproject/STM32CubeIDE/Release/
+tfmmakeproject/out/
 *.ko
 *.obj
 *.elf

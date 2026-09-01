@@ -48,3 +48,8 @@ define block DATA with fixed order, maximum size = NS_DATA_SIZE {
        overlay HEAP_OVL
 };
 place at address NS_DATA_START {block DATA};
+
+#if defined(STM32H5F4xx) && defined(NS_DATA_SIZE_2) && (NS_DATA_SIZE_2 > 0)
+define block RAM2_POOL with alignment = 8, size = NS_DATA_SIZE_2 { section .ram2 };
+place at address NS_DATA_START_2 {block RAM2_POOL};
+#endif

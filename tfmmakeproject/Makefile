@@ -1,8 +1,8 @@
-# Bare-metal NS image for STM32H573I-DK, linked against TF-M SPE export.
+# Bare-metal NS image for STM32H5F4, linked against TF-M SPE export.
 #
 # Supported layouts:
 #   Makefile, main.c, api_ns/     (siblings)
-#   ns_app/{Makefile,main.c}  +  ../build_s/api_ns
+#   ns_app/{Makefile,main.c}  +  ../trusted-firmware-m/build_s/api_ns
 #
 #   make
 #   make SPE=/path/to/api_ns
@@ -10,17 +10,25 @@
 #   make clean
 #
 # CPU/ABI must match SPE: cortex-m33+nodsp, hard float, FPv5-SP-D16.
+# MCU STM32H5F4xx, NS slot 0x0C090000, BL2_TRAILER_SIZE=0x3000.
 # s_veneers.o is linked as a raw object (absolute NSC addresses).
 #
 # NS bring-up matches tf-m-tests/app_broker/main_ns.c without RTX.
 # Logging matches official NS tests: LOG_MSG / tfm_log_raw.c / -DTFM_NS_LOG.
 # Only main.c is local. Other sources are copied from TF-M / tf-m-tests
 # or compiled from the SPE api_ns export.
+#
+# Flash the signed image with windows-tfm-tools or ./flash_stm32h5f4.sh.
+# Do not run api_ns/TFM_UPDATE.sh or regression.sh.
 
 NS_APP      := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 ROOT        := $(abspath $(NS_APP)/..)
 ifeq ($(wildcard $(NS_APP)/api_ns/interface/lib/s_veneers.o),)
-SPE         ?= $(ROOT)/build_s/api_ns
+ifneq ($(wildcard $(ROOT)/trusted-firmware-m/build_s/api_ns/interface/lib/s_veneers.o),)
+SPE         ?= $(ROOT)/trusted-firmware-m/build_s/api_ns
+else
+SPE         ?= $(NS_APP)/api_ns
+endif
 else
 SPE         ?= $(NS_APP)/api_ns
 endif
@@ -46,7 +54,7 @@ endif
 CPU         := -mcpu=cortex-m33+nodsp -mthumb -mfloat-abi=hard -mfpu=fpv5-sp-d16
 
 CPPFLAGS    := \
-	-DSTM32H573xx \
+	-DSTM32H5F4xx \
 	-DUSE_HAL_DRIVER \
 	-DDOMAIN_NS=1 \
 	-DCONFIG_TFM_FLOAT_ABI=2 \
@@ -65,7 +73,7 @@ CPPFLAGS    := \
 	-DTARGET_CONFIG_HEADER_FILE='"config_tfm_target.h"' \
 	-DBL2 \
 	-DBL2_HEADER_SIZE=0x400 \
-	-DBL2_TRAILER_SIZE=0x2000 \
+	-DBL2_TRAILER_SIZE=0x3000 \
 	-DMCUBOOT_IMAGE_NUMBER=2 \
 	-DTFM_NS_LOG \
 	-I$(NS_APP) \

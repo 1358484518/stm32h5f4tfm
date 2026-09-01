@@ -657,7 +657,12 @@ void HAL_SBS_ETHInterfaceSelect(uint32_t SBS_ETHInterface)
   */
 void HAL_SBS_EnableIOAnalogSwitchBooster(void)
 {
+#if defined(SBS_PMCR_BOOSTEN)
   SET_BIT(SBS->PMCR, SBS_PMCR_BOOSTEN);
+#elif defined(PWR_PMCR_BOOSTE)
+  /* STM32H5F4: analog switch booster moved from SBS_PMCR to PWR_PMCR */
+  SET_BIT(PWR->PMCR, PWR_PMCR_BOOSTE);
+#endif
 }
 
 /**
@@ -667,7 +672,11 @@ void HAL_SBS_EnableIOAnalogSwitchBooster(void)
   */
 void HAL_SBS_DisableIOAnalogSwitchBooster(void)
 {
+#if defined(SBS_PMCR_BOOSTEN)
   CLEAR_BIT(SBS->PMCR, SBS_PMCR_BOOSTEN);
+#elif defined(PWR_PMCR_BOOSTE)
+  CLEAR_BIT(PWR->PMCR, PWR_PMCR_BOOSTE);
+#endif
 }
 
 /**
@@ -680,10 +689,14 @@ void HAL_SBS_DisableIOAnalogSwitchBooster(void)
   */
 void HAL_SBS_AnalogSwitchSupplyVoltageSelection(uint32_t SBS_BOOSTVDDSEL)
 {
+#if defined(SBS_PMCR_BOOSTVDDSEL)
   /* Check the parameter */
   assert_param(IS_SBS_BOOSTVDD_SELECTION(SBS_BOOSTVDDSEL));
 
   MODIFY_REG(SBS->PMCR, SBS_PMCR_BOOSTVDDSEL, (uint32_t)(SBS_BOOSTVDDSEL));
+#else
+  UNUSED(SBS_BOOSTVDDSEL);
+#endif
 }
 
 /**

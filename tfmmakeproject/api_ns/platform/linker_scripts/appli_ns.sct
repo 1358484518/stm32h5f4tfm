@@ -36,5 +36,13 @@ LR_CODE NS_CODE_START {
 
     ARM_LIB_HEAP +0 ALIGN 8 EMPTY NS_HEAP_SIZE {
     }
+
+#if defined(STM32H5F4xx) && defined(NS_DATA_SIZE_2) && (NS_DATA_SIZE_2 > 0)
+    /* SRAM3+SRAM4+SRAM5 NS pool after the SRAM2 hole. */
+    ER_RAM2 NS_DATA_START_2 UNINIT NS_DATA_SIZE_2 {
+        *(.ram2*)
+        *(.bss.ram2)
+    }
+#endif
 }
 

@@ -48,7 +48,7 @@ set(TFM_PARTITION_NS_AGENT_MAILBOX         OFF         CACHE BOOL "Enable the Ma
 # The options necessary for signing the final image
 set(BL2                                    ON)
 set(BL2_HEADER_SIZE                        0x400)
-set(BL2_TRAILER_SIZE                       0x2000)
+set(BL2_TRAILER_SIZE                       0x3000)
 set(MCUBOOT_IMAGE_NUMBER                   2)
 set(TFM_S_KEY_ID                           2147451243)
 set(TFM_NS_KEY_ID                          2147451244)
@@ -80,7 +80,7 @@ set(TFM_LOAD_NS_IMAGE                      ON              CACHE BOOL   "Whether
 
 # The common options describing a platform configuration
 
-set(TFM_PLATFORM                           stm/stm32h573i_dk                   CACHE STRING "Platform to build TF-M for. Must be either a relative path from [TF-M]/platform/ext/target, or an absolute path.")
+set(TFM_PLATFORM                           stm/stm32h5f4                   CACHE STRING "Platform to build TF-M for. Must be either a relative path from [TF-M]/platform/ext/target, or an absolute path.")
 set(CONFIG_TFM_USE_TRUSTZONE               ON       CACHE BOOL   "Use TrustZone")
 set(CONFIG_TFM_SPM_BACKEND                 SFN         CACHE STRING "The SPM backend")
 set(TFM_MULTI_CORE_TOPOLOGY                        CACHE BOOL   "Platform has multi core")
@@ -100,13 +100,13 @@ set(TFM_HYBRID_PLATFORM_API_BROKER         OFF CACHE BOOL   "Enable API broker f
 # include other config files.
 # Also export other coprocessor settings to enable NS integration to validate the whole settings
 # and toolchain compatibility via installed cp_config_check.cmake.
-set(CONFIG_TFM_ENABLE_FP                   OFF       CACHE BOOL   "Enable/disable FP usage")
+set(CONFIG_TFM_ENABLE_FP                   ON       CACHE BOOL   "Enable/disable FP usage")
 set(CONFIG_TFM_ENABLE_MVE                  OFF      CACHE BOOL   "Enable/disable integer MVE usage")
 set(CONFIG_TFM_ENABLE_MVE_FP               OFF   CACHE BOOL   "Enable/disable floating-point MVE usage")
-set(CONFIG_TFM_FLOAT_ABI                   soft)
+set(CONFIG_TFM_FLOAT_ABI                   hard)
 set(CONFIG_TFM_DISABLE_CP10CP11            OFF CACHE BOOL  "This disables the coprocessors CP10-CP11")
-set(CONFIG_TFM_ENABLE_CP10CP11             OFF CACHE BOOL   "Make FPU and MVE operational when SPE and/or NSPE require FPU or MVE usage. This alone only enables the coprocessors CP10-CP11, whereas CONFIG_TFM_FLOAT_ABI=hard along with  CONFIG_TFM_ENABLE_FP, CONFIG_TFM_ENABLE_MVE or CONFIG_TFM_ENABLE_MVE_FP compiles the code with hardware FP or MVE instructions and ABI.")
-set(CONFIG_TFM_LAZY_STACKING               OFF   CACHE BOOL   "Enable/disable lazy stacking")
+set(CONFIG_TFM_ENABLE_CP10CP11             ON CACHE BOOL   "Make FPU and MVE operational when SPE and/or NSPE require FPU or MVE usage. This alone only enables the coprocessors CP10-CP11, whereas CONFIG_TFM_FLOAT_ABI=hard along with  CONFIG_TFM_ENABLE_FP, CONFIG_TFM_ENABLE_MVE or CONFIG_TFM_ENABLE_MVE_FP compiles the code with hardware FP or MVE instructions and ABI.")
+set(CONFIG_TFM_LAZY_STACKING               ON   CACHE BOOL   "Enable/disable lazy stacking")
 
 set(TFM_VERSION                            2.3.0)
 set(TFM_NS_MANAGE_NSID                     OFF)
