@@ -1,4 +1,4 @@
-../ns_app/tfm_src/stm32h5xx_hal_dma_ex.c:605:19:HAL_DMAEx_List_Init	35
+../ns_app/tfm_src/stm32h5xx_hal_dma_ex.c:605:19:HAL_DMAEx_List_Init	51
 ../ns_app/tfm_src/stm32h5xx_hal_dma_ex.c:674:19:HAL_DMAEx_List_DeInit	15
 ../ns_app/tfm_src/stm32h5xx_hal_dma_ex.c:811:19:HAL_DMAEx_List_Start	8
 ../ns_app/tfm_src/stm32h5xx_hal_dma_ex.c:873:19:HAL_DMAEx_List_Start_IT	10

@@ -1,9 +1,9 @@
-../ns_app/tfm_src/stm32h5xx_hal_rcc_ex.c:163:19:HAL_RCCEx_PeriphCLKConfig	381
+../ns_app/tfm_src/stm32h5xx_hal_rcc_ex.c:163:19:HAL_RCCEx_PeriphCLKConfig	387
 ../ns_app/tfm_src/stm32h5xx_hal_rcc_ex.c:2504:6:HAL_RCCEx_GetPeriphCLKConfig	2
 ../ns_app/tfm_src/stm32h5xx_hal_rcc_ex.c:2832:6:HAL_RCCEx_GetPLL1ClockFreq	12
 ../ns_app/tfm_src/stm32h5xx_hal_rcc_ex.c:2969:6:HAL_RCCEx_GetPLL2ClockFreq	9
 ../ns_app/tfm_src/stm32h5xx_hal_rcc_ex.c:3077:6:HAL_RCCEx_GetPLL3ClockFreq	9
-../ns_app/tfm_src/stm32h5xx_hal_rcc_ex.c:3230:10:HAL_RCCEx_GetPeriphCLKFreq	510
+../ns_app/tfm_src/stm32h5xx_hal_rcc_ex.c:3230:10:HAL_RCCEx_GetPeriphCLKFreq	516
 ../ns_app/tfm_src/stm32h5xx_hal_rcc_ex.c:5308:19:HAL_RCCEx_EnablePLL2	7
 ../ns_app/tfm_src/stm32h5xx_hal_rcc_ex.c:5396:19:HAL_RCCEx_DisablePLL2	3
 ../ns_app/tfm_src/stm32h5xx_hal_rcc_ex.c:5432:19:HAL_RCCEx_EnablePLL3	7

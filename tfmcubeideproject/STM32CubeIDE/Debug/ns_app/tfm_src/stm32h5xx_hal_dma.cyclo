@@ -1,4 +1,4 @@
-../ns_app/tfm_src/stm32h5xx_hal_dma.c:238:19:HAL_DMA_Init	35
+../ns_app/tfm_src/stm32h5xx_hal_dma.c:238:19:HAL_DMA_Init	51
 ../ns_app/tfm_src/stm32h5xx_hal_dma.c:318:19:HAL_DMA_DeInit	14
 ../ns_app/tfm_src/stm32h5xx_hal_dma.c:456:19:HAL_DMA_Start	4
 ../ns_app/tfm_src/stm32h5xx_hal_dma.c:511:19:HAL_DMA_Start_IT	6
@@ -14,4 +14,4 @@
 ../ns_app/tfm_src/stm32h5xx_hal_dma.c:1463:19:HAL_DMA_GetConfigChannelAttributes	4
 ../ns_app/tfm_src/stm32h5xx_hal_dma.c:1542:19:HAL_DMA_GetLockChannelAttributes	3
 ../ns_app/tfm_src/stm32h5xx_hal_dma.c:1590:13:DMA_SetConfig	1
-../ns_app/tfm_src/stm32h5xx_hal_dma.c:1615:13:DMA_Init	78
+../ns_app/tfm_src/stm32h5xx_hal_dma.c:1615:13:DMA_Init	110

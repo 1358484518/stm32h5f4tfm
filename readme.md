@@ -65,6 +65,16 @@ rm -rf trusted-firmware-m/build_s trusted-firmware-m/build_ns
 SPE / BL2 / 官方 NS 测试固件只使用仓库根目录的 `./buildtfm.sh` 编译。烧录用 Linux 的 `./flash_stm32h5f4.sh`，或 Windows 的 `windows-tfm-tools\tfm_update.bat`。  
 `tfmcubeideproject/` 是 STM32H5F4 非安全侧 CubeIDE 工程。`tfmmakeproject/` 是同一套 SPE 上的 makefile NS 工程（`make` 生成 `out/tfm_ns_signed.bin`）。签完的镜像用上述脚本烧。这两个 NS 工程里已去掉 ST 的 `TFM_UPDATE.sh` / `regression.sh`。
 
+**清编译 / 不重新下载依赖：** 不要手动 `rm -rf trusted-firmware-m/build_s`（会丢掉 FetchContent 源码，下次又要联网）。`./buildtfm.sh` 默认会先跑 `scripts/clean_tfm_build.sh`：只删编译产物，把 mcuboot/cmsis/qcbor/… 留在 `trusted-firmware-m/.deps-cache/`，再离线重编。也可单独执行：
+
+```bash
+./scripts/clean_tfm_build.sh    # 清 build_s/build_ns，保留依赖缓存
+./buildtfm.sh test              # 默认先 clean 再编
+./buildtfm.sh test --no-clean   # 增量编译（不删 build 目录）
+```
+
+首次仍需联网下载依赖；之后有 `.deps-cache` 即可离线。
+
 ### 依赖
 
 - Ubuntu：`cmake`、`ninja-build`、`python3-venv`、`python3-pip`
