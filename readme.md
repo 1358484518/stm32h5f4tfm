@@ -14,7 +14,7 @@ SPE / BL2 / 官方 NS 测试固件只使用仓库根目录的 `./buildtfm.sh` �
 - Ubuntu：`cmake`、`ninja-build`、`python3-venv`、`python3-pip`
 - ARM GNU 工具链（`arm-none-eabi-gcc`）在 `PATH` 里
 - 烧录：`STM32_Programmer_CLI`（STM32CubeProgrammer）
-- Windows 烧录另外需要 Python 3（校验 `H5F4BL2` 标记；J-Link 还要做 hex 地址映射）。没有 Python 时 `tfm_update.bat` 会改用系统自带的 PowerShell 找镜像。
+- Windows 烧录：把镜像放到 `windows-tfm-tools` 后双击 `tfm_update.bat`。只有 hex、没有 bin 时才需要 Python 3（hex→bin）。已经是 bin 可以不装 Python。
 - 串口：USART1 PA9/PA10，**115200**
 
 脚本会在仓库根目录自动创建 `.venv`。如果签名步骤报 `mcuboot_imagesign_wrapper: not found`，删掉 `.venv` 再编一次。
@@ -62,14 +62,21 @@ git pull origin stm32h5f4
 
 ### Windows 烧录
 
-`windows-tfm-tools` 是 STM32H5F4 的 Windows ST-Link 烧录目录（option bytes 用 `WRPSG11/12/21/22`，SECWM 0–255，NS 槽 `0x0C090000`）。
+`windows-tfm-tools` 只保留 ST-Link 脚本。详细步骤见 `windows-tfm-tools/本目录工具使用说明.txt`。
 
-1. 先在 Ubuntu/WSL 编好：`./buildtfm.sh prod` 或 `./buildtfm.sh test`。
-2. 安装 STM32CubeProgrammer。只有 hex 没有 bin 时才需要 Python 3。
-3. 把 `bl2.bin` / `tfm_s_signed.bin` / `tfm_ns_signed.bin` 放到 `windows-tfm-tools`，或把整份 `build_s`、`build_ns` 拷进该目录。当前目录的文件优先。
-4. 双击 `windows-tfm-tools\tfm_update.bat`。只重烧镜像：`tfm_update.bat images-only`。只擦：`erase_flash.bat`。
+1. `git checkout stm32h5f4` 后 `git pull origin stm32h5f4`。双击后窗口 rev 应为 `h5f4-20260901e`（或更新）。
+2. Ubuntu/WSL 编好：`./buildtfm.sh prod` 或 `./buildtfm.sh test`。
+3. 安装 STM32CubeProgrammer。只有 hex 没有 bin 时才需要 Python 3。
+4. 把镜像放到 `windows-tfm-tools`（二选一）：
+   - **优先**：三个文件直接放在该目录  
+     `bl2.bin`、`tfm_s_signed.bin`、`tfm_ns_signed.bin`（也可用同名 `.hex`）
+   - **其次**：把整份 `trusted-firmware-m/build_s` 和 `build_ns` 拷成  
+     `windows-tfm-tools\build_s`、`windows-tfm-tools\build_ns`
+5. 双击 `tfm_update.bat`：擦除 → 烧 option bytes → 找镜像 → 下载到  
+   BL2 `0x0C00E000`、S `0x0C038000`、NS `0x0C090000`。  
+   只重烧镜像：`tfm_update.bat images-only`。只擦：`erase_flash.bat`。
 
-说明见 `windows-tfm-tools/本目录工具使用说明.txt`。
+当前目录里的 bin/hex 永远压过 `build_s` / `build_ns` 里的同名文件。J-Link 脚本已删除。
 
 ### SRAM（当前 `stm32h5f4`）
 
