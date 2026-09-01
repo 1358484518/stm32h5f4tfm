@@ -60,6 +60,12 @@ rm -rf trusted-firmware-m/build_s trusted-firmware-m/build_ns
 
 默认 dummy 下，`root-EC-P256.pem` 与 `image_s_signing_private_key.pem`（以及 NS 那一对）内容相同，只是路径不同；换密钥时必须整对一起换。
 
+
+### versions/（S / NS 镜像版本）
+
+编辑仓库根目录 `versions/config`（或 `image_s_version.txt` / `image_ns_version.txt`），`./buildtfm.sh` 会在签名时写入对应版本与 security counter，并同步到各 `sign_kit/config`。说明见 `versions/README.md`。
+
+
 ## 编译与烧录
 
 SPE / BL2 / 官方 NS 测试固件只使用仓库根目录的 `./buildtfm.sh` 编译。烧录用 Linux 的 `./flash_stm32h5f4.sh`，或 Windows 的 `windows-tfm-tools\tfm_update.bat`。  
