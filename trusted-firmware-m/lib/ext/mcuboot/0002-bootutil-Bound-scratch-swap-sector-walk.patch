@@ -1,6 +1,6 @@
-From 69d0be75894191143b62c2a193ba278e5b3fd669 Mon Sep 17 00:00:00 2001
+From bce55c2df316b9ad771fbb2ce2f6998d92b7109b Mon Sep 17 00:00:00 2001
 From: STM32H5F4 port <stm32h5f4@local>
-Date: Mon, 31 Aug 2026 09:22:12 +0000
+Date: Tue, 1 Sep 2026 07:01:57 +0000
 Subject: [PATCH] bootutil: Bound scratch swap sector walk on invalid swap_size
 
 A factory image with magic=good and copy_done=unset is treated as an
@@ -10,12 +10,28 @@ walks past the sector table and BusFaults.
 
 Refuse that status and stop the sector walk at num_sectors.
 ---
- boot/bootutil/src/swap_misc.c    | 44 ++++++++++++++++++++++++++++++++
- boot/bootutil/src/swap_scratch.c | 43 +++++++++++++++++++++++++++++--
- 2 files changed, 85 insertions(+), 2 deletions(-)
+ boot/bootutil/src/image_validate.c |  4 ++-
+ boot/bootutil/src/swap_misc.c      | 46 ++++++++++++++++++++++++++++++
+ boot/bootutil/src/swap_scratch.c   | 43 ++++++++++++++++++++++++++--
+ 3 files changed, 90 insertions(+), 3 deletions(-)
 
+diff --git a/boot/bootutil/src/image_validate.c b/boot/bootutil/src/image_validate.c
+index c6652b7..a42a89c 100644
+--- a/boot/bootutil/src/image_validate.c
++++ b/boot/bootutil/src/image_validate.c
+@@ -296,7 +296,9 @@ bootutil_img_validate(struct boot_loader_state *state,
+ 
+     if (img_sz > bootutil_max_image_size(state, fap)) {
+         rc = -1;
+-        BOOT_LOG_DBG("bootutil_img_validate: TLV beyond image size");
++        BOOT_LOG_ERR("H5F4SWP2 image TLV end=0x%x max=0x%x",
++                     (unsigned)img_sz,
++                     (unsigned)bootutil_max_image_size(state, fap));
+         goto out;
+     }
+ 
 diff --git a/boot/bootutil/src/swap_misc.c b/boot/bootutil/src/swap_misc.c
-index c00f281..b1cada1 100644
+index c00f281..78de600 100644
 --- a/boot/bootutil/src/swap_misc.c
 +++ b/boot/bootutil/src/swap_misc.c
 @@ -31,6 +31,11 @@
@@ -30,7 +46,7 @@ index c00f281..b1cada1 100644
  #if defined(MCUBOOT_SWAP_USING_SCRATCH) || defined(MCUBOOT_SWAP_USING_MOVE) || defined(MCUBOOT_SWAP_USING_OFFSET)
  int
  swap_erase_trailer_sectors(const struct boot_loader_state *state,
-@@ -162,6 +167,11 @@ swap_read_status(struct boot_loader_state *state, struct boot_status *bs)
+@@ -162,6 +167,14 @@ swap_read_status(struct boot_loader_state *state, struct boot_status *bs)
      uint8_t swap_info;
      int rc;
  
@@ -41,14 +57,14 @@ index c00f281..b1cada1 100644
 +    __asm__ volatile ("" :: "r"(mcuboot_h5f4_swap_guard));
 +#endif
 +
++
      bs->source = swap_status_source(state);
      switch (bs->source) {
      case BOOT_STATUS_SOURCE_NONE:
-@@ -200,6 +210,40 @@ swap_read_status(struct boot_loader_state *state, struct boot_status *bs)
+@@ -200,6 +213,39 @@ swap_read_status(struct boot_loader_state *state, struct boot_status *bs)
  
          /* Extract the swap type info */
          bs->swap_type = BOOT_GET_SWAP_TYPE(swap_info);
-+
 +        /*
 +         * magic=good and copy_done=unset makes MCUBoot treat the primary as
 +         * an in-progress swap. A factory image, or a small slot whose payload
@@ -86,7 +102,7 @@ index c00f281..b1cada1 100644
  
  done:
 diff --git a/boot/bootutil/src/swap_scratch.c b/boot/bootutil/src/swap_scratch.c
-index 59b64ad..d02f6bc 100644
+index 59b64ad..31e8bee 100644
 --- a/boot/bootutil/src/swap_scratch.c
 +++ b/boot/bootutil/src/swap_scratch.c
 @@ -598,11 +598,22 @@ find_last_sector_idx(const struct boot_loader_state *state, uint32_t copy_size)

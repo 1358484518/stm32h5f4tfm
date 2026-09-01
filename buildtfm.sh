@@ -120,9 +120,9 @@ LIB_EXT_NS="${TFM_ROOT}/build_ns/lib/ext"
 STAMP="${TFM_ROOT}/build_s/.buildtfm_type"
 # Include signature type so RSA <-> EC-P256 switches force a clean SPE rebuild
 # (CMake caches MCUBOOT_KEY_S/NS paths derived from the old algorithm).
-SIG_TYPE="$(grep -E '^\s*set\(MCUBOOT_SIGNATURE_TYPE' \
+SIG_TYPE="$(sed -n 's/^[[:space:]]*set(MCUBOOT_SIGNATURE_TYPE[[:space:]]*"\([^"]*\)".*/\1/p' \
     "${TFM_ROOT}/platform/ext/target/stm/stm32h5f4/config.cmake" 2>/dev/null \
-    | head -1 | sed -n 's/.*"\([^"]*\)".*/\1/p')"
+    | head -1)"
 SIG_TYPE="${SIG_TYPE:-RSA-3072}"
 STAMP_VAL="${BUILD_TYPE} ${TEST_FLAGS[*]} ${LOG_FLAGS[*]} SIG=${SIG_TYPE}"
 if [[ -f "${STAMP}" ]] && [[ "$(cat "${STAMP}")" != "${STAMP_VAL}" ]]; then
