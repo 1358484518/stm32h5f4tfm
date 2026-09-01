@@ -18,6 +18,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 API_NS="${ROOT}/trusted-firmware-m/build_s/api_ns"
 REGRESSION_SRC="${ROOT}/trusted-firmware-m/platform/ext/target/stm/stm32h573i_dk/regression.sh"
 BL2_BIN="${API_NS}/bin/bl2.bin"
+BL2_HEX="${API_NS}/bin/bl2.hex"
 S_BIN="${API_NS}/bin/tfm_s_signed.bin"
 NS_BIN_DEFAULT="${ROOT}/trusted-firmware-m/build_ns/bin/tfm_ns_signed.bin"
 NS_BIN_FALLBACK="${ROOT}/windows-tfm-tools/tfm_ns_signed.bin"
@@ -25,6 +26,8 @@ NS_BIN_FALLBACK="${ROOT}/windows-tfm-tools/tfm_ns_signed.bin"
 BOOT_ADDR=0xc00e000
 SLOT_S=0xc038000
 SLOT_NS=0xc088000
+# MCUboot image magic little-endian 0x96f3b83d
+MAGIC_BYTES="3db8f396"
 
 die() { echo "错误: $*" >&2; exit 1; }
 
@@ -37,7 +40,7 @@ usage() {
   ./flash_stm32h573.sh regression [SN] # 只写 option bytes（会全片擦除）
   ./flash_stm32h573.sh --help
 
-先编译: ./buildtfm.sh test   （或 prod）
+先编译: ./buildtfm.sh test   （推荐 test：BL2 INFO 日志更全，便于看验签）
 产物: trusted-firmware-m/build_s/api_ns/bin/{bl2,tfm_s_signed}.bin
       trusted-firmware-m/build_ns/bin/tfm_ns_signed.bin
 EOF
@@ -99,7 +102,6 @@ case "${1:-}" in
         exit 0
         ;;
     *)
-        # 兼容: ./flash_stm32h573.sh <SN> 当作一键 + 序列号
         if [[ "${1}" =~ ^[0-9A-Fa-f]+$ ]] && [[ $# -eq 1 ]]; then
             MODE="all"
             SN="$1"
@@ -114,6 +116,7 @@ sn_option=""
 [[ -n "${SN}" ]] && sn_option="sn=${SN}"
 
 CLI="$(find_stm32_cli)" || die "找不到 STM32_Programmer_CLI（请安装 STM32CubeProgrammer 并加入 PATH）"
+# H5 + TZEN 后烧录用 HotPlug + AP=1 更稳；UR 也保留给 hardRst
 CONNECT_UR="-c port=SWD ap=1 ${sn_option} mode=UR"
 CONNECT_HP="-c port=SWD ap=1 ${sn_option} mode=HotPlug"
 
@@ -123,7 +126,6 @@ run_regression() {
         echo "ST-LINK SN=${SN}"
     fi
     if [[ -f "${REGRESSION_SRC}" ]]; then
-        # 平台脚本内部自己找 CLI；保证 PATH 含当前 CLI 目录
         export PATH="$(dirname "${CLI}"):${PATH}"
         bash "${REGRESSION_SRC}" ${SN:+"${SN}"}
     elif [[ -x "${API_NS}/regression.sh" ]]; then
@@ -136,6 +138,24 @@ run_regression() {
     "${CLI}" ${CONNECT_HP} -ob BOOT_UBE=0xB4 || true
 }
 
+readback_magic() {
+    local addr="$1"
+    local label="$2"
+    local tmp
+    tmp="$(mktemp)"
+    echo ">>> 回读 ${label} @ ${addr}（检查 MCUboot magic）"
+    "${CLI}" ${CONNECT_HP} -r "${addr}" 16 "${tmp}" \
+        || die "回读 ${label} 失败（可能没烧上，或 AP/连接不对）"
+    local got
+    got="$(od -An -tx1 -N4 "${tmp}" | tr -d ' \n')"
+    rm -f "${tmp}"
+    echo "    片上前 4 字节: ${got}"
+    if [[ "${got}" != "${MAGIC_BYTES}" ]]; then
+        die "${label} 没有 MCUboot magic（期望 ${MAGIC_BYTES}）。烧录未成功，请检查上方 Download/Verify 是否 OK。"
+    fi
+    echo "    ${label} magic OK"
+}
+
 run_download() {
     local ns_bin
     [[ -f "${BL2_BIN}" ]] || die "缺少 ${BL2_BIN}，请先: ./buildtfm.sh test"
@@ -143,9 +163,13 @@ run_download() {
     ns_bin="$(resolve_ns_bin)" || die "缺少 NS 已签名镜像。请 ./buildtfm.sh test，或设置 TFM_NS_BIN=/path/to/tfm_ns_signed.bin"
 
     echo "=== H573 下载 BL2 + SPE + NS ==="
-    echo "BL2  ${BOOT_ADDR}  <- ${BL2_BIN}"
     echo "S    ${SLOT_S}  <- ${S_BIN}"
     echo "NS   ${SLOT_NS}  <- ${ns_bin}"
+    if [[ -f "${BL2_HEX}" ]]; then
+        echo "BL2  (hex 内含地址) <- ${BL2_HEX}"
+    else
+        echo "BL2  ${BOOT_ADDR}  <- ${BL2_BIN}"
+    fi
     if [[ -n "${SN}" ]]; then
         echo "ST-LINK SN=${SN}"
     fi
@@ -153,17 +177,30 @@ run_download() {
     echo ">>> BOOT_UBE=0xB4"
     "${CLI}" ${CONNECT_HP} -ob BOOT_UBE=0xB4 || true
 
-    echo ">>> Write Secure"
-    "${CLI}" ${CONNECT_UR} -d "${S_BIN}" ${SLOT_S} -v
+    # 先烧应用、后烧 BL2（与 ST TFM_UPDATE / Windows tfm_update 一致）
+    echo ">>> Write Secure（须出现 Download verified successfully）"
+    "${CLI}" ${CONNECT_HP} -d "${S_BIN}" ${SLOT_S} -v
     echo ">>> Write Non-Secure"
-    "${CLI}" ${CONNECT_UR} -d "${ns_bin}" ${SLOT_NS} -v
+    "${CLI}" ${CONNECT_HP} -d "${ns_bin}" ${SLOT_NS} -v
     echo ">>> Write BL2"
-    "${CLI}" ${CONNECT_UR} -d "${BL2_BIN}" ${BOOT_ADDR} -v
+    if [[ -f "${BL2_HEX}" ]]; then
+        "${CLI}" ${CONNECT_HP} -d "${BL2_HEX}" -v
+    else
+        "${CLI}" ${CONNECT_HP} -d "${BL2_BIN}" ${BOOT_ADDR} -v
+    fi
+
+    readback_magic "${SLOT_S}" "Secure primary"
+    readback_magic "${SLOT_NS}" "Non-Secure primary"
 
     echo ">>> hard reset"
     "${CLI}" ${CONNECT_UR} -hardRst || true
     echo "download Done"
-    echo "串口 ST-Link VCP 115200 8N1 看启动/测试日志。"
+    echo
+    echo "若仍报 Image in the primary slot is not valid："
+    echo "  1) 用 ./buildtfm.sh test 重编（INFO 日志），再跑本脚本"
+    echo "  2) 串口应先有: PSA Crypto init done, sig_type: EC-P256"
+    echo "  3) 确认三份镜像都是同一次 buildtfm 产物，不要混 master(RSA) 的包"
+    echo "串口 ST-Link VCP 115200 8N1。"
 }
 
 case "${MODE}" in

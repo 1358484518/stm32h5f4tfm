@@ -222,12 +222,20 @@ cd build_s/api_ns
 chmod +x postbuild.sh regression.sh TFM_UPDATE.sh preprocess.sh 2>/dev/null || true
 ./postbuild.sh "$(command -v arm-none-eabi-gcc)"
 
+# H5 必须 AP=1；ST 导出的 TFM_UPDATE.sh 默认没有，补上以免手动烧录写到错误 AP
+if [[ -f TFM_UPDATE.sh ]] && ! grep -q 'ap=1' TFM_UPDATE.sh; then
+    echo ">>> 修补 TFM_UPDATE.sh：SWD 连接加 ap=1"
+    sed -i 's/-c port=SWD /-c port=SWD ap=1 /g' TFM_UPDATE.sh
+fi
+
 echo ""
 grep -E '^boot=|^slot0=|^slot1=' TFM_UPDATE.sh || true
 echo ""
 echo "=== 编译完成（${BUILD_LABEL}，硬件浮点 ON）==="
-echo "烧录: cd ${TFM_ROOT}/build_s/api_ns && ./regression.sh"
-echo "      STM32_Programmer_CLI -c port=SWD mode=HotPlug -ob BOOT_UBE=0xB4"
+echo "推荐一键烧录（回归+BL2/S/NS）: ${WORK_ROOT}/flash_stm32h573.sh"
+echo "或手动: cd ${TFM_ROOT}/build_s/api_ns && ./regression.sh"
+echo "      STM32_Programmer_CLI -c port=SWD ap=1 mode=HotPlug -ob BOOT_UBE=0xB4"
 echo "      ./TFM_UPDATE.sh"
 echo "NS 测试程序: ${TFM_ROOT}/build_ns/bin/tfm_ns_signed.bin  地址 0x0C088000"
 echo "烧录后会上电自动跑回归测试（串口 115200 看 PASSED/FAILED）。"
+echo "排查 primary slot invalid 时请用: ./buildtfm.sh test （BL2 INFO 日志含 sig_type）。"
