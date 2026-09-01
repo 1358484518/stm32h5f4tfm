@@ -112,19 +112,19 @@ sign.bat sapp.bin
 
 详细用法：`tfmmakeproject/sign_kit/README.md`、`tfmcubeideproject/STM32CubeIDE/sign_kit/README.md`。
 
-### 烧录
+### 一键回归烧录（Linux）
 
-板子接好 ST-Link 后，仍在仓库根目录：
-
-```bash
-./flash_stm32h5f4.sh
-```
-
-片上若还有旧 BL2 的 HDP（盖住 `0x0C00E000`），脚本会整片擦除再烧。需要强制擦除：
+板子接好 ST-Link 后，仍在仓库根目录。默认一键：**解锁 / 必要时整片擦除 + 烧 BL2/S/NS**。
 
 ```bash
-./flash_stm32h5f4.sh erase
+./buildtfm.sh test
+./flash_stm32h5f4.sh              # 一键：回归准备 + 烧录
+# ./flash_stm32h5f4.sh erase      # 强制 regression 整片擦除后再烧
+# ./flash_stm32h5f4.sh download   # 只烧，不擦片
+# ./flash_stm32h5f4.sh regression-only  # 只回归
 ```
+
+片上若还有旧 BL2 的 HDP（盖住 `0x0C00E000`），默认模式会整片擦除再烧。需要强制擦除用 `erase`。
 
 烧完复位，串口第一行必须有 **`H5F4BL2`**（测试版常见 `[INF] H5F4BL2`）。  
 如果仍是 `Starting bootloader` 且没有 `H5F4BL2`，说明 BL2 没写进去，不要继续用旧工程脚本补烧。
@@ -211,6 +211,8 @@ NS 大缓冲可放到 `.ram2` / `.bss.ram2`，或使用 `__ns_ram2_start__` / `_
 - 增加 tfmcubeideproject 非安全侧 CubeIDE 工程（已改为 STM32H5F4）。打开 `tfmcubeideproject/STM32CubeIDE` 下的 `tfmminiproject`。已带 mbedtls 4.1.1（TLS/X.509 辅助，PSA crypto 仍走 SPE）。`s_veneers.o` 与 `signing_layout_*.o` 已纳入仓库。签完的 NS 镜像用 `windows-tfm-tools` 或 `./flash_stm32h5f4.sh` 烧。工程里已删除 `TFM_UPDATE.sh` / `regression.sh`。
 
 - 增加 windows-tfm-tools：Windows 上给 STM32H5F4 用的 ST-Link 烧录脚本（`tfm_update.bat`）。把 bin/hex 或 `build_s`/`build_ns` 放到该目录。不要用旧 H573 hex。
+
+- Linux 一键回归烧录脚本 `flash_stm32h5f4.sh` 支持 `all` / `erase` / `download` / `regression-only`（对应 Windows `tfm_update.bat`）。
 
 ## 文件统计
 
