@@ -144,6 +144,16 @@ rm -rf trusted-firmware-m/build_s trusted-firmware-m/build_ns
 
 **可选：不用 `keys/` 时**，仍可手动覆盖 `trusted-firmware-m/bl2/ext/mcuboot/root-EC-P256*.pem` 与各 `sign_kit` / `image_signing/keys` 下同名文件，或传 `MCUBOOT_KEY_S` / `MCUBOOT_KEY_NS`。
 
+### 清编译（不重新下载依赖）
+
+不要手动 `rm -rf trusted-firmware-m/build_s`（会丢掉 FetchContent 源码）。`./buildtfm.sh` 默认先跑 `scripts/clean_tfm_build.sh`：只删编译产物，依赖留在 `trusted-firmware-m/.deps-cache/`。也可：
+
+```bash
+./scripts/clean_tfm_build.sh
+./buildtfm.sh test
+./buildtfm.sh test --no-clean   # 增量
+```
+
 ### 一键回归烧录（Linux）
 
 仓库根目录 `./flash_stm32h573.sh`：先写 option bytes（含全片擦除），再烧 **BL2 + S + NS**。需已安装 `STM32_Programmer_CLI`，板子用 ST-Link。
