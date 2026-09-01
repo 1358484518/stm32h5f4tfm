@@ -115,6 +115,8 @@ MCUBOOT_S_IMAGE_MIN_VER=0.0.0+0
 
 `bl2.hex` 会一并烧写 flash 仿真 OTP（约 `0x0C028000`）。其中的 `bl2_rotpk_0/1` 必须是当前 S/NS 公钥的 SHA-256；若为全 0 或仍是 RSA 哈希，串口会出现 `magic=good` 后紧跟 `Image in the primary slot is not valid`。从 RSA 切到本分支后请先跑回归（全片擦除）再烧新的 `bl2.hex`。
 
+换密钥后跑 `./buildtfm.sh` 会自动根据 `root-EC-P256*.pem`（或 `MCUBOOT_KEY_S`/`MCUBOOT_KEY_NS`）重写 `otp_rotpk_hashes.inc` 与 `bl2/src/provisioning.c` 里的 dummy ROTPK；**不必手改 OTP 表**。仍需重编并重烧 BL2+S+NS。
+
 **1. 生成新密钥对（S / NS 各一把）**
 
 
