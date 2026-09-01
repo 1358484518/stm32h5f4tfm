@@ -7,7 +7,7 @@
 ## 编译与烧录
 
 SPE / BL2 / 官方 NS 测试固件只使用仓库根目录的 `./buildtfm.sh` 编译。烧录用 Linux 的 `./flash_stm32h5f4.sh`，或 Windows 的 `windows-tfm-tools\tfm_update.bat`。  
-`tfmcubeideproject/` 是 STM32H5F4 非安全侧 CubeIDE 工程。`tfmmakeproject/` 是同一套 SPE 上的 makefile NS 工程（`make` 生成 `out/tfm_ns_signed.bin`）。签完的镜像用上述脚本烧。这两个 NS 工程里已去掉 ST 的 `TFM_UPDATE.sh` / `regression.sh`。
+`tfmcubeideproject/` 是 STM32H5F4 非安全侧 CubeIDE 工程。`tfmmakeproject/` 是同一套 SPE 上的 makefile NS 工程（`make` 生成 `out/tfm_ns_signed.bin`）。签完的镜像用上述脚本烧。这两个 NS 工程里已去掉 ST 的 `TFM_UPDATE.sh` / `regression.sh`。根目录旧的 `ns_make_project.zip`（H573 `libs/api_ns` 打包）已删除，请用 `tfmmakeproject/`。
 
 ### 依赖
 
@@ -169,6 +169,8 @@ NS 大缓冲可放到 `.ram2` / `.bss.ram2`，或使用 `__ns_ram2_start__` / `_
 - 根目录旧的 `tfm-h573-flash签名固件下载固件快捷脚本.zip`（H573 地址：NS `0x0C088000` / 576 KB）已从 `stm32h5f4` 删除。Windows 烧录用 `windows-tfm-tools`，签名用上面的 `sign_kit`。
 
 - 增加 makefile 编译的非安全侧工程 tfmmakeproject（已改为 STM32H5F4）。在 `tfmmakeproject/` 下执行 `make`（内部调用 `sign_kit/sign.sh`）。MCU 宏 `STM32H5F4xx`，`BL2_TRAILER_SIZE=0x3000`。签完的 `out/tfm_ns_signed.bin` 用 `windows-tfm-tools` 或 `./flash_stm32h5f4.sh` 烧。工程里已删除 `TFM_UPDATE.sh` / `regression.sh`。
+
+- 根目录旧的 `ns_make_project.zip`（H573 时期打包的 `libs/api_ns` makefile NS 工程）已从 `stm32h5f4` 删除。请用树内 `tfmmakeproject/`，不要解压这份 zip。
 
 - 增加 tfmcubeideproject 非安全侧 CubeIDE 工程（已改为 STM32H5F4）。打开 `tfmcubeideproject/STM32CubeIDE` 下的 `tfmminiproject`。已带 mbedtls 4.1.1（TLS/X.509 辅助，PSA crypto 仍走 SPE）。`s_veneers.o` 与 `signing_layout_*.o` 已纳入仓库。签完的 NS 镜像用 `windows-tfm-tools` 或 `./flash_stm32h5f4.sh` 烧。工程里已删除 `TFM_UPDATE.sh` / `regression.sh`。
 
