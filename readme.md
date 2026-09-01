@@ -3,6 +3,11 @@
 基于 STM32H573 的 TF-M（Trusted Firmware-M）移植与开发项目。
 
 
+
+### versions/（S / NS 镜像版本）
+
+编辑仓库根目录 `versions/config`（或拆分 txt），`./buildtfm.sh` 会在签名时写入对应版本与 security counter，并同步到各 `sign_kit/config`。说明见 `versions/README.md`。
+
 ### keys/ 与清编译（不重新下载依赖）
 
 - 把两对固定文件名公私钥放入仓库根目录 `keys/`，`./buildtfm.sh` 会自动覆盖各工程同名密钥并同步 OTP ROTPK。见 `keys/README.md`。

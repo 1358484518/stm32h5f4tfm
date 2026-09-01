@@ -1,0 +1,18 @@
+# MCUboot 镜像版本（S / NS）
+# 由 ./buildtfm.sh 在编译/签名前读取；也会同步到各 sign_kit/config。
+# 格式: major.minor.revision[+build]   例如 2.3.0  或  1.0.0+3
+#
+# 留空某行或不写本文件 → 该项用仓库默认值。
+# 也可用拆分文件覆盖同名字段：
+#   versions/image_s_version.txt
+#   versions/image_ns_version.txt
+#   versions/image_s_security_counter.txt
+#   versions/image_ns_security_counter.txt
+
+MCUBOOT_IMAGE_VERSION_S=2.3.0
+MCUBOOT_SECURITY_COUNTER_S=1
+MCUBOOT_NS_IMAGE_MIN_VER=0.0.0+0
+
+MCUBOOT_IMAGE_VERSION_NS=0.0.0
+MCUBOOT_SECURITY_COUNTER_NS=1
+MCUBOOT_S_IMAGE_MIN_VER=0.0.0+0
