@@ -179,6 +179,12 @@ git checkout stm32h573p256
 
 Windows 一键：`windows-tfm-tools\tfm_update.bat`（会调 `regression.bat`）。无装包还可解压根目录 `tfm-h573-flash…zip` 里的 `flash_all.sh`。
 
+
+### versions/（S / NS 镜像版本）
+
+编辑仓库根目录 `versions/config`（或拆分 txt），`./buildtfm.sh` 会在签名时写入对应版本与 security counter，并同步到各 `sign_kit/config`。说明见 `versions/README.md`。
+
+
 ## 文档
 
 
