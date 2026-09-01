@@ -57,4 +57,6 @@ py -3 -m pip install -r requirements.txt
 | `*_s_signed.bin` | `0x0C038000` | 320 KB |
 | `*_ns_signed.bin` | `0x0C088000` | 576 KB |
 
-本目录的密钥是 TF-M 开发用 dummy RSA-3072，和当前 SPE/BL2 配套。量产请替换 `keys/` 并同步更新板上 ROTPK。
+本目录的密钥是 TF-M 开发用 dummy **EC-P256**（本分支 `stm32h573p256`），和当前 SPE/BL2 配套。`master` 仍是 RSA-3072。
+
+`root-EC-P256.pem`（TF-M/BL2）与 `image_s_signing_private_key.pem`（本目录）是**同一把 S 私钥**；`root-EC-P256_1.pem` 与 `image_ns_signing_private_key.pem` 是同一把 NS 私钥。量产请成对替换并同步更新板上 ROTPK。

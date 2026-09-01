@@ -2,7 +2,51 @@
 
 基于 STM32H573 的 TF-M（Trusted Firmware-M）移植与开发项目。
 
+平台名：`stm/stm32h573i_dk`。
+
+| 分支 | 签名算法 | 说明 |
+|------|----------|------|
+| `master` | **RSA-3072** | 默认主线 |
+| `stm32h573p256` | **EC-P256** | 仅改 MCUboot 镜像签名算法与配套密钥 |
+
+本文档所在分支为 **`stm32h573p256`**。
+
+### 相对 `master` 改了什么
+
+本支线相对 `master` **只围绕签名换成 EC-P256**，Flash 布局 / 槽位等不变。主要包括：
+
+1. **TF-M BL2**：`stm32h573i_dk/config.cmake` 设 `MCUBOOT_SIGNATURE_TYPE=EC-P256`（公钥编进 BL2）
+2. **TF-M SPE 签名**：默认密钥改为 `root-EC-P256.pem` / `root-EC-P256_1.pem`；`buildtfm.sh` 带 `SIG=` stamp 并 `-UMCUBOOT_KEY_S/NS`
+3. **tf-m-tests**：NS 测试镜像随 SPE 导出的 `api_ns` 密钥签名（无需单独改测试仓密钥）
+4. **makefile 工程**：`tfmmakeproject/api_ns/image_signing/keys/`（及 `sign_kit/keys/`）
+5. **CubeIDE 工程**：`sign_kit/keys/` 与 `spe/api_ns/image_signing/keys/`（含 `mbedtls-411` 平行树）
+6. **独立签名工具**：根目录 `sign_kit.zip`、`tfm-h573-flash…zip`、`ns_make_project.zip` 内密钥
+
+### 密钥文件名对应（同内容、不同路径）
+
+| TF-M / BL2 | `sign_kit` / `api_ns` | 用途 |
+|------------|----------------------|------|
+| `bl2/ext/mcuboot/root-EC-P256.pem` | `image_s_signing_private_key.pem` | Secure（S） |
+| `bl2/ext/mcuboot/root-EC-P256_1.pem` | `image_ns_signing_private_key.pem` | Non-Secure（NS） |
+
+切换算法或更换密钥后必须 **整片重烧 BL2 + S + NS**。
+
+### 更换密钥（量产 / 自用）
+
+算法须仍为 **EC-P256**。只换 `sign_kit/keys`、不重编不重烧 BL2，板上验签会失败。
+
+```bash
+imgtool keygen -k root-EC-P256-s.pem  -t ecdsa-p256
+imgtool keygen -k root-EC-P256-ns.pem -t ecdsa-p256
+# 覆盖 bl2/ext/mcuboot/root-EC-P256.pem 与 root-EC-P256_1.pem
+# 同步拷到各 image_*_signing_private_key.pem
+rm -rf trusted-firmware-m/build_s
+./buildtfm.sh test
+# 整片重烧
+```
+
 ## 文档
+
 
 - [TF-M 编译笔记](./tfmwork/tfm编译笔记.txt) — 编译环境搭建、编译命令与踩坑记录
 - 注意：如果编译不通过可以删除 .venv 重新创建py环境。

@@ -18,6 +18,10 @@ set(MCUBOOT_DATA_SHARING                   ON          CACHE BOOL      "Enable D
 set(MCUBOOT_BOOTSTRAP                      ON          CACHE BOOL      "Allow initial state with images in secondary slots(empty primary slots)")
 set(MCUBOOT_ENC_IMAGES                     OFF          CACHE BOOL      "Enable encrypted image upgrade support")
 set(MCUBOOT_ENCRYPT_RSA                    OFF          CACHE BOOL      "Use RSA for encrypted image upgrade support")
+# This branch (stm32h573p256): MCUboot image signatures are ECDSA P-256
+# (not the TF-M default RSA-3072). Changing this requires a clean rebuild
+# of BL2/SPE and matching sign_kit / api_ns keys (see readme.md).
+set(MCUBOOT_SIGNATURE_TYPE                 "EC-P256"    CACHE STRING    "Algorithm to use for signature validation [RSA-2048, RSA-3072, EC-P256, EC-P384]")
 ################################## Dependencies ########################################
 set(TFM_PARTITION_INTERNAL_TRUSTED_STORAGE ON          CACHE BOOL      "Enable Internal Trusted Storage partition")
 set(TFM_PARTITION_CRYPTO                   ON          CACHE BOOL      "Enable Crypto partition")

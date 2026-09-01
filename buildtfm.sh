@@ -118,11 +118,18 @@ LIB_EXT_NS="${TFM_ROOT}/build_ns/lib/ext"
 
 # 测试版 <-> 正式版或 TEST_* 变化时清掉 SPE 缓存（须在离线检查之前）
 STAMP="${TFM_ROOT}/build_s/.buildtfm_type"
-STAMP_VAL="${BUILD_TYPE} ${TEST_FLAGS[*]} ${LOG_FLAGS[*]}"
+# Include signature type so RSA <-> EC-P256 switches force a clean SPE rebuild
+# (CMake caches MCUBOOT_KEY_S/NS paths derived from the old algorithm).
+SIG_TYPE="$(sed -n 's/^[[:space:]]*set(MCUBOOT_SIGNATURE_TYPE[[:space:]]*"\([^"]*\)".*/\1/p' \
+    "${TFM_ROOT}/platform/ext/target/stm/stm32h573i_dk/config.cmake" 2>/dev/null \
+    | head -1)"
+SIG_TYPE="${SIG_TYPE:-RSA-3072}"
+STAMP_VAL="${BUILD_TYPE} ${TEST_FLAGS[*]} ${LOG_FLAGS[*]} SIG=${SIG_TYPE}"
 if [[ -f "${STAMP}" ]] && [[ "$(cat "${STAMP}")" != "${STAMP_VAL}" ]]; then
     echo ">>> 构建配置已切换，清理 build_s"
     rm -rf "${TFM_ROOT}/build_s"
 fi
+echo ">>> MCUBOOT_SIGNATURE_TYPE: ${SIG_TYPE}"
 
 # Python：用 python -m pip，避免拷贝来的 venv shebang 失效
 VENV_DIR="${WORK_ROOT}/.venv"
@@ -172,10 +179,20 @@ cmake -S "${TFM_TESTS}/tests_reg/spe" -B build_s -GNinja \
     -DTFM_TOOLCHAIN_FILE="${TFM_ROOT}/toolchain_GNUARM.cmake" \
     -DTFM_PSA_API=ON \
     -DTFM_ISOLATION_LEVEL=1 \
+    -DMCUBOOT_SIGNATURE_TYPE="${SIG_TYPE}" \
     "${TEST_FLAGS[@]}" \
     "${FP_FLAGS[@]}" \
     "${LOG_FLAGS[@]}" \
     "${FETCH_OFF[@]}"
+
+# Drop cached key paths when switching RSA <-> EC so defaults rematerialize
+# (root-EC-P256.pem / root-EC-P256_1.pem).
+if [[ -f "${TFM_ROOT}/build_s/build-spe/CMakeCache.txt" ]]; then
+    echo ">>> 内层 TF-M: SIG=${SIG_TYPE} (clear MCUBOOT_KEY_S/NS cache)"
+    cmake -UMCUBOOT_KEY_S -UMCUBOOT_KEY_NS \
+        -DMCUBOOT_SIGNATURE_TYPE="${SIG_TYPE}" \
+        "${TFM_ROOT}/build_s/build-spe"
+fi
 
 ninja -C build_s install -j"$(nproc)"
 mkdir -p "$(dirname "${STAMP}")"
