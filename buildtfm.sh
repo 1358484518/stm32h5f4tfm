@@ -213,12 +213,15 @@ source "${VENV_DIR}/bin/activate"
 export PATH="${VENV_DIR}/bin:${PATH}"
 PYTHON="${VENV_DIR}/bin/python"
 "${PYTHON}" -m pip install -q --upgrade pip setuptools wheel || true
-"${PYTHON}" -c "import cryptography" 2>/dev/null || \
-    "${PYTHON}" -m pip install -q cryptography
-if ! command -v hex_generation >/dev/null 2>&1; then
-    "${PYTHON}" -m pip install -q -e "${TFM_ROOT}"
-fi
-command -v hex_generation >/dev/null || { echo "错误: hex_generation 未安装"; exit 1; }
+# Always install TF-M Python deps into *this* venv. Do not use `command -v hex_generation`
+# (may hit another venv on PATH and skip jinja2/pyyaml/…).
+"${PYTHON}" -m pip install -q -e "${TFM_ROOT}"
+"${PYTHON}" -c "import cryptography, jinja2, yaml" 2>/dev/null || {
+    echo "错误: TF-M Python 依赖未装好（需要 cryptography/jinja2/pyyaml 等）"
+    exit 1
+}
+"${PYTHON}" -c "import shutil,sys; sys.exit(0 if shutil.which('hex_generation') else 1)" \
+    || { echo "错误: hex_generation 未安装"; exit 1; }
 
 sync_user_signing_keys
 sync_stm_otp_rotpk
