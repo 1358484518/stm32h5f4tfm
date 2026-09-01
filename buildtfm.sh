@@ -226,6 +226,27 @@ PYTHON="${VENV_DIR}/bin/python"
 sync_user_signing_keys
 sync_stm_otp_rotpk
 
+
+# 若 versions/ 填了 S/NS 版本，同步到 sign_kit 并为 SPE/NS cmake 准备 -D 参数
+VERSION_CMAKE_ARGS=()
+sync_user_versions() {
+    local sync_sh="${WORK_ROOT}/scripts/sync_user_versions.sh"
+    local envf
+    envf="$(mktemp)"
+    if [[ ! -f "${sync_sh}" ]]; then
+        echo "警告: 缺少 ${sync_sh}，跳过 versions/ 用户版本同步"
+        rm -f "${envf}"
+        return 0
+    fi
+    bash "${sync_sh}" "${WORK_ROOT}" "${envf}" || true
+    if [[ -f "${envf}" ]] && grep -q 'VERSION_CMAKE_ARGS=' "${envf}"; then
+        # shellcheck disable=SC1090
+        source "${envf}"
+    fi
+    rm -f "${envf}"
+}
+sync_user_versions
+
 # 清编译产物 / 还原本地依赖（避免每次 rm -rf build_s 后重新下载）
 if [[ -f "${CLEAN_SH}" ]]; then
     if [[ "${DO_CLEAN}" -eq 1 ]]; then
@@ -271,6 +292,7 @@ cmake -S "${TFM_TESTS}/tests_reg/spe" -B build_s -GNinja \
     -DTFM_PSA_API=ON \
     -DTFM_ISOLATION_LEVEL=1 \
     -DMCUBOOT_SIGNATURE_TYPE="${SIG_TYPE}" \
+    "${VERSION_CMAKE_ARGS[@]}" \
     "${TEST_FLAGS[@]}" \
     "${FP_FLAGS[@]}" \
     "${LOG_FLAGS[@]}" \
@@ -282,6 +304,7 @@ if [[ -f "${TFM_ROOT}/build_s/build-spe/CMakeCache.txt" ]]; then
     echo ">>> 内层 TF-M: SIG=${SIG_TYPE} (clear MCUBOOT_KEY_S/NS cache)"
     cmake -UMCUBOOT_KEY_S -UMCUBOOT_KEY_NS \
         -DMCUBOOT_SIGNATURE_TYPE="${SIG_TYPE}" \
+        "${VERSION_CMAKE_ARGS[@]}" \
         "${TFM_ROOT}/build_s/build-spe"
 fi
 
@@ -322,6 +345,7 @@ done
 cmake -S "${TFM_TESTS}/tests_reg" -B build_ns -GNinja \
     -DCONFIG_SPE_PATH="${TFM_ROOT}/build_s/api_ns" \
     -DTFM_TOOLCHAIN_FILE="${TFM_ROOT}/build_s/api_ns/cmake/toolchain_ns_GNUARM.cmake" \
+    "${VERSION_CMAKE_ARGS[@]}" \
     "${FP_FLAGS[@]}" \
     "${FETCH_OFF[@]}"
 
