@@ -121,28 +121,93 @@ static void test_its(void)
     check("psa_its_remove", status);
 }
 
-static void test_fwu_query(void)
+/* Names match PSA_FWU_* in psa/update.h (same values the NS FWU tests use). */
+static const char *fwu_state_str(uint8_t state)
+{
+    switch (state) {
+    case PSA_FWU_READY:
+        return "READY";
+    case PSA_FWU_WRITING:
+        return "WRITING";
+    case PSA_FWU_CANDIDATE:
+        return "CANDIDATE";
+    case PSA_FWU_STAGED:
+        return "STAGED";
+    case PSA_FWU_FAILED:
+        return "FAILED";
+    case PSA_FWU_TRIAL:
+        return "TRIAL";
+    case PSA_FWU_REJECTED:
+        return "REJECTED";
+    case PSA_FWU_UPDATED:
+        return "UPDATED";
+    default:
+        return "?";
+    }
+}
+
+/*
+ * Query one FWU component and print active image version plus candidate digest.
+ *
+ * Same psa_fwu_query() the tf-m-tests NS suite uses
+ * (tests_reg/.../fwu/mcuboot/fwu_tests_common.c): SPE fills
+ * info.version from the MCUBoot image header (major.minor.patch+build).
+ * impl.candidate_digest is the SHA-256 of the secondary slot when state
+ * is CANDIDATE; otherwise SPE leaves it unset.
+ */
+static void print_fwu_version_and_digest(const char *tag,
+                                         const char *check_name,
+                                         psa_fwu_component_t id)
 {
     psa_fwu_component_info_t info;
     psa_status_t status;
-
-    LOG_MSG("PSA FWU query\r\n");
-
-    memset(&info, 0, sizeof(info));
-    status = psa_fwu_query(FWU_COMPONENT_ID_SECURE, &info);
-    check("psa_fwu_query(S)", status);
-    if (status == PSA_SUCCESS) {
-        LOG_MSG("  S  state=%u max_size=%u\r\n",
-                (unsigned)info.state, (unsigned)info.max_size);
-    }
+    size_t i;
+    int digest_set;
 
     memset(&info, 0, sizeof(info));
-    status = psa_fwu_query(FWU_COMPONENT_ID_NONSECURE, &info);
-    check("psa_fwu_query(NS)", status);
-    if (status == PSA_SUCCESS) {
-        LOG_MSG("  NS state=%u max_size=%u\r\n",
-                (unsigned)info.state, (unsigned)info.max_size);
+    status = psa_fwu_query(id, &info);
+    check(check_name, status);
+    if (status != PSA_SUCCESS) {
+        return;
     }
+
+    LOG_MSG("  %s state=%u (%s) error=%d max_size=%u\r\n",
+            tag,
+            (unsigned)info.state,
+            fwu_state_str(info.state),
+            (int)info.error,
+            (unsigned)info.max_size);
+    LOG_MSG("  %s version=%u.%u.%u+%u\r\n",
+            tag,
+            (unsigned)info.version.major,
+            (unsigned)info.version.minor,
+            (unsigned)info.version.patch,
+            (unsigned)info.version.build);
+
+    digest_set = 0;
+    for (i = 0; i < sizeof(info.impl.candidate_digest); i++) {
+        if (info.impl.candidate_digest[i] != 0u) {
+            digest_set = 1;
+            break;
+        }
+    }
+
+    LOG_MSG("  %s candidate_digest=", tag);
+    if ((info.state == PSA_FWU_CANDIDATE) || digest_set) {
+        log_hex(info.impl.candidate_digest, sizeof(info.impl.candidate_digest));
+        LOG_MSG("\r\n");
+    } else {
+        LOG_MSG("(none)\r\n");
+    }
+}
+
+static void test_fwu_query(void)
+{
+    LOG_MSG("PSA FWU query (image version + candidate digest)\r\n");
+    print_fwu_version_and_digest("S", "psa_fwu_query(S)",
+                                 FWU_COMPONENT_ID_SECURE);
+    print_fwu_version_and_digest("NS", "psa_fwu_query(NS)",
+                                 FWU_COMPONENT_ID_NONSECURE);
 }
 
 int main(void)
