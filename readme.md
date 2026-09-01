@@ -111,60 +111,38 @@ MCUBOOT_S_IMAGE_MIN_VER=0.0.0+0
 
 ### 更换密钥（量产 / 自用）
 
-算法必须仍是 **EC-P256**。只换 `sign_kit/keys`、不重编不重烧 BL2，板上验签会失败（ROTPK 在 BL2/`bl2.hex` 的 OTP 区里）。
+算法必须仍是 **EC-P256**。
 
-`bl2.hex` 会一并烧写 flash 仿真 OTP（约 `0x0C028000`）。其中的 `bl2_rotpk_0/1` 必须是当前 S/NS 公钥的 SHA-256；若为全 0 或仍是 RSA 哈希，串口会出现 `magic=good` 后紧跟 `Image in the primary slot is not valid`。从 RSA 切到本分支后请先跑回归（全片擦除）再烧新的 `bl2.hex`。
+**推荐：只往仓库根目录 `keys/` 放四份固定文件名，编译时自动覆盖全库。**
 
-换密钥后跑 `./buildtfm.sh` 会自动根据 `root-EC-P256*.pem`（或 `MCUBOOT_KEY_S`/`MCUBOOT_KEY_NS`）重写 `otp_rotpk_hashes.inc` 与 `bl2/src/provisioning.c` 里的 dummy ROTPK；**不必手改 OTP 表**。仍需重编并重烧 BL2+S+NS。
-
-**1. 生成新密钥对（S / NS 各一把）**
-
-
-```bash
-# 可用 sign_kit 自己的 .venv，或仓库根目录 .venv（需已装 imgtool）
-imgtool keygen -k root-EC-P256-s.pem  -t ecdsa-p256
-imgtool keygen -k root-EC-P256-ns.pem -t ecdsa-p256
-```
-
-**2. 编进 BL2（公钥进芯片）**
-
-覆盖 TF-M 默认路径（或 cmake 传 `-DMCUBOOT_KEY_S=... -DMCUBOOT_KEY_NS=...`）：
-
-- S：`trusted-firmware-m/bl2/ext/mcuboot/root-EC-P256.pem`（内容 = `image_s_signing_private_key.pem`）
-- NS：`trusted-firmware-m/bl2/ext/mcuboot/root-EC-P256_1.pem`（内容 = `image_ns_signing_private_key.pem`）
-
-然后清 SPE 再编：
+| 固定文件名 | 含义 |
+|------------|------|
+| `keys/image_s_signing_private_key.pem` | Secure 私钥 |
+| `keys/image_s_signing_public_key.pem` | Secure 公钥 |
+| `keys/image_ns_signing_private_key.pem` | Non-Secure 私钥 |
+| `keys/image_ns_signing_public_key.pem` | Non-Secure 公钥 |
 
 ```bash
-git checkout stm32h573p256
-rm -rf trusted-firmware-m/build_s
-./buildtfm.sh test    # 或 prod
+imgtool keygen -k keys/image_s_signing_private_key.pem  -t ecdsa-p256
+imgtool keygen -k keys/image_ns_signing_private_key.pem -t ecdsa-p256
+imgtool getpub -k keys/image_s_signing_private_key.pem  > keys/image_s_signing_public_key.pem
+imgtool getpub -k keys/image_ns_signing_private_key.pem > keys/image_ns_signing_public_key.pem
+
+rm -rf trusted-firmware-m/build_s trusted-firmware-m/build_ns
+./buildtfm.sh test
 ```
 
-**3. 同步给各签名工具**
+`./buildtfm.sh` 会：
 
-把**与上表同一对**私钥拷到实际在用的目录（文件名用右边这一套）：
+1. 用 `keys/` 覆盖各工程里所有同名 `image_*_signing_*.pem`，以及 BL2 的 `root-EC-P256.pem` / `root-EC-P256_1.pem`
+2. 按新私钥自动同步 OTP ROTPK（`otp_rotpk_hashes.inc` 等）
+3. 某目标**目录不存在**只告警，**不中断编译**；`keys/` 为空则继续用仓库默认 dummy 密钥
 
-| 文件 | 用途 |
-|------|------|
-| `image_s_signing_private_key.pem` | 签 Secure |
-| `image_ns_signing_private_key.pem` | 签 Non-Secure |
+`keys/*.pem` 已 gitignore，勿把量产私钥提交进仓库。说明见 `keys/README.md`。
 
-常见位置：
+换密钥后仍须 **回归擦片并重烧 BL2 + S + NS**（BL2/`bl2.hex` 带 OTP 公钥哈希）。只换 `sign_kit`、不重编不重烧 BL2，板上会出现 `magic=good` 后 `Image in the primary slot is not valid`。
 
-- `tfmmakeproject/api_ns/image_signing/keys/`（及若存在的 `tfmmakeproject/sign_kit/keys/`）
-- `tfmcubeideproject/STM32CubeIDE/sign_kit/keys/`
-- `tfmcubeideproject/STM32CubeIDE/spe/api_ns/image_signing/keys/`
-- `trusted-firmware-m-mbedtls-411-ns-tls/tfmcubeideproject/...` 平行树中的同名路径
-- 根目录 `sign_kit.zip` / `tfm-h573-flash…zip` / `ns_make_project.zip` / 重建后的 `tfmcubeideproject.7z`
-
-公钥可从 `trusted-firmware-m/build_s/api_ns/image_signing/keys/`（或 `bin/`）再拷一份对齐。
-
-**4. 整片重烧**
-
-用新密钥签过的镜像，重烧 **BL2 + S + NS**。只烧 NS 不够。
-
-仓库默认仍是 TF-M **开发用 dummy** 密钥；量产请用自己的密钥并妥善保管私钥。
+**可选：不用 `keys/` 时**，仍可手动覆盖 `trusted-firmware-m/bl2/ext/mcuboot/root-EC-P256*.pem` 与各 `sign_kit` / `image_signing/keys` 下同名文件，或传 `MCUBOOT_KEY_S` / `MCUBOOT_KEY_NS`。
 
 ### 一键回归烧录（Linux）
 

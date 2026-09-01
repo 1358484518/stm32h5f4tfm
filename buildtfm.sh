@@ -131,6 +131,17 @@ if [[ -f "${STAMP}" ]] && [[ "$(cat "${STAMP}")" != "${STAMP_VAL}" ]]; then
 fi
 echo ">>> MCUBOOT_SIGNATURE_TYPE: ${SIG_TYPE}"
 
+# 若仓库根目录 keys/ 放了固定文件名的公私钥，则覆盖各工程同名文件 + BL2 root-EC/RSA*.pem。
+# 缺失源文件或目标目录不存在只告警，不中断编译。
+sync_user_signing_keys() {
+    local sync_sh="${WORK_ROOT}/scripts/sync_user_signing_keys.sh"
+    if [[ ! -f "${sync_sh}" ]]; then
+        echo "警告: 缺少 ${sync_sh}，跳过 keys/ 用户密钥同步"
+        return 0
+    fi
+    bash "${sync_sh}" "${WORK_ROOT}" "${SIG_TYPE}" || true
+}
+
 # 根据当前签名私钥同步 STM OTP 表里的 bl2_rotpk_*（及 provisioning.c dummy 哈希）。
 # 换 root-EC-P256*.pem / root-RSA-*.pem 后，下次 ./buildtfm.sh 会自动改 OTP，无需手改。
 sync_stm_otp_rotpk() {
@@ -193,6 +204,7 @@ if ! command -v hex_generation >/dev/null 2>&1; then
 fi
 command -v hex_generation >/dev/null || { echo "错误: hex_generation 未安装"; exit 1; }
 
+sync_user_signing_keys
 sync_stm_otp_rotpk
 
 # 有 lib/ext 就离线，没有就自动在线下载
