@@ -60,6 +60,8 @@ git pull origin stm32h5f4
 
 开发镜像用 dummy RSA-3072 密钥，启动日志里的 `NOT SECURE` 是预期现象。
 
+`./flash_stm32h5f4.sh` 只写当前运行槽（BL2 / S primary / NS primary）。**升级下载**请写 MCUBoot secondary：S `0x0C200000`（`slot2`）、NS `0x0C258000`（`slot3`）。不要用 H573 的 `0x0C118000` / `0x0C168000`。完整表见下面 Windows 一节。
+
 ### Windows 烧录
 
 `windows-tfm-tools` 只保留 ST-Link 脚本。详细步骤见 `windows-tfm-tools/本目录工具使用说明.txt`。
