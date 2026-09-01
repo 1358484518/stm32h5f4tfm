@@ -2,6 +2,13 @@
 
 基于 STM32H573 的 TF-M（Trusted Firmware-M）移植与开发项目。
 
+
+### keys/ 与清编译（不重新下载依赖）
+
+- 把两对固定文件名公私钥放入仓库根目录 `keys/`，`./buildtfm.sh` 会自动覆盖各工程同名密钥并同步 OTP ROTPK。见 `keys/README.md`。
+- 不要手动 `rm -rf trusted-firmware-m/build_s`。脚本默认先跑 `scripts/clean_tfm_build.sh`：只清编译产物，依赖缓存在 `trusted-firmware-m/.deps-cache/`。增量可用 `./buildtfm.sh test --no-clean`。
+
+
 ## 文档
 
 - [TF-M 编译笔记](./tfmwork/tfm编译笔记.txt) — 编译环境搭建、编译命令与踩坑记录
