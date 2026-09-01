@@ -41,7 +41,8 @@ STM32H5F4 Windows 烧录（ST-Link / J-Link）
 ST-Link（板载调试器，推荐）
   双击  tfm_update.bat
   或     flash_h5f4.bat
-  窗口第一行 rev 应为 h5f4-20260831-cli（或更新）。如果还是旧 rev，说明跑的不是这份脚本。
+  窗口第一行 rev 应为 h5f4-20260901（或更新）。如果还是旧 rev，说明跑的不是这份脚本。
+  双击后窗口必须停住；如果一闪就关，请再 git pull 一次本目录。
   第一次 / 片上还有旧 HDP 时会整片擦除（regression.bat），然后自动下载 BL2/S/NS。
   已经是新 BL2、只想重烧镜像：  tfm_update.bat images-only
 

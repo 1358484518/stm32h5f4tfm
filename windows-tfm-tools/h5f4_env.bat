@@ -1,7 +1,9 @@
 @echo off
 rem STM32H5F4 flash map, option-byte names, and CubeProgrammer PATH.
+rem Linear script only: do not use internal subroutines. cmd.exe can pop
+rem the parent's call stack (tfm_update.bat then exits before pause).
 rem Do not use H573 values: WRPSGn1, SECWM ...=127, NS slot 0x0C088000.
-set "H5F4_REV=h5f4-20260831-cli"
+set "H5F4_REV=h5f4-20260901"
 set "H5F4_ADDR_BL2_S=0x0C00E000"
 set "H5F4_ADDR_S_S=0x0C038000"
 set "H5F4_ADDR_NS_S=0x0C090000"
@@ -16,25 +18,18 @@ set "H5F4_OB1=SECBOOTADD=0xC0100 HDP1_STRT=1 HDP1_END=0 HDP2_STRT=1 HDP2_END=0 S
 set "H5F4_BOOT_UBE=BOOT_UBE=0xB4"
 set "H5F4_PRODUCT_STATE=PRODUCT_STATE=0xED TZEN=0xB4"
 
-if defined H5F4_PATH_DONE goto :h5f4_env_done
-call :h5f4_prepend_cli "D:\ST\STM32CubeProgrammer\bin"
-call :h5f4_prepend_cli "%ProgramFiles%\STMicroelectronics\STM32Cube\STM32CubeProgrammer\bin"
-call :h5f4_prepend_cli "%ProgramFiles(x86)%\STMicroelectronics\STM32Cube\STM32CubeProgrammer\bin"
-call :h5f4_prepend_cli "C:\Program Files\STMicroelectronics\STM32Cube\STM32CubeProgrammer\bin"
-call :h5f4_prepend_cli "C:\ST\STM32CubeProgrammer\bin"
-call :h5f4_prepend_cli "%ProgramFiles%\STMicroelectronics\STM32CubeProgrammer\bin"
-call :h5f4_prepend_cli "%LOCALAPPDATA%\Programs\STM32CubeProgrammer\bin"
-for /d %%D in ("%ProgramFiles%\SEGGER\JLink*") do (
-    if exist "%%~D\JLinkARM.dll" set "PATH=%%~D;%PATH%"
-)
+if defined H5F4_PATH_DONE exit /b 0
+
+set "H5F4_PF86=%ProgramFiles(x86)%"
+
+if exist "D:\ST\STM32CubeProgrammer\bin\STM32_Programmer_CLI.exe" set "PATH=D:\ST\STM32CubeProgrammer\bin;%PATH%"
+if exist "%ProgramFiles%\STMicroelectronics\STM32Cube\STM32CubeProgrammer\bin\STM32_Programmer_CLI.exe" set "PATH=%ProgramFiles%\STMicroelectronics\STM32Cube\STM32CubeProgrammer\bin;%PATH%"
+if exist "%H5F4_PF86%\STMicroelectronics\STM32Cube\STM32CubeProgrammer\bin\STM32_Programmer_CLI.exe" set "PATH=%H5F4_PF86%\STMicroelectronics\STM32Cube\STM32CubeProgrammer\bin;%PATH%"
+if exist "C:\Program Files\STMicroelectronics\STM32Cube\STM32CubeProgrammer\bin\STM32_Programmer_CLI.exe" set "PATH=C:\Program Files\STMicroelectronics\STM32Cube\STM32CubeProgrammer\bin;%PATH%"
+if exist "C:\ST\STM32CubeProgrammer\bin\STM32_Programmer_CLI.exe" set "PATH=C:\ST\STM32CubeProgrammer\bin;%PATH%"
+if exist "%ProgramFiles%\STMicroelectronics\STM32CubeProgrammer\bin\STM32_Programmer_CLI.exe" set "PATH=%ProgramFiles%\STMicroelectronics\STM32CubeProgrammer\bin;%PATH%"
+if exist "%LOCALAPPDATA%\Programs\STM32CubeProgrammer\bin\STM32_Programmer_CLI.exe" set "PATH=%LOCALAPPDATA%\Programs\STM32CubeProgrammer\bin;%PATH%"
+for /d %%D in ("%ProgramFiles%\SEGGER\JLink*") do if exist "%%~D\JLinkARM.dll" set "PATH=%%~D;%PATH%"
+
 set "H5F4_PATH_DONE=1"
-goto :h5f4_env_done
-
-:h5f4_prepend_cli
-if exist "%~1\STM32_Programmer_CLI.exe" (
-    echo [info] CubeProgrammer bin = %~1
-    set "PATH=%~1;%PATH%"
-)
-goto :eof
-
-:h5f4_env_done
+exit /b 0

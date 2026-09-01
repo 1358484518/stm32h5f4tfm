@@ -7,6 +7,14 @@ rem  J-Link programs the 0x08000000 flash window. Hex files that use the
 rem  secure alias 0x0Cxxxxxx are remapped across the full 4 MB
 rem  (0x0C000000-0x0C3FFFFF -> 0x08000000-0x083FFFFF).
 rem ****************************************************************************
+if not defined H5F4_INNER (
+    set "H5F4_INNER=1"
+    cmd /c ""%~f0" %*"
+    echo.
+    echo Window stays open. Press any key to close.
+    pause
+    exit /b
+)
 setlocal EnableExtensions EnableDelayedExpansion
 
 set "EXIT_CODE=0"
@@ -278,6 +286,7 @@ if not "%EXIT_CODE%"=="0" (
     echo  jlink_tfm_update Done
     echo ============================================================
 )
+if defined H5F4_INNER endlocal & exit /b %EXIT_CODE%
 echo Window stays open. Press any key to close.
 pause
 endlocal & exit /b %EXIT_CODE%

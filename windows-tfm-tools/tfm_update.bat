@@ -11,6 +11,14 @@ rem    tfm_update.bat                 regression + download (safe first flash)
 rem    tfm_update.bat images-only     skip mass-erase; only program images
 rem    tfm_update.bat [images-only] [ST-LINK SN]
 rem ****************************************************************************
+if not defined H5F4_INNER (
+    set "H5F4_INNER=1"
+    cmd /c ""%~f0" %*"
+    echo.
+    echo Window stays open. Press any key to close.
+    pause
+    exit /b
+)
 setlocal EnableExtensions EnableDelayedExpansion
 
 set "EXIT_CODE=0"
@@ -195,6 +203,7 @@ if not "%EXIT_CODE%"=="0" (
     echo  FAILED at: %FAILED_STEP%
     echo ============================================================
 )
+if defined H5F4_INNER endlocal & exit /b %EXIT_CODE%
 echo Window stays open. Press any key to close.
 pause
 endlocal & exit /b %EXIT_CODE%

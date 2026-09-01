@@ -7,6 +7,14 @@ rem  Usage:
 rem    regression.bat              first ST-LINK
 rem    regression.bat <SN>         specific probe
 rem ****************************************************************************
+if not defined H5F4_INNER (
+    set "H5F4_INNER=1"
+    cmd /c ""%~f0" %*"
+    echo.
+    echo Window stays open. Press any key to close.
+    pause
+    exit /b
+)
 setlocal EnableExtensions
 set "FAILED_STEP="
 set "EXIT_CODE=0"
@@ -147,9 +155,8 @@ if not "%EXIT_CODE%"=="0" (
     echo  FAILED at: %FAILED_STEP%
     echo ============================================================
 )
-if /i "%TFM_SKIP_PAUSE%"=="1" (
-    endlocal & exit /b %EXIT_CODE%
-)
+if /i "%TFM_SKIP_PAUSE%"=="1" endlocal & exit /b %EXIT_CODE%
+if defined H5F4_INNER endlocal & exit /b %EXIT_CODE%
 echo Window stays open. Press any key to close.
 pause
 endlocal & exit /b %EXIT_CODE%

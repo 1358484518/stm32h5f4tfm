@@ -332,6 +332,18 @@ def cmd_self_test():
     assert 'set "H5F4_SECWM_FULL=SECWM1_STRT=0 SECWM1_END=255' in env
     assert "WRPSGn1=" not in env
     assert "STM32_Programmer_CLI.exe" in env
+    assert "call :" not in env
+    assert "goto :eof" not in env
+    setup = open(os.path.join(script_dir, "h5f4_setup.bat"), encoding="utf-8").read()
+    assert "call :pick_python" not in setup
+    assert "call :try_python" not in setup
+    assert "goto :eof" not in setup
+    assert "h5f4_win_images.py" in setup
+    assert "h5f4_win_images.ps1" in setup
+    assert "LOCATE_OUT" in setup
+    update = open(os.path.join(script_dir, "tfm_update.bat"), encoding="utf-8").read()
+    assert "H5F4_INNER" in update
+    assert 'cmd /c ""%~f0" %*"' in update
     for name in (
         "regression.bat",
         "tfm_update.bat",
@@ -355,10 +367,6 @@ def cmd_self_test():
     assert "CLI_ARGS" in run_cli
     assert "STM32_Programmer_CLI %CLI_ARGS%" in run_cli
     assert "call :" not in run_cli
-    setup = open(os.path.join(script_dir, "h5f4_setup.bat"), encoding="utf-8").read()
-    assert "h5f4_win_images.py" in setup
-    assert "h5f4_win_images.ps1" in setup
-    assert "LOCATE_OUT" in setup
     ps1 = open(os.path.join(script_dir, "h5f4_win_images.ps1"), encoding="utf-8").read()
     assert "0xc090000" in ps1
     assert "H5F4BL2" in ps1
