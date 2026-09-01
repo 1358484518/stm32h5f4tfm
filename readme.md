@@ -45,7 +45,7 @@ Linux 烧录 `./flash_stm32h5f4.sh` 会用 SPE 编出来的那份脚本；NS 工
 ### 签名（自己编的未加密 .bin）
 
 `./buildtfm.sh` 编出来的 `tfm_s_signed.bin` / `tfm_ns_signed.bin` 已经签过。  
-makefile / CubeIDE 自己编的未签名 `.bin` 必须先签再烧。工具按 H5F4 槽位（NS 1200 KB、S 352 KB），不要用旧的 `sign_kit.tar.xz` 或 H573 签名包。
+makefile / CubeIDE 自己编的未签名 `.bin` 必须先签再烧。工具按 H5F4 槽位（NS 1200 KB、S 352 KB）。仓库根目录旧的 `sign_kit.zip`（H573：NS `0x0C088000` / 576 KB）已删除。
 
 | 工程 | 工具目录 | 签完写到哪 |
 |------|----------|------------|
@@ -163,7 +163,7 @@ NS 大缓冲可放到 `.ram2` / `.bss.ram2`，或使用 `__ns_ram2_start__` / `_
 
 - 增加非安全测试代码 nsdev.tar.xz ，在 ubuntu22.04 解压后执行make即可运行，这个工程不含硬件浮点计算。
 
-- 增加 H5F4 `sign_kit` 签名工具（替代旧 `sign_kit.tar.xz` / H573 签名 zip）：`tfmmakeproject/sign_kit` 与 `tfmcubeideproject/STM32CubeIDE/sign_kit`。只签未加密固件。NS 1200 KB @ `0x0C090000`，S 352 KB @ `0x0C038000`。Linux：`./sign.sh tfm_ns.bin`；Windows：`sign.bat tfm_ns.bin`。详细见各目录 README。
+- 增加 H5F4 `sign_kit` 签名工具：`tfmmakeproject/sign_kit` 与 `tfmcubeideproject/STM32CubeIDE/sign_kit`。只签未加密固件。NS 1200 KB @ `0x0C090000`，S 352 KB @ `0x0C038000`。Linux：`./sign.sh tfm_ns.bin`；Windows：`sign.bat tfm_ns.bin`。根目录旧的 `sign_kit.zip`（H573）已从 `stm32h5f4` 删除。
 
 - 旧的 `tfm-h573-flash签名固件下载固件快捷脚本.zip` 不要再用（H573 地址）。Windows 烧录用 `windows-tfm-tools`，签名用上面的 `sign_kit`。
 

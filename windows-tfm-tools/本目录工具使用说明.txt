@@ -179,7 +179,8 @@ NS 应用里走 PSA Firmware Update / MCUBoot 写 secondary 时，也必须用�
 ================================================================
 
 本目录只负责烧录，不签名。未签名的 tfm_s.bin / tfm_ns.bin 不能直接烧。
-H5F4 签名工具（替代旧 sign_kit.tar.xz / H573 签名 zip）：
+仓库根目录的 sign_kit.zip 已删除（那是 STM32H573 包，NS 0x0C088000 / 576 KB）。
+H5F4 签名工具：
 
   makefile 工程：  仓库\tfmmakeproject\sign_kit\
     sign.bat tfm_ns.bin          NS，输出写在输入文件旁边
@@ -196,7 +197,7 @@ H5F4 签名工具（替代旧 sign_kit.tar.xz / H573 签名 zip）：
 
 签名需要 Python 3（第一次会自动建 sign_kit\.venv）。
 不要用仓库根目录 TF-M 的 .venv（cryptography 版本经常对不上）。
-不要用 trusted-firmware-m-mbedtls-411-ns-tls 里那份 H573 sign_kit
+不要用电脑上残留的 sign_kit.zip，也不要用 trusted-firmware-m-mbedtls-411-ns-tls 里那份 H573 sign_kit
 （NS 地址还是 0x0C088000 / 576 KB）。
 
 签完的 *_signed.bin 放到本目录后再双击 tfm_update.bat。
