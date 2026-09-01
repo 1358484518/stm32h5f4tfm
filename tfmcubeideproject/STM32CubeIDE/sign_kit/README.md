@@ -27,7 +27,7 @@ sign.bat sapp.bin
 
 输出固定写在本目录（和 makefile 那份 sign_kit 不同，那边写在输入文件旁边）：
 `tfm_ns_signed.bin` / `sapp_signed.bin`。
-CubeIDE post-build 也是签到这里，不在 `Debug\`。
+CubeIDE post-build 调用 `sign.sh`（工程里是正斜杠路径），签到这里，不在 `Debug/`。Windows 手动签名仍用 `sign.bat`。
 
 文件名里带 `ns` 按非安全签；带 `sapp`、`tfm_s`、`_s.bin` 按安全签。看不出来时：
 

@@ -5,7 +5,9 @@ MCU：STM32H5F4ZJTx，宏 STM32H5F4xx，BL2_TRAILER_SIZE=0x3000。
 板子选 genericBoard。若 CubeIDE 器件库还没有 H5F4，GCC 仍可按现有工程编译。
 
 编译生成 Debug/tfm_ns.bin（或 make 的 build/tfm_ns.bin）。
-CubeIDE post-build 会调用 sign_kit\sign.bat，签完写在 sign_kit\tfm_ns_signed.bin（不在 Debug\）。
+CubeIDE post-build 调用 sign_kit/sign.sh（链接脚本也是 ../spe/out/appli_ns.pp.ld 正斜杠，Windows / Linux CubeIDE 都能编）。
+签完写在 sign_kit/tfm_ns_signed.bin（不在 Debug/）。
+Windows 命令行手动签名仍用 sign_kit\sign.bat。
 Linux 命令行：在 STM32CubeIDE/ 下执行 make，再 ./sign_kit/sign.sh build/tfm_ns.bin
 （CubeIDE 这份 sign_kit 同样把 tfm_ns_signed.bin 写到 sign_kit/ 目录）。
 
