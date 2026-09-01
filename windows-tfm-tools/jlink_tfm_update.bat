@@ -57,7 +57,7 @@ echo.
 
 call "%~dp0h5f4_setup.bat"
 if errorlevel 1 (
-    set "FAILED_STEP=locate images / STM32_Programmer_CLI"
+    set "FAILED_STEP=STM32_Programmer_CLI"
     set "EXIT_CODE=1"
     goto :finish
 )
@@ -70,9 +70,25 @@ echo   NS   %H5F4_ADDR_NS_NS%
 echo.
 
 if "%DO_REG%"=="1" (
-    echo [1] Run J-Link regression
+    echo [1] jlink_erase_flash.bat
     echo ------------------------------------------------------------
     set "TFM_SKIP_PAUSE=1"
+    if defined H5F4_SN (
+        call "%~dp0erase_flash.bat" jlink %H5F4_SN%
+    ) else (
+        call "%~dp0erase_flash.bat" jlink
+    )
+    if errorlevel 1 (
+        echo [FAIL] erase failed
+        set "FAILED_STEP=erase_flash.bat jlink"
+        set "EXIT_CODE=1"
+        set "TFM_SKIP_PAUSE="
+        goto :finish
+    )
+    echo [ok]   flash erased
+    echo.
+    echo [2] jlink_regression.bat ^(option bytes, SECWM open^)
+    echo ------------------------------------------------------------
     if defined H5F4_SN (
         call "%~dp0jlink_regression.bat" jlink %H5F4_SN%
     ) else (
@@ -85,17 +101,27 @@ if "%DO_REG%"=="1" (
         set "EXIT_CODE=1"
         goto :finish
     )
-    echo [ok]   regression finished
+    echo [ok]   option bytes programmed
     echo.
 ) else (
-    echo [1] skip regression ^(images-only^)
+    echo [1] skip erase + regression ^(images-only^)
     echo.
 )
+
+echo [3] Find images
+echo ------------------------------------------------------------
+call "%~dp0h5f4_find_images.bat"
+if errorlevel 1 (
+    set "FAILED_STEP=find images"
+    set "EXIT_CODE=1"
+    goto :finish
+)
+echo.
 
 set "connect=%H5F4_CONNECT%"
 set "connect_no_reset=%H5F4_CONNECT_HP%"
 
-echo [2] Open SECWM ^(J-Link cannot program fully-secure 0x0C flash^)
+echo [4] Open SECWM ^(J-Link cannot program fully-secure 0x0C flash^)
 echo CMD: STM32_Programmer_CLI %connect_no_reset% -ob %H5F4_SECWM_OPEN%
 STM32_Programmer_CLI %connect_no_reset% -ob %H5F4_SECWM_OPEN%
 if errorlevel 1 (
@@ -106,7 +132,7 @@ if errorlevel 1 (
 )
 echo.
 
-echo [3] Download
+echo [5] Download
 echo.
 
 if defined TFM_S_SIGNED (
@@ -141,7 +167,7 @@ if "%FLASHED%"=="0" (
     goto :finish
 )
 
-echo [4] Restore full-bank SECWM 0-255
+echo [6] Restore full-bank SECWM 0-255
 echo CMD: STM32_Programmer_CLI %connect_no_reset% -ob %H5F4_SECWM_FULL%
 STM32_Programmer_CLI %connect_no_reset% -ob %H5F4_SECWM_FULL%
 if errorlevel 1 (
@@ -153,7 +179,7 @@ if errorlevel 1 (
 echo [ok]   SECWM restored
 echo.
 
-echo [5] Reset MCU
+echo [7] Reset MCU
 echo ------------------------------------------------------------
 echo CMD: STM32_Programmer_CLI %connect% -hardRst
 STM32_Programmer_CLI %connect% -hardRst

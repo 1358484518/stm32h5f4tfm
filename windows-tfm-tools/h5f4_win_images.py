@@ -119,11 +119,10 @@ def search_dirs(extra_cwd=None):
     script = os.path.dirname(os.path.abspath(__file__))
     cwd = os.path.abspath(extra_cwd or os.getcwd())
     dirs = [
-        os.path.join(root, "trusted-firmware-m", "build_s", "api_ns", "bin"),
-        os.path.join(root, "trusted-firmware-m", "build_ns", "bin"),
-        os.path.join(root, "trusted-firmware-m", "build_s", "api_ns", "image_signing", "scripts"),
         cwd,
         script,
+        os.path.join(root, "trusted-firmware-m", "build_s", "api_ns", "bin"),
+        os.path.join(root, "trusted-firmware-m", "build_ns", "bin"),
     ]
     seen = set()
     out = []
@@ -157,67 +156,49 @@ def locate(extra_cwd=None):
         "REPO": repo_root(),
     }
 
-    root = repo_root()
-    update_sh = os.path.join(root, "trusted-firmware-m", "build_s", "api_ns", "TFM_UPDATE.sh")
-    if os.path.isfile(update_sh):
-        err = update_sh_error(update_sh)
-        if err:
-            info["STATUS"] = "FAIL"
-            info["ERROR"] = err
-            return info
-        info["UPDATE_SH"] = update_sh
-
-    bl2 = None
-    skipped = []
-    for cand in first_existing(dirs, ("bl2.bin", "bl2.hex")):
-        err = bl2_marker_error(cand)
-        if err:
-            skipped.append(err)
-            continue
-        bl2 = cand
+    for cand in first_existing(dirs, ("bl2.bin",)):
+        info["BL2"] = cand
         break
-    if not bl2:
+    if not info["BL2"]:
+        for cand in first_existing(dirs, ("bl2.hex",)):
+            info["BL2"] = cand
+            break
+    if not info["BL2"]:
         info["STATUS"] = "FAIL"
-        if skipped:
-            info["ERROR"] = (
-                "no H5F4 BL2 (need H5F4BL2 + H5F4SWP2). "
-                "Build with ./buildtfm.sh test, then flash from "
-                "trusted-firmware-m\\build_s\\api_ns\\bin. "
-                + " | ".join(skipped[:3])
-            )
-        else:
-            info["ERROR"] = (
-                "bl2.bin / bl2.hex not found. Run ./buildtfm.sh test first "
-                "(or copy build_s\\api_ns\\bin\\bl2.bin here)."
-            )
+        info["ERROR"] = "bl2.bin / bl2.hex not found in cwd, windows-tfm-tools, or TF-M build output"
         return info
-    info["BL2"] = bl2
 
-    for cand in first_existing(dirs, ("tfm_s_signed.bin", "tfm_s_signed.hex")):
+    for cand in first_existing(dirs, ("tfm_s_signed.bin",)):
         info["S_SIGNED"] = cand
         break
-    for cand in first_existing(dirs, ("tfm_s_ns_signed.bin", "tfm_s_ns_signed.hex")):
+    if not info["S_SIGNED"]:
+        for cand in first_existing(dirs, ("tfm_s_signed.hex",)):
+            info["S_SIGNED"] = cand
+            break
+    for cand in first_existing(dirs, ("tfm_s_ns_signed.bin",)):
         info["S_NS_SIGNED"] = cand
         break
-    for cand in first_existing(dirs, ("tfm_ns_signed.bin", "tfm_ns_signed.hex")):
+    if not info["S_NS_SIGNED"]:
+        for cand in first_existing(dirs, ("tfm_s_ns_signed.hex",)):
+            info["S_NS_SIGNED"] = cand
+            break
+    for cand in first_existing(dirs, ("tfm_ns_signed.bin",)):
         info["NS_SIGNED"] = cand
         break
+    if not info["NS_SIGNED"]:
+        for cand in first_existing(dirs, ("tfm_ns_signed.hex",)):
+            info["NS_SIGNED"] = cand
+            break
 
     have_s = bool(info["S_SIGNED"] or info["S_NS_SIGNED"])
     have_ns = bool(info["NS_SIGNED"] or info["S_NS_SIGNED"])
     if not have_s:
         info["STATUS"] = "FAIL"
-        info["ERROR"] = (
-            "no S image (tfm_s_signed.bin or tfm_s_ns_signed.bin/.hex). "
-            "Run ./buildtfm.sh test first."
-        )
+        info["ERROR"] = "no tfm_s_signed.bin/.hex and no tfm_s_ns_signed.bin/.hex"
         return info
     if not have_ns:
         info["STATUS"] = "FAIL"
-        info["ERROR"] = (
-            "no NS image (tfm_ns_signed.bin) and no concatenated S+NS image. "
-            "Run ./buildtfm.sh test first."
-        )
+        info["ERROR"] = "no tfm_ns_signed.bin/.hex and no tfm_s_ns_signed.bin/.hex"
         return info
     return info
 
@@ -236,8 +217,10 @@ def print_locate(info):
         print("%s=%s" % (key, info.get(key, "")))
 
 
-def hex_to_ns_bin(infile, outfile):
-    recs = [(remap_secure_alias(a), d) for a, d in hex_records(infile)]
+def hex_to_bin(infile, outfile, remap=False):
+    recs = list(hex_records(infile))
+    if remap:
+        recs = [(remap_secure_alias(a), d) for a, d in recs]
     if not recs:
         sys.exit("No data records in %s" % infile)
     min_a = min(a for a, d in recs)
@@ -245,7 +228,7 @@ def hex_to_ns_bin(infile, outfile):
     size = max_a - min_a + 1
     if size <= 0 or size > FLASH_BYTES:
         sys.exit("HEX span 0x%08X-0x%08X size=%d too large" % (min_a, max_a, size))
-    if FLASH_S_BASE <= min_a < FLASH_S_END:
+    if remap and FLASH_S_BASE <= min_a < FLASH_S_END:
         sys.exit("converted address still 0x0C: 0x%08X" % min_a)
     blob = bytearray([0xFF]) * size
     for addr, data in recs:
@@ -256,6 +239,10 @@ def hex_to_ns_bin(infile, outfile):
     with open(outfile + ".addr", "w", encoding="ascii") as out:
         out.write("0x%08X\n" % min_a)
     print("LOAD=0x%08X SIZE=%d" % (min_a, size))
+
+
+def hex_to_ns_bin(infile, outfile):
+    hex_to_bin(infile, outfile, remap=True)
 
 
 def cmd_self_test():
@@ -303,6 +290,15 @@ def cmd_self_test():
         assert addr.lower() == "0x08258000", addr
         with open(out_bin, "rb") as f:
             assert f.read() == b"\xa5"
+        out_plain = os.path.join(td, "plain.bin")
+        hex_to_bin(hex_path, out_plain, remap=False)
+        with open(out_plain + ".addr", encoding="ascii") as f:
+            addr = f.read().strip()
+        assert addr.lower() == "0x0c258000", addr
+        rc = main(["hex2bin", hex_path, os.path.join(td, "cli.bin")])
+        assert rc == 0, rc
+        with open(os.path.join(td, "cli.bin"), "rb") as f:
+            assert f.read() == b"\xa5"
 
         upd = os.path.join(td, "TFM_UPDATE.sh")
         with open(upd, "w", encoding="ascii") as f:
@@ -337,13 +333,22 @@ def cmd_self_test():
     assert "call :pick_python" not in setup
     assert "call :try_python" not in setup
     assert "goto :eof" not in setup
-    assert "--locate" in setup
-    assert "h5f4_win_images.py" in setup
-    assert "h5f4_win_images.ps1" in setup
-    assert "LOCATE_OUT" in setup
+    assert "--locate" not in setup
+    assert "LOCATE_OUT" not in setup
+    find_bat = open(os.path.join(script_dir, "h5f4_find_images.bat"), encoding="utf-8").read()
+    assert "bl2.bin" in find_bat
+    assert "hex2bin" in find_bat
+    assert "call :" not in find_bat
+    assert "goto :eof" not in find_bat
     update = open(os.path.join(script_dir, "tfm_update.bat"), encoding="utf-8").read()
     assert "H5F4_INNER" in update
     assert 'cmd /c ""%~f0" %*"' in update
+    assert "erase_flash.bat" in update
+    assert "h5f4_find_images.bat" in update
+    assert "regression.bat" in update
+    jupdate = open(os.path.join(script_dir, "jlink_tfm_update.bat"), encoding="utf-8").read()
+    assert "erase_flash.bat" in jupdate
+    assert "h5f4_find_images.bat" in jupdate
     for name in (
         "regression.bat",
         "tfm_update.bat",
@@ -376,14 +381,12 @@ def cmd_self_test():
     assert " -e all" in erase
     assert "SECWM1_STRT=255" in erase
     assert "H5F4_SECWM_FULL" not in erase
-    assert "h5f4-20260901b" in env
+    assert "h5f4-20260901c" in env
     src = open(os.path.join(script_dir, "h5f4_win_images.py"), encoding="utf-8").read()
     assert all(not ln.strip().startswith("import argparse") for ln in src.splitlines())
     rc = main(["--locate"])
     assert rc in (0, 1), rc
     rc = main(["locate"])
-    assert rc in (0, 1), rc
-    rc = main(["locate", ""])
     assert rc in (0, 1), rc
     print("h5f4_win_images.py self-test OK")
 
@@ -403,7 +406,7 @@ def main(argv=None):
             i += 1
             continue
         if a in ("-h", "--help"):
-            print("h5f4_win_images.py locate")
+            print("h5f4_win_images.py hex2bin in.hex out.bin")
             print("h5f4_win_images.py --self-test")
             print("h5f4_win_images.py -InFile in.hex -OutFile out.bin")
             return 0
@@ -436,6 +439,12 @@ def main(argv=None):
         return 0
 
     cmd = rest[0].lower() if rest else ""
+    if cmd == "hex2bin":
+        if len(rest) < 3:
+            print("ERROR=hex2bin in.hex out.bin")
+            return 2
+        hex_to_bin(rest[1], rest[2], remap=False)
+        return 0
     if cmd in ("locate", "--locate"):
         info = locate()
         print_locate(info)

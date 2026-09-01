@@ -2,13 +2,16 @@
 rem ****************************************************************************
 rem  STM32H5F4 TF-M flash after regression (Windows, ST-Link)
 rem
-rem  Images are taken from trusted-firmware-m\build_s\api_ns\bin (preferred)
-rem  or the current directory. bl2.bin MUST contain H5F4BL2 and H5F4SWP2.
-rem  This folder no longer ships hex; old H573 images are rejected.
+rem  Default:
+rem    1) erase_flash.bat      mass-erase user flash
+rem    2) regression.bat       option bytes (WRPSG11, SECWM, BOOT_UBE)
+rem    3) find .bin in cwd / this folder / TF-M build output
+rem       if no .bin, convert matching .hex to .bin
+rem    4) download BL2/S/NS to 0x0C00E000 / 0x0C038000 / 0x0C090000
 rem
 rem  Usage:
-rem    tfm_update.bat                 regression + download (safe first flash)
-rem    tfm_update.bat images-only     skip mass-erase; only program images
+rem    tfm_update.bat                 erase + option bytes + download
+rem    tfm_update.bat images-only     skip erase/regression; only program images
 rem    tfm_update.bat [images-only] [ST-LINK SN]
 rem ****************************************************************************
 if not defined H5F4_INNER (
@@ -60,7 +63,7 @@ echo.
 
 call "%~dp0h5f4_setup.bat"
 if errorlevel 1 (
-    set "FAILED_STEP=locate images / STM32_Programmer_CLI"
+    set "FAILED_STEP=STM32_Programmer_CLI"
     set "EXIT_CODE=1"
     goto :finish
 )
@@ -73,9 +76,25 @@ echo   NS   %H5F4_ADDR_NS_S%   ^(H573 was 0x0C088000, do not use^)
 echo.
 
 if "%DO_REG%"=="1" (
-    echo [1] Run regression.bat ^(WRPSG11..22, SECWM 0-255, mass erase^)
+    echo [1] erase_flash.bat ^(unlock WRP/SECWM, -e all^)
     echo ------------------------------------------------------------
     set "TFM_SKIP_PAUSE=1"
+    if defined H5F4_SN (
+        call "%~dp0erase_flash.bat" %H5F4_SN%
+    ) else (
+        call "%~dp0erase_flash.bat"
+    )
+    if errorlevel 1 (
+        echo [FAIL] erase_flash.bat failed
+        set "FAILED_STEP=erase_flash.bat"
+        set "EXIT_CODE=1"
+        set "TFM_SKIP_PAUSE="
+        goto :finish
+    )
+    echo [ok]   flash erased
+    echo.
+    echo [2] regression.bat ^(option bytes: WRPSG11, SECWM 0-255, BOOT_UBE^)
+    echo ------------------------------------------------------------
     if defined H5F4_SN (
         call "%~dp0regression.bat" %H5F4_SN%
     ) else (
@@ -88,16 +107,26 @@ if "%DO_REG%"=="1" (
         set "EXIT_CODE=1"
         goto :finish
     )
-    echo [ok]   regression finished
+    echo [ok]   option bytes programmed
     echo.
 ) else (
-    echo [1] skip regression ^(images-only^)
+    echo [1] skip erase + regression ^(images-only^)
     echo.
 )
 
+echo [3] Find images
+echo ------------------------------------------------------------
+call "%~dp0h5f4_find_images.bat"
+if errorlevel 1 (
+    set "FAILED_STEP=find images"
+    set "EXIT_CODE=1"
+    goto :finish
+)
+echo.
+
 set "connect=%H5F4_CONNECT%"
 
-echo [2] Download images
+echo [4] Download images
 echo.
 
 if defined TFM_S_SIGNED (
@@ -122,7 +151,7 @@ if "%SKIP_NS%"=="1" (
     if errorlevel 1 goto :finish
 )
 
-echo [3] Unlock HDP and WRP before BL2
+echo [5] Unlock HDP and WRP before BL2
 echo ------------------------------------------------------------
 echo CMD: STM32_Programmer_CLI %connect% -ob %H5F4_HDP_OFF%
 STM32_Programmer_CLI %connect% -ob %H5F4_HDP_OFF%
@@ -139,7 +168,7 @@ echo.
 call :flash_image "%TFM_BL2%" %H5F4_ADDR_BL2_S% "BL2"
 if errorlevel 1 goto :finish
 
-echo [4] Reset MCU
+echo [6] Reset MCU
 echo ------------------------------------------------------------
 echo CMD: STM32_Programmer_CLI %connect% -hardRst
 STM32_Programmer_CLI %connect% -hardRst
@@ -162,7 +191,7 @@ goto :finish
 
 :usage
 echo Usage: tfm_update.bat [images-only] [ST-LINK SN]
-echo Prefer images from trusted-firmware-m\build_s\api_ns\bin after ./buildtfm.sh test
+echo Default: erase_flash, regression option bytes, then flash cwd/bin or hex.
 pause
 exit /b 0
 
