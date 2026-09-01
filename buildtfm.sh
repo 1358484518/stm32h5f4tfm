@@ -118,11 +118,18 @@ LIB_EXT_NS="${TFM_ROOT}/build_ns/lib/ext"
 
 # 测试版 <-> 正式版或 TEST_* 变化时清掉 SPE 缓存（须在离线检查之前）
 STAMP="${TFM_ROOT}/build_s/.buildtfm_type"
-STAMP_VAL="${BUILD_TYPE} ${TEST_FLAGS[*]} ${LOG_FLAGS[*]}"
+# Include signature type so RSA <-> EC-P256 switches force a clean SPE rebuild
+# (CMake caches MCUBOOT_KEY_S/NS paths derived from the old algorithm).
+SIG_TYPE="$(grep -E '^\s*set\(MCUBOOT_SIGNATURE_TYPE' \
+    "${TFM_ROOT}/platform/ext/target/stm/stm32h5f4/config.cmake" 2>/dev/null \
+    | head -1 | sed -n 's/.*"\([^"]*\)".*/\1/p')"
+SIG_TYPE="${SIG_TYPE:-RSA-3072}"
+STAMP_VAL="${BUILD_TYPE} ${TEST_FLAGS[*]} ${LOG_FLAGS[*]} SIG=${SIG_TYPE}"
 if [[ -f "${STAMP}" ]] && [[ "$(cat "${STAMP}")" != "${STAMP_VAL}" ]]; then
     echo ">>> 构建配置已切换，清理 build_s"
     rm -rf "${TFM_ROOT}/build_s"
 fi
+echo ">>> MCUBOOT_SIGNATURE_TYPE: ${SIG_TYPE}"
 
 # Python：用 python -m pip，避免拷贝来的 venv shebang 失效
 VENV_DIR="${WORK_ROOT}/.venv"
@@ -212,6 +219,7 @@ cmake -S "${TFM_TESTS}/tests_reg/spe" -B build_s -GNinja \
     -DTFM_PSA_API=ON \
     -DTFM_ISOLATION_LEVEL=1 \
     -DBL2_TRAILER_SIZE=0x3000 \
+    -DMCUBOOT_SIGNATURE_TYPE="${SIG_TYPE}" \
     "${TEST_FLAGS[@]}" \
     "${FP_FLAGS[@]}" \
     "${LOG_FLAGS[@]}" \
@@ -219,10 +227,14 @@ cmake -S "${TFM_TESTS}/tests_reg/spe" -B build_s -GNinja \
 
 # tests_reg/spe 是一层 wrapper，已有的 build-spe CMakeCache 不会吃上面的
 # -DBL2_TRAILER_SIZE。必须再配一次内层 TF-M，否则仍是 0x2000。
+# Drop cached key paths when switching RSA <-> EC so defaults rematerialize.
 ensure_mcuboot_src
 if [[ -f "${TFM_ROOT}/build_s/build-spe/CMakeCache.txt" ]]; then
-    echo ">>> 内层 TF-M: BL2_TRAILER_SIZE=0x3000"
-    cmake -DBL2_TRAILER_SIZE=0x3000 "${TFM_ROOT}/build_s/build-spe"
+    echo ">>> 内层 TF-M: BL2_TRAILER_SIZE=0x3000 SIG=${SIG_TYPE}"
+    cmake -UMCUBOOT_KEY_S -UMCUBOOT_KEY_NS \
+        -DBL2_TRAILER_SIZE=0x3000 \
+        -DMCUBOOT_SIGNATURE_TYPE="${SIG_TYPE}" \
+        "${TFM_ROOT}/build_s/build-spe"
 fi
 
 apply_mcuboot_0002

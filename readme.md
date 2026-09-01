@@ -2,7 +2,8 @@
 
 基于 STM32H5F4 的 TF-M（Trusted Firmware-M）移植与开发项目（由 STM32H573 平台最小改动移植）。
 
-当前开发分支：`stm32h5f4`。平台名：`stm/stm32h5f4`。
+当前开发分支：`stm32h5f4`（默认 **RSA-3072** 签名）。  
+变体分支：`stm32h5f4-p256`（仅把 MCUboot 镜像签名改为 **EC-P256**）。平台名：`stm/stm32h5f4`。
 
 ## 编译与烧录
 
@@ -91,7 +92,7 @@ sign.bat sapp.bin
 烧完复位，串口第一行必须有 **`H5F4BL2`**（测试版常见 `[INF] H5F4BL2`）。  
 如果仍是 `Starting bootloader` 且没有 `H5F4BL2`，说明 BL2 没写进去，不要继续用旧工程脚本补烧。
 
-开发镜像用 dummy RSA-3072 密钥，启动日志里的 `NOT SECURE` 是预期现象。
+开发镜像用 TF-M dummy 密钥（`stm32h5f4` 为 RSA-3072；`stm32h5f4-p256` 为 EC-P256），启动日志里的 `NOT SECURE` 是预期现象。切换算法分支后必须整片重烧 BL2 + S + NS，并使用对应分支的 `sign_kit/keys`。
 
 `./flash_stm32h5f4.sh` 只写当前运行槽（BL2 / S primary / NS primary）。**升级下载**请写 MCUBoot secondary：S `0x0C200000`（`slot2`）、NS `0x0C258000`（`slot3`）。不要用 H573 的 `0x0C118000` / `0x0C168000`。完整表见下面 Windows 一节。
 
@@ -164,7 +165,7 @@ NS 大缓冲可放到 `.ram2` / `.bss.ram2`，或使用 `__ns_ram2_start__` / `_
 
 - 增加非安全测试代码 nsdev.tar.xz ，在 ubuntu22.04 解压后执行make即可运行，这个工程不含硬件浮点计算。
 
-- 增加 H5F4 `sign_kit` 签名工具：`tfmmakeproject/sign_kit` 与 `tfmcubeideproject/STM32CubeIDE/sign_kit`。只签未加密固件。NS 1200 KB @ `0x0C090000`，S 352 KB @ `0x0C038000`。Linux：`./sign.sh tfm_ns.bin`；Windows：`sign.bat tfm_ns.bin`。根目录旧的 `sign_kit.zip`（H573）已从 `stm32h5f4` 删除。
+- 增加 H5F4 `sign_kit` 签名工具：`tfmmakeproject/sign_kit` 与 `tfmcubeideproject/STM32CubeIDE/sign_kit`。只签未加密固件。NS 1200 KB @ `0x0C090000`，S 352 KB @ `0x0C038000`。Linux：`./sign.sh tfm_ns.bin`；Windows：`sign.bat tfm_ns.bin`。根目录旧的 `sign_kit.zip`（H573）已从 `stm32h5f4` 删除。分支 `stm32h5f4-p256` 仅把 MCUboot 签名改为 EC-P256（平台 `config.cmake` + 配套密钥）。
 
 - 根目录旧的 `tfm-h573-flash签名固件下载固件快捷脚本.zip`（H573 地址：NS `0x0C088000` / 576 KB）已从 `stm32h5f4` 删除。Windows 烧录用 `windows-tfm-tools`，签名用上面的 `sign_kit`。
 

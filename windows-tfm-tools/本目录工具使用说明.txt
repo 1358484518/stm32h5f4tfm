@@ -172,7 +172,7 @@ NS 应用里走 PSA Firmware Update / MCUBoot 写 secondary 时，也必须用�
 如果只有 Starting bootloader、没有 H5F4BL2：BL2 没写进去或写的是旧 H573 镜像。
 重新双击 tfm_update.bat（不要 images-only），让它先擦再烧。
 
-开发密钥是 dummy RSA-3072，日志里的 NOT SECURE 是预期现象。
+开发密钥在 `stm32h5f4` 为 dummy RSA-3072，在 `stm32h5f4-p256` 为 EC-P256；日志里的 NOT SECURE 是预期现象。换算法分支后必须整片重烧 BL2/S/NS。
 
 ================================================================
 八、只有未签名 bin 时怎么签
