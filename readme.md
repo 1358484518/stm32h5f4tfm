@@ -72,9 +72,28 @@ git pull origin stm32h5f4
      `bl2.bin`、`tfm_s_signed.bin`、`tfm_ns_signed.bin`（也可用同名 `.hex`）
    - **其次**：把整份 `trusted-firmware-m/build_s` 和 `build_ns` 拷成  
      `windows-tfm-tools\build_s`、`windows-tfm-tools\build_ns`
-5. 双击 `tfm_update.bat`：擦除 → 烧 option bytes → 找镜像 → 下载到  
+5. 双击 `tfm_update.bat`：擦除 → 烧 option bytes → 找镜像 → 下载到 **当前运行槽**  
    BL2 `0x0C00E000`、S `0x0C038000`、NS `0x0C090000`。  
    只重烧镜像：`tfm_update.bat images-only`。只擦：`erase_flash.bat`。
+
+**升级下载地址**（MCUBoot secondary，不要写到 primary）：
+
+| 槽 | `TFM_UPDATE.sh` | 安全别名 `0x0C` | 非安全 `0x08` | 大小 |
+|----|-----------------|-----------------|---------------|------|
+| BL2 | `boot=0xc00e000` | `0x0C00E000` | `0x0800E000` | 96 KB |
+| S 当前运行 | `slot0=0xc038000` | `0x0C038000` | `0x08038000` | 352 KB |
+| NS 当前运行 | `slot1=0xc090000` | `0x0C090000` | `0x08090000` | 1200 KB |
+| **S 升级下载** | `slot2=0xc200000` | **`0x0C200000`** | `0x08200000` | 352 KB |
+| **NS 升级下载** | `slot3=0xc258000` | **`0x0C258000`** | `0x08258000` | 1200 KB |
+
+CubeProgrammer 示例：
+
+```bat
+STM32_Programmer_CLI -c port=SWD ap=1 mode=UR -d tfm_s_signed.bin  0x0C200000 -v
+STM32_Programmer_CLI -c port=SWD ap=1 mode=UR -d tfm_ns_signed.bin 0x0C258000 -v
+```
+
+S 升级槽必须从 bank 2 开头（`0x0C200000`）。H573 的 `0x0C118000` / `0x0C168000` 禁止再用。
 
 当前目录里的 bin/hex 永远压过 `build_s` / `build_ns` 里的同名文件。J-Link 脚本已删除。
 
