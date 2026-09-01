@@ -53,7 +53,9 @@ if exist "%IN_NAME%" (
 for %%I in ("%IN_BIN%") do (
     set "BASE=%%~nxI"
     set "STEM=%%~nI"
+    set "IN_DIR=%%~dpI"
 )
+if "%IN_DIR:~-1%"=="\" set "IN_DIR=%IN_DIR:~0,-1%"
 
 if not "%KIND%"=="" goto :kind_ready
 echo %BASE%| findstr /I /C:"ns" >nul
@@ -72,7 +74,7 @@ echo 或:    sign.bat s %BASE%
 exit /b 1
 
 :kind_ready
-set "OUT_BIN=%KIT%\%STEM%_signed.bin"
+set "OUT_BIN=%IN_DIR%\%STEM%_signed.bin"
 
 if /I "%KIND%"=="ns" (
     set "LAYOUT=%KIT%\layout\signing_layout_ns.o"
@@ -125,6 +127,7 @@ echo 签名 %KIND_UP% 镜像  (%SLOT_HINT%)
 echo   输入  %IN_BIN%
 echo   输出  %OUT_BIN%
 echo   版本  %VERSION%  header %BL2_HEADER_SIZE%  align %MCUBOOT_ALIGN_VAL%  计数器 %SEC_CNT%
+echo   python %PY% %PY_EXTRA%
 
 rem cwd 必须是 scripts\，wrapper.py 才会优先用自带的 imgtool
 pushd "%KIT%\scripts" || exit /b 1
@@ -177,7 +180,7 @@ echo 文件名看不出类型时，显式指定：
 echo   sign.bat ns  app.bin
 echo   sign.bat s   app.bin
 echo.
-echo 输出：同目录下的 文件名_signed.bin
+echo 输出：输入文件所在目录下的 文件名_signed.bin
 exit /b 0
 
 :load_config
@@ -202,8 +205,8 @@ if exist "%KIT%\.venv\Scripts\python.exe" (
     set "PY=%KIT%\.venv\Scripts\python.exe"
     goto :python_ok
 )
-if exist "%KIT%\..\.venv\Scripts\python.exe" (
-    set "PY=%KIT%\..\.venv\Scripts\python.exe"
+if exist "%KIT%\..\.sign-venv\Scripts\python.exe" (
+    set "PY=%KIT%\..\.sign-venv\Scripts\python.exe"
     goto :python_ok
 )
 py -3 -c "import sys" 2>nul

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Standalone MCUboot signer for TF-M Secure / Non-Secure binaries (STM32H5F4).
+# Matches tfmcubeideproject/STM32CubeIDE/sign_kit, with H5F4 slot sizes and
+# a local venv (does not use the repo-root TF-M .venv).
 #
-# Drop the unsigned .bin into this folder and run:
 #   ./sign.sh tfm_ns.bin
 #   ./sign.sh sapp.bin
 #
@@ -24,12 +25,13 @@ usage() {
   ./sign.sh ns.bin
   ./sign.sh sapp.bin            # 安全
   ./sign.sh tfm_s.bin
+  ./sign.sh ../out/tfm_ns.bin   # 输出写在输入文件旁边
 
 文件名看不出类型时，显式指定：
   ./sign.sh ns  app.bin
   ./sign.sh s   app.bin
 
-输出：同目录下的 <文件名去扩展名>_signed.bin
+输出：<输入文件所在目录>/<文件名去扩展名>_signed.bin
 EOF
 }
 
@@ -100,7 +102,7 @@ if [[ -z "$KIND" ]]; then
 fi
 
 stem="${base%.*}"
-OUT_BIN="$KIT/${stem}_signed.bin"
+OUT_BIN="$(dirname "$IN_BIN")/${stem}_signed.bin"
 
 if [[ "$KIND" == "ns" ]]; then
     LAYOUT="$KIT/layout/signing_layout_ns.o"
@@ -136,11 +138,15 @@ ensure_python() {
     fi
     cands+=(
         "$KIT/.venv/bin/python"
-        "$KIT/../.venv/bin/python"
+        "$KIT/../.sign-venv/bin/python"
     )
     for p in "${cands[@]}"; do
         if py_ok "$p"; then
-            PYTHON="$p"
+            if command -v "$p" >/dev/null 2>&1 && [[ ! -x "$p" ]]; then
+                PYTHON="$(command -v "$p")"
+            else
+                PYTHON="$p"
+            fi
             return 0
         fi
     done
@@ -195,6 +201,7 @@ echo "签名 ${KIND^^} 镜像  ($SLOT_HINT)"
 echo "  输入  $IN_BIN"
 echo "  输出  $OUT_BIN"
 echo "  版本  $VERSION  header $BL2_HEADER_SIZE  align $MCUBOOT_ALIGN_VAL  计数器 $SEC_CNT"
+echo "  python $PYTHON"
 
 # cwd 必须是 scripts/，wrapper.py 才会优先用自带的 imgtool
 cd "$KIT/scripts"

@@ -27,7 +27,7 @@ J-Link 脚本已经删掉。本目录只支持板载 ST-Link。
      git checkout stm32h5f4
      git pull origin stm32h5f4
    双击 tfm_update.bat 后，窗口第一行附近必须看到：
-     rev:  h5f4-20260901e
+     rev:  h5f4-20260901f
    如果还是更旧的 rev，说明没拉到新脚本。
 
 2. 编译（在 Ubuntu / WSL 仓库根目录）
@@ -176,7 +176,22 @@ NS 应用里走 PSA Firmware Update / MCUBoot 写 secondary 时，也必须用�
 开发密钥是 dummy RSA-3072，日志里的 NOT SECURE 是预期现象。
 
 ================================================================
-八、不要做的事
+八、只有未签名 bin 时怎么签
+================================================================
+
+本目录只负责烧录，不签名。H5F4 签名工具：
+
+  makefile 工程：  仓库\tfmmakeproject\sign_kit\
+                   sign.bat tfm_ns.bin     （NS，签完 1200 KB @ 0x0C090000）
+                   sign.bat sapp.bin       （S， 签完 352 KB  @ 0x0C038000）
+
+  CubeIDE 工程：   仓库\tfmcubeideproject\STM32CubeIDE\sign_kit\
+
+第一次会自动建 sign_kit\.venv，不要用仓库根目录 TF-M 的 .venv。
+签完的 *_signed.bin 放到本目录后再双击 tfm_update.bat。
+
+================================================================
+九、不要做的事
 ================================================================
 
 - 不要用本目录以前附带的 H573 hex（已从仓库删掉）

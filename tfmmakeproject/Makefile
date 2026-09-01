@@ -20,6 +20,8 @@
 #
 # Flash the signed image with windows-tfm-tools or ./flash_stm32h5f4.sh.
 # Do not run api_ns/TFM_UPDATE.sh or regression.sh.
+# Signing uses sign_kit/ (H5F4 slot sizes, local venv). Standalone:
+#   ./sign_kit/sign.sh out/tfm_ns.bin
 
 NS_APP      := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 ROOT        := $(abspath $(NS_APP)/..)
@@ -165,30 +167,9 @@ python-deps:
 	python3 -m venv $(NS_APP)/.sign-venv
 	$(NS_APP)/.sign-venv/bin/python -m pip install intelhex click cryptography cbor2 pyyaml
 
-BL2_PY := $(OUT)/pypath
-
-$(OUT)/tfm_ns_signed.bin: $(OUT)/tfm_ns.bin $(OUT)/tfm_ns.hex
+$(OUT)/tfm_ns_signed.bin: $(OUT)/tfm_ns.bin
 	@echo "SIGN $(notdir $@)"
-	@PY=$$(PYTHON="$(PYTHON)" $(NS_APP)/h5f4_sign_python.sh); \
-	echo "  python $$PY"; \
-	mkdir -p $(BL2_PY)/bl2; \
-	touch $(BL2_PY)/bl2/__init__.py; \
-	cp -f $(SPE)/image_signing/scripts/macro_parser.py $(BL2_PY)/bl2/macro_parser.py; \
-	cd $(SPE)/image_signing/scripts && PYTHONPATH=$(BL2_PY) $$PY wrapper.py \
-		--version 0.0.0 \
-		--layout $(SPE)/image_signing/layout_files/signing_layout_ns.o \
-		--key $(SPE)/image_signing/keys/image_ns_signing_private_key.pem \
-		--public-key-format full \
-		--align 16 \
-		--pad \
-		--pad-header \
-		-H 0x400 \
-		-s 1 \
-		-L 128 \
-		-d "(0, 0.0.0+0)" \
-		--measured-boot-record \
-		$(OUT)/tfm_ns.bin \
-		$(OUT)/tfm_ns_signed.bin
+	$(NS_APP)/sign_kit/sign.sh $(OUT)/tfm_ns.bin
 
 $(VENEERS):
 	$(error SPE export not found: $@  (set SPE=/path/to/build_s/api_ns))

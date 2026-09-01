@@ -23,6 +23,8 @@ sign.bat sapp.bin
 
 也可以把 `.bin` 拖到 `sign.bat` 上。
 
+第一次运行会在本目录创建 `.venv`（不要用仓库根目录 TF-M 的 `.venv`）。
+
 输出在本目录：`tfm_ns_signed.bin` / `sapp_signed.bin`。
 
 文件名里带 `ns` 按非安全签；带 `sapp`、`tfm_s`、`_s.bin` 按安全签。看不出来时：

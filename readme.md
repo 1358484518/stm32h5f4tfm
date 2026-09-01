@@ -127,11 +127,11 @@ NS 大缓冲可放到 `.ram2` / `.bss.ram2`，或使用 `__ns_ram2_start__` / `_
 
 - 增加非安全测试代码 nsdev.tar.xz ，在 ubuntu22.04 解压后执行make即可运行，这个工程不含硬件浮点计算。
 
-- 增加 sign_kit.tar.xz 签名工具，只是用来对未加密固件进行签名使用。
+- 增加 sign_kit 签名工具（H5F4）：`tfmmakeproject/sign_kit` 与 CubeIDE 的 `STM32CubeIDE/sign_kit`。只用来对未加密固件签名。NS 1200 KB @ `0x0C090000`，S 352 KB @ `0x0C038000`。Linux：`./sign.sh tfm_ns.bin`；Windows：`sign.bat tfm_ns.bin`。
 
 - 增加 tfm-h573-flash签名固件下载固件快捷脚本.zip 签名回归烧录工具，里面有使用说明文档，用来签名未签名的固件和下载程序到flash。
 
-- 增加 makefile 编译的非安全侧工程 tfmmakeproject（已改为 STM32H5F4）。在 `tfmmakeproject/` 下执行 `make`。MCU 宏 `STM32H5F4xx`，`BL2_TRAILER_SIZE=0x3000`。签完的 `out/tfm_ns_signed.bin` 用 `windows-tfm-tools` 或 `./flash_stm32h5f4.sh` 烧，不要跑工程里的 `TFM_UPDATE.sh`。
+- 增加 makefile 编译的非安全侧工程 tfmmakeproject（已改为 STM32H5F4）。在 `tfmmakeproject/` 下执行 `make`（内部调用 `sign_kit/sign.sh`）。MCU 宏 `STM32H5F4xx`，`BL2_TRAILER_SIZE=0x3000`。签完的 `out/tfm_ns_signed.bin` 用 `windows-tfm-tools` 或 `./flash_stm32h5f4.sh` 烧，不要跑工程里的 `TFM_UPDATE.sh`。
 
 - 增加 tfmcubeideproject 非安全侧 CubeIDE 工程（已改为 STM32H5F4）。打开 `tfmcubeideproject/STM32CubeIDE` 下的 `tfmminiproject`。已带 mbedtls 4.1.1（TLS/X.509 辅助，PSA crypto 仍走 SPE）。`s_veneers.o` 与 `signing_layout_*.o` 已纳入仓库。签完的 NS 镜像用 `windows-tfm-tools` 或 `./flash_stm32h5f4.sh` 烧，不要跑工程里的 `TFM_UPDATE.sh`。
 
