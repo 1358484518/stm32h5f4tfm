@@ -141,10 +141,12 @@ run_regression() {
 readback_magic() {
     local addr="$1"
     local label="$2"
+    # CubeProgrammer 2.x: -u/--upload writes memory to a .bin/.hex file.
+    # (-r without full args fails on v2.23 with "missing some arguments")
     local tmp
-    tmp="$(mktemp)"
+    tmp="$(mktemp --suffix=.bin)"
     echo ">>> 回读 ${label} @ ${addr}（检查 MCUboot magic）"
-    "${CLI}" ${CONNECT_HP} -r "${addr}" 16 "${tmp}" \
+    "${CLI}" ${CONNECT_HP} -u "${addr}" 0x10 "${tmp}" \
         || die "回读 ${label} 失败（可能没烧上，或 AP/连接不对）"
     local got
     got="$(od -An -tx1 -N4 "${tmp}" | tr -d ' \n')"
@@ -197,9 +199,10 @@ run_download() {
     echo "download Done"
     echo
     echo "若仍报 Image in the primary slot is not valid："
-    echo "  1) 用 ./buildtfm.sh test 重编（INFO 日志），再跑本脚本"
-    echo "  2) 串口应先有: PSA Crypto init done, sig_type: EC-P256"
-    echo "  3) 确认三份镜像都是同一次 buildtfm 产物，不要混 master(RSA) 的包"
+    echo "  1) 必须烧含 OTP 区的 bl2.hex（本脚本默认用它）；勿只烧旧 RSA 的 BL2"
+    echo "  2) 从 RSA 切到 EC-P256 后先 ./flash_stm32h573.sh（回归全片擦除）再烧"
+    echo "  3) 串口应有: PSA Crypto init done, sig_type: EC-P256"
+    echo "  4) S/NS 须与 BL2 同一次 ./buildtfm.sh test 产物"
     echo "串口 ST-Link VCP 115200 8N1。"
 }
 

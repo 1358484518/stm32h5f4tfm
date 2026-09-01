@@ -111,9 +111,14 @@ MCUBOOT_S_IMAGE_MIN_VER=0.0.0+0
 
 ### 更换密钥（量产 / 自用）
 
-算法必须仍是 **EC-P256**。只换 `sign_kit/keys`、不重编不重烧 BL2，板上验签会失败（ROTPK 在 BL2 里）。
+算法必须仍是 **EC-P256**。只换 `sign_kit/keys`、不重编不重烧 BL2，板上验签会失败（ROTPK 在 BL2/`bl2.hex` 的 OTP 区里）。
+
+`bl2.hex` 会一并烧写 flash 仿真 OTP（约 `0x0C028000`）。其中的 `bl2_rotpk_0/1` 必须是当前 S/NS 公钥的 SHA-256；若为全 0 或仍是 RSA 哈希，串口会出现 `magic=good` 后紧跟 `Image in the primary slot is not valid`。从 RSA 切到本分支后请先跑回归（全片擦除）再烧新的 `bl2.hex`。
+
+换密钥后跑 `./buildtfm.sh` 会自动根据 `root-EC-P256*.pem`（或 `MCUBOOT_KEY_S`/`MCUBOOT_KEY_NS`）重写 `otp_rotpk_hashes.inc` 与 `bl2/src/provisioning.c` 里的 dummy ROTPK；**不必手改 OTP 表**。仍需重编并重烧 BL2+S+NS。
 
 **1. 生成新密钥对（S / NS 各一把）**
+
 
 ```bash
 # 可用 sign_kit 自己的 .venv，或仓库根目录 .venv（需已装 imgtool）
@@ -176,11 +181,13 @@ git checkout stm32h573p256
 
 | 镜像 | 地址 | 默认文件 |
 |------|------|----------|
-| BL2 | `0x0C00E000` | `trusted-firmware-m/build_s/api_ns/bin/bl2.bin` |
+| BL2（含 OTP 区） | `0x0C00E000`（`bl2.hex` 另含 `0x0C028000` OTP） | `…/api_ns/bin/bl2.hex`（优先）或 `bl2.bin` |
 | S | `0x0C038000` | `…/api_ns/bin/tfm_s_signed.bin` |
 | NS | `0x0C088000` | `trusted-firmware-m/build_ns/bin/tfm_ns_signed.bin` |
 
 可用环境变量 `TFM_NS_BIN=` 指定其它已签名 NS。`BOOT_UBE=0xB4`（OEM-iRoT）。串口 **115200**。
+
+若串口已是 `sig_type: EC-P256` 且 primary `magic=good`，仍报 `Image in the primary slot is not valid`：多半是 OTP 里 ROTPK 不对——请 `git pull` 后重新 `./buildtfm.sh test`（或使用已修补的 `bl2.hex`），再 `./flash_stm32h573.sh` 做一次回归+烧录。
 
 Windows 一键：`windows-tfm-tools\tfm_update.bat`（会调 `regression.bat`）。无装包还可解压根目录 `tfm-h573-flash…zip` 里的 `flash_all.sh`。
 
