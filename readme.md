@@ -27,6 +27,17 @@
 
 算法必须仍是 **EC-P256**。只换 `sign_kit/keys`、不重编不重烧 BL2，板上验签会失败（ROTPK 在 BL2 里）。
 
+**文件名对应（同内容、不同路径）**
+
+本支线默认 dummy 密钥下，下面两对文件 **内容相同**，只是名字和用途不同；换密钥时必须整对一起换，不能只改一边。
+
+| TF-M / BL2 路径（编 SPE 用） | `sign_kit` / `api_ns` 路径（签镜像用） | 用途 |
+|------------------------------|----------------------------------------|------|
+| `bl2/ext/mcuboot/root-EC-P256.pem` | `image_s_signing_private_key.pem` | Secure（S）私钥 |
+| `bl2/ext/mcuboot/root-EC-P256_1.pem` | `image_ns_signing_private_key.pem` | Non-Secure（NS）私钥 |
+
+编 SPE 时 TF-M 会把 `root-EC-P256*.pem` 拷成 `build_s/api_ns/image_signing/keys/image_*_signing_private_key.pem`；`sign_kit/keys/` 里同名文件应与之一致。
+
 **1. 生成新密钥对（S / NS 各一把）**
 
 ```bash
@@ -39,8 +50,8 @@ imgtool keygen -k root-EC-P256-ns.pem -t ecdsa-p256
 
 覆盖 TF-M 默认路径（或 cmake 传 `-DMCUBOOT_KEY_S=... -DMCUBOOT_KEY_NS=...`）：
 
-- S：`trusted-firmware-m/bl2/ext/mcuboot/root-EC-P256.pem`
-- NS：`trusted-firmware-m/bl2/ext/mcuboot/root-EC-P256_1.pem`
+- S：`trusted-firmware-m/bl2/ext/mcuboot/root-EC-P256.pem`（= 下面的 `image_s_signing_private_key.pem`）
+- NS：`trusted-firmware-m/bl2/ext/mcuboot/root-EC-P256_1.pem`（= 下面的 `image_ns_signing_private_key.pem`）
 
 然后清 SPE 再编：
 
@@ -52,12 +63,12 @@ rm -rf trusted-firmware-m/build_s
 
 **3. 同步给签名工具**
 
-把**同一对**私钥拷到实际在用的目录（文件名固定）：
+把**与上表同一对**私钥拷到实际在用的目录（文件名用右边这一套）：
 
 | 文件 | 用途 |
 |------|------|
-| `image_s_signing_private_key.pem` | 签 Secure |
-| `image_ns_signing_private_key.pem` | 签 Non-Secure |
+| `image_s_signing_private_key.pem` | 签 Secure（内容 = `root-EC-P256.pem`） |
+| `image_ns_signing_private_key.pem` | 签 Non-Secure（内容 = `root-EC-P256_1.pem`） |
 
 常见位置：`tfmmakeproject/sign_kit/keys/`、`tfmmakeproject/api_ns/image_signing/keys/`，以及 CubeIDE 的 `sign_kit/keys/`、`spe/api_ns/image_signing/keys/`。  
 公钥可从 `trusted-firmware-m/build_s/api_ns/image_signing/keys/` 再拷一份对齐。
