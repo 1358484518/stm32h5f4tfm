@@ -77,7 +77,7 @@ enum tfm_plat_err_t stm_iak_flash_dhuk_read(uint8_t *out, size_t out_len)
     return stm_saes_dhuk_decrypt(b->iak_cipher, out, STM_IAK_FLASH_IAK_LEN);
 }
 
-enum tfm_plat_err_t stm_iak_flash_dhuk_seal_and_store(
+enum tfm_plat_err_t __attribute__((used)) stm_iak_flash_dhuk_seal_and_store(
     const uint8_t iak_plain[STM_IAK_FLASH_IAK_LEN])
 {
     struct stm_iak_flash_blob blob;

@@ -40,7 +40,8 @@ enum tfm_plat_err_t stm_iak_flash_dhuk_read(uint8_t *out, size_t out_len);
  * Secure Flash sector at FLASH_IAK_DHUK_AREA_OFFSET. Erases the whole sector.
  */
 enum tfm_plat_err_t stm_iak_flash_dhuk_seal_and_store(
-    const uint8_t iak_plain[STM_IAK_FLASH_IAK_LEN]);
+    const uint8_t iak_plain[STM_IAK_FLASH_IAK_LEN])
+    __attribute__((used));
 
 #ifdef __cplusplus
 }
