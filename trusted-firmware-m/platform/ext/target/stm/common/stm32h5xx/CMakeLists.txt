@@ -175,6 +175,7 @@ if(BL2)
         target_include_directories(platform_bl2
             PUBLIC
                 ${STM_COMMON_DIR}/hal/provision
+                ${CMAKE_SOURCE_DIR}/platform/ext/common/template
         )
         target_compile_definitions(platform_bl2
             PUBLIC
