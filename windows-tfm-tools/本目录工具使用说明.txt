@@ -1,4 +1,10 @@
 STM32H5F4 Windows 烧录说明（ST-Link）
+【调试分支 stm32h5f4p256-debug】
+BL2 含 H5F4BL2 / DBG-NOSIG skip-NS：只启动 S，不加载 NS。
+先双击 tfm_update.bat 烧 BL2+S（及预置 NS），再用 CubeIDE F5 下 NS 到 0x08090400。
+量产请改用 stm32h5f4 / stm32h5f4p256。
+
+STM32H5F4 Windows 烧录说明（ST-Link）
 本文件是 windows-tfm-tools 的用法。
 
 ================================================================

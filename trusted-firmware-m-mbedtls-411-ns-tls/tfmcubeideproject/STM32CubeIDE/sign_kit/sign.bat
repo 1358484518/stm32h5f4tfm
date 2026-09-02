@@ -1,19 +1,20 @@
 @echo off
 echo === Starting signing process ===
-rem Standalone MCUboot signer for TF-M Secure / Non-Secure binaries (STM32H573I-DK).
+rem Standalone MCUboot signer for TF-M Secure / Non-Secure binaries (STM32H5F4).
 rem Drop the unsigned .bin into this folder and run:
 rem   sign.bat tfm_ns.bin
 rem   sign.bat sapp.bin
 rem SPDX-License-Identifier: BSD-3-Clause
-rem Do not test the last character against a quoted backslash: cmd.exe
-rem treats backslash-quote as an escaped quote and, with LF line endings
-rem from a GitHub zip, swallows the rest of this script.
 
 setlocal EnableExtensions EnableDelayedExpansion
 
-rem %~dp0 always ends with a backslash; strip it unconditionally.
 set "KIT=%~dp0"
-set "KIT=%KIT:~0,-1%"
+if "%KIT:~-1%"=="\" set "KIT=%KIT:~0,-1%"
+
+if exist "%KIT%\DEBUG_SKIP_SIGN" (
+    echo DBG-NOSIG: skip signing (debug branch). Download NS to NS_CODE_START.
+    exit /b 0
+)
 
 call :load_config
 if errorlevel 1 exit /b 1
@@ -84,7 +85,7 @@ if /I "%KIND%"=="ns" (
     set "VERSION=%MCUBOOT_IMAGE_VERSION_NS%"
     set "SEC_CNT=%MCUBOOT_SECURITY_COUNTER_NS%"
     set "DEP=(0, %MCUBOOT_S_IMAGE_MIN_VER%)"
-    set "SLOT_HINT=NS  576KB @ 0x0C088000"
+    set "SLOT_HINT=NS  1200KB @ 0x0C090000"
     set "KIND_UP=NS"
 ) else (
     set "LAYOUT=%KIT%\layout\signing_layout_s.o"
@@ -92,7 +93,7 @@ if /I "%KIND%"=="ns" (
     set "VERSION=%MCUBOOT_IMAGE_VERSION_S%"
     set "SEC_CNT=%MCUBOOT_SECURITY_COUNTER_S%"
     set "DEP=(1, %MCUBOOT_NS_IMAGE_MIN_VER%)"
-    set "SLOT_HINT=S   320KB @ 0x0C038000"
+    set "SLOT_HINT=S   352KB @ 0x0C038000"
     set "KIND_UP=S"
 )
 
@@ -106,9 +107,8 @@ if errorlevel 1 exit /b 1
 
 "%PY%" %PY_EXTRA% -c "import click, cryptography, cbor2, intelhex" 2>nul
 if errorlevel 1 (
-    echo 错误: 缺少 Python 依赖。先执行:
-    echo   "%PY%" %PY_EXTRA% -m pip install -r "%KIT%\requirements.txt"
-    exit /b 1
+    call :make_venv
+    if errorlevel 1 exit /b 1
 )
 
 if /I "%MCUBOOT_HW_KEY%"=="ON" (set "PUB_FMT=full") else (set "PUB_FMT=hash")
@@ -231,4 +231,27 @@ echo 错误: 找不到 Python。请安装 Python 3 并勾选 Add python.exe to P
 exit /b 1
 
 :python_ok
+exit /b 0
+
+:make_venv
+echo imgtool: creating %KIT%\.venv
+py -3 -m venv "%KIT%\.venv" 2>nul
+if errorlevel 1 python -m venv "%KIT%\.venv"
+if errorlevel 1 (
+    echo 错误: 无法创建 %KIT%\.venv
+    exit /b 1
+)
+set "PY=%KIT%\.venv\Scripts\python.exe"
+set "PY_EXTRA="
+"%PY%" -m pip install -q -r "%KIT%\requirements.txt"
+if errorlevel 1 (
+    echo 错误: 缺少 Python 依赖。先执行:
+    echo   "%PY%" -m pip install -r "%KIT%\requirements.txt"
+    exit /b 1
+)
+"%PY%" -c "import click, cryptography, cbor2, intelhex" 2>nul
+if errorlevel 1 (
+    echo 错误: 签名依赖安装后仍无法 import click/cryptography/cbor2/intelhex
+    exit /b 1
+)
 exit /b 0

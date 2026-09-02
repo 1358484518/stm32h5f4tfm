@@ -6,10 +6,19 @@
 
 | 分支 | 签名算法 | 说明 |
 |------|----------|------|
-| `stm32h5f4` | **RSA-3072** | 默认开发支线 |
-| `stm32h5f4p256`（及 `stm32h5f4-p256`） | **EC-P256** | 仅改 MCUboot 镜像签名算法与配套密钥 |
+| `stm32h5f4` | **RSA-3072** | 正式开发支线（验签） |
+| `stm32h5f4p256` | **EC-P256** | 正式 P256 支线（验签） |
+| `stm32h5f4p256-debug` | **EC-P256** | **调试：BL2 不加载 NS**，只启动 S；CubeIDE 直接下 NS |
 
-本文档所在分支为 **`stm32h5f4p256`**。
+本文档所在分支为 **`stm32h5f4p256-debug`**（基于 `stm32h5f4p256`）。
+
+### 调试分支做什么
+
+- BL2 初始化后**只校验/启动 S**；**不看 NS 槽**
+- SPE 仍按固定地址 `NS_CODE_START`（`0x08090400`）跳 NS
+- CubeIDE：先烧 BL2+S（`tfm_update.bat` / `./flash_stm32h5f4.sh`），再 F5 下 NS 即可
+- `sign_kit/DEBUG_SKIP_SIGN`：post-build 跳过签名
+- **不要用于量产**；量产回 `stm32h5f4` / `stm32h5f4p256`
 
 ### 相对 `stm32h5f4` 改了什么
 

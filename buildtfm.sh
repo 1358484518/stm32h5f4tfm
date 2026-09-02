@@ -410,6 +410,10 @@ if ! grep -a -F -q "H5F4BL2" "${BL2_BIN}"; then
     strings "${BL2_BIN}" | grep -E "Starting bootloader|H5F4BL2" || true
     exit 1
 fi
+if ! grep -a -F -q "DBG-NOSIG skip-NS" "${BL2_BIN}"; then
+    echo "错误: ${BL2_BIN} 没有 DBG-NOSIG skip-NS（本调试分支 BL2 应跳过 NS 加载）"
+    exit 1
+fi
 if [[ "${BUILD_TYPE}" == "test" ]] && ! grep -a -F -q "Starting bootloader S-sec=" "${BL2_BIN}"; then
     echo "错误: ${BL2_BIN} 没有 S-sec 标记（测试版 INFO 日志应编进该串）"
     strings "${BL2_BIN}" | grep -E "Starting bootloader|H5F4BL2" || true

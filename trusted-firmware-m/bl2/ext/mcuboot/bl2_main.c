@@ -69,6 +69,8 @@ struct boot_rsp rsp;
  * BOOT_LOG_INF is compiled out (prod / LOG_LEVEL_ERROR).
  */
 __attribute__((used)) static const char bl2_ident[] = "H5F4BL2";
+/* Debug branch: BL2 does not load NS; SPE jumps to NS_CODE_START. */
+__attribute__((used)) static const char bl2_debug_nosig[] = "DBG-NOSIG skip-NS";
 
 static void do_boot(struct boot_rsp *rsp)
 {
@@ -133,6 +135,7 @@ int main(void)
     stdio_init();
     /* First UART line. If this is missing, the chip is not running this BL2. */
     BOOT_LOG_ERR("%s", bl2_ident);
+    BOOT_LOG_ERR("%s", bl2_debug_nosig);
 #if defined(TEST_BL2)
     for (int i = 0; i < 0xFFFFF; i++) {
         if ((i & 0xFFF) == 0x0) {
@@ -151,6 +154,7 @@ int main(void)
     }
 
     (void)bl2_ident;
+    (void)bl2_debug_nosig;
     BOOT_LOG_INF("Starting bootloader S-sec=0x%x", (unsigned)FLASH_AREA_2_OFFSET);
 
     plat_err = tfm_plat_otp_init();
@@ -210,6 +214,12 @@ int main(void)
      */
     for (image_id = MCUBOOT_IMAGE_NUMBER - 1; image_id >= 0; image_id--) {
         if (!boot_platform_should_load_image(image_id)) {
+            continue;
+        }
+
+        /* Debug: ignore NS. SPE jumps to fixed NS_CODE_START on its own. */
+        if (image_id == 1) {
+            BOOT_LOG_ERR("DBG-NOSIG: skip NS (S jumps to NS_CODE_START)");
             continue;
         }
 
