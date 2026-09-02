@@ -3,7 +3,7 @@ rem STM32H5F4 flash map, option-byte names, and CubeProgrammer PATH.
 rem Linear script only: do not use internal subroutines. cmd.exe can pop
 rem the parent's call stack (tfm_update.bat then exits before pause).
 rem Do not use H573 values: WRPSGn1, SECWM ...=127, NS slot 0x0C088000.
-set "H5F4_REV=h5f4-p256-debug-skipns"
+set "H5F4_REV=h5f4-p256-debug-prod"
 set "H5F4_ADDR_BL2_S=0x0C00E000"
 set "H5F4_ADDR_S_S=0x0C038000"
 set "H5F4_ADDR_NS_S=0x0C090000"
