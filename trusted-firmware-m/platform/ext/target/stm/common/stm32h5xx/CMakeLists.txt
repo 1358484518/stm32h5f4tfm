@@ -106,6 +106,26 @@ if(STM_PROD_CHIP_OTP_SECRETS)
     )
 endif()
 
+
+if(STM_PROD_CHIP_OTP_SECRETS)
+    # platform_crypto_keys reads tfm_plat_otp.h / HUK via OTP; needs same layout macros
+    # and does not inherit platform_s PUBLIC defs for this target.
+    if(TARGET platform_crypto_keys)
+        target_include_directories(platform_crypto_keys
+            PUBLIC
+                ${STM_COMMON_DIR}/hal/provision
+                ${CMAKE_SOURCE_DIR}/platform/ext/common/template
+        )
+        target_compile_definitions(platform_crypto_keys
+            PUBLIC
+                PLATFORM_DEFAULT_OTP
+                STM_PROD_CHIP_OTP_SECRETS
+                $<$<BOOL:${STM_PROD_DHUK_WRAP_HUK}>:STM_PROD_DHUK_WRAP_HUK>
+                $<$<BOOL:${PLATFORM_DEFAULT_OTP_WRITEABLE}>:OTP_WRITEABLE>
+        )
+    endif()
+endif()
+
 target_compile_options(platform_s
     PUBLIC
         ${COMPILER_CMSE_FLAG}
