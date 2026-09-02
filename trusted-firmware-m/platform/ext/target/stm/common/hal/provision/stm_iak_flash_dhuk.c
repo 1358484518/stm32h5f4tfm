@@ -158,3 +158,8 @@ enum tfm_plat_err_t __attribute__((used)) stm_iak_flash_dhuk_seal_and_store(
     }
     return TFM_PLAT_ERR_SUCCESS;
 }
+
+/* Retain factory seal entry point under --gc-sections. */
+enum tfm_plat_err_t (* const stm_iak_flash_dhuk_seal_entry)
+    (const uint8_t[STM_IAK_FLASH_IAK_LEN])
+    __attribute__((used)) = stm_iak_flash_dhuk_seal_and_store;
