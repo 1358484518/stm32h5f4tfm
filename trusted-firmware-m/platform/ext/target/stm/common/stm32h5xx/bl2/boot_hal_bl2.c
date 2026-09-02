@@ -679,7 +679,11 @@ int32_t boot_platform_init(void)
         BOOT_LOG_ERR("Run scripts/gen_stm_chip_otp_secrets.py + factory OTP program");
         Error_Handler();
     } else {
+#ifdef STM_PROD_DHUK_WRAP_HUK
+        BOOT_LOG_INF("Chip OTP secrets OK (HUK via SAES DHUK when flagged)");
+#else
         BOOT_LOG_INF("Chip OTP device secrets OK (HUK/IAK)");
+#endif
     }
 #endif /* STM_PROD_CHIP_OTP_SECRETS */
 #ifdef FLASH_DEV_NAME_2

@@ -81,6 +81,7 @@ target_sources(platform_s
         ${CMAKE_CURRENT_SOURCE_DIR}/hal/Src/stm32h5xx_hal_rtc_ex.c
         $<$<BOOL:${STM_PROD_CHIP_OTP_SECRETS}>:${STM_COMMON_DIR}/hal/provision/stm_chip_otp_secrets.c>
         $<$<BOOL:${STM_PROD_CHIP_OTP_SECRETS}>:${STM_COMMON_DIR}/hal/provision/stm_otp_flash_prod.c>
+        $<$<BOOL:${STM_PROD_DHUK_WRAP_HUK}>:${STM_COMMON_DIR}/hal/provision/stm_saes_dhuk.c>
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/hal/Src/stm32h5xx_hal_hash.c
         ${CMAKE_CURRENT_SOURCE_DIR}/hal/Src/stm32h5xx_hal_pka.c
@@ -99,6 +100,7 @@ if(STM_PROD_CHIP_OTP_SECRETS)
     target_compile_definitions(platform_s
         PUBLIC
             STM_PROD_CHIP_OTP_SECRETS
+            $<$<BOOL:${STM_PROD_DHUK_WRAP_HUK}>:STM_PROD_DHUK_WRAP_HUK>
             $<$<BOOL:${PLATFORM_DEFAULT_OTP_WRITEABLE}>:OTP_WRITEABLE>
     )
 endif()
@@ -169,6 +171,7 @@ if(BL2)
             ${STM_COMMON_DIR}/hal/Native_Driver/low_level_rng.c
             $<$<BOOL:${STM_PROD_CHIP_OTP_SECRETS}>:${STM_COMMON_DIR}/hal/provision/stm_chip_otp_secrets.c>
             $<$<BOOL:${STM_PROD_CHIP_OTP_SECRETS}>:${STM_COMMON_DIR}/hal/provision/stm_otp_flash_prod.c>
+            $<$<BOOL:${STM_PROD_DHUK_WRAP_HUK}>:${STM_COMMON_DIR}/hal/provision/stm_saes_dhuk.c>
     )
 
     if(STM_PROD_CHIP_OTP_SECRETS)
@@ -180,6 +183,7 @@ if(BL2)
         target_compile_definitions(platform_bl2
             PUBLIC
                 STM_PROD_CHIP_OTP_SECRETS
+                $<$<BOOL:${STM_PROD_DHUK_WRAP_HUK}>:STM_PROD_DHUK_WRAP_HUK>
                 $<$<BOOL:${PLATFORM_DEFAULT_OTP_WRITEABLE}>:OTP_WRITEABLE>
         )
     endif()
