@@ -695,6 +695,8 @@ int32_t boot_platform_init(void)
     } else {
         BOOT_LOG_INF("IAK DHUK blob OK (Secure Flash)");
     }
+    /* Keep factory seal symbol under --gc-sections. */
+    BOOT_LOG_DBG("IAK seal API %p", (void *)stm_iak_flash_dhuk_seal_and_store);
 #endif
 #endif /* STM_PROD_CHIP_OTP_SECRETS */
 #ifdef FLASH_DEV_NAME_2
