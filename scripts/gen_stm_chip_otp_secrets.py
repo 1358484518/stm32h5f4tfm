@@ -34,8 +34,12 @@ except ImportError as exc:  # pragma: no cover
     raise SystemExit(2) from exc
 
 MAGIC = 0x53544D31  # 'STM1'
+# Host-side generator emits v1 plaintext HUK for bring-up / HSM archive.
+# Production DHUK protection (v2 + FLAG_HUK_DHUK) must be sealed ON-DEVICE
+# via stm_chip_otp_secrets_build_dhuk_image() — the PC has no DHUK.
 VERSION = 1
 OTP_BASE = 0x08FFF000
+FLAG_HUK_DHUK = 1 << 0
 
 
 def crc32_iso(data: bytes) -> int:
@@ -138,11 +142,19 @@ def main() -> int:
 =====================================
 Target address : 0x{OTP_BASE:08X}
 Blob size      : {len(blob)} bytes
-Magic/version  : 0x{MAGIC:08X} / {VERSION}
+Magic/version  : 0x{MAGIC:08X} / {VERSION}  (host v1 = plaintext HUK)
+
+DHUK note
+---------
+This host image stores HUK in plaintext (v1). For builds with
+STM_PROD_DHUK_WRAP_HUK, seal ON the MCU with:
+  stm_chip_otp_secrets_build_dhuk_image(...)
+then program the returned v2 image (flag HUK_DHUK) into Flash OTP.
+The PC cannot apply DHUK — it lives only inside SAES.
 
 Files
 -----
-chip_otp_secrets.bin / .hex  — program into on-chip Flash OTP
+chip_otp_secrets.bin / .hex  — program into on-chip Flash OTP (or seal first)
 huk.bin                      — keep in HSM / offline vault (never commit)
 iak_private.pem / iak_raw.bin— device attestation private key material
 iak_public.pem               — enroll with your attestation verifier
@@ -154,7 +166,7 @@ STM32_Programmer_CLI -c port=SWD mode=UR -w chip_otp_secrets.hex
 # Then lock OTP blocks that contain this blob (blocks 0..N) via Option Bytes.
 # OTP programming is ONE-WAY. Validate on scrap parts first.
 
-After OTP is programmed, flash BL2+S+NS from the production P256 branch.
+After OTP is programmed, flash BL2+S+NS from the DHUK/production feature branch.
 ROTPK (image verify) still comes from keys/ via ./buildtfm.sh — separate from IAK/HUK.
 """
     )
