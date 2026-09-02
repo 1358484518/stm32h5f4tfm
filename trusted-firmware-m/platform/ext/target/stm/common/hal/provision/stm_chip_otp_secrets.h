@@ -6,8 +6,10 @@
  * Physical OTP window: FLASH_OTP_BASE (0x08FFF000), size 0x800.
  *
  * Version 2: when STM_CHIP_OTP_FLAG_HUK_DHUK is set, huk[] is AES-CBC
- * ciphertext protected by SAES DHUK (not plaintext). IAK remains raw
- * P-256 scalar (needed by TF-M attestation in software).
+ * ciphertext protected by SAES DHUK (not plaintext).
+ *
+ * With STM_PROD_IAK_FLASH_DHUK, IAK lives in Secure Flash (DHUK-sealed)
+ * instead of this OTP blob; iak[] here should be left zero / unused.
  */
 #ifndef STM_CHIP_OTP_SECRETS_H
 #define STM_CHIP_OTP_SECRETS_H

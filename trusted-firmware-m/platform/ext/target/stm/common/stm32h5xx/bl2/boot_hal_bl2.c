@@ -62,6 +62,9 @@
 #include "nv_counters.h"
 #ifdef STM_PROD_CHIP_OTP_SECRETS
 #include "stm_chip_otp_secrets.h"
+#ifdef STM_PROD_IAK_FLASH_DHUK
+#include "stm_iak_flash_dhuk.h"
+#endif
 #endif
 
 #ifdef BL2_OTP_AREA_BASE
@@ -674,18 +677,26 @@ int32_t boot_platform_init(void)
     }
 #endif /* FLASH_DEV_NAME */
 #ifdef STM_PROD_CHIP_OTP_SECRETS
-    /* Fail closed if factory did not program on-chip OTP HUK/IAK. */
+    /* Fail closed if factory did not program on-chip OTP HUK. */
     if (!stm_chip_otp_secrets_is_provisioned()) {
-        BOOT_LOG_ERR("Chip OTP HUK/IAK not provisioned (FLASH_OTP @ 0x08FFF000)");
+        BOOT_LOG_ERR("Chip OTP HUK not provisioned (FLASH_OTP @ 0x08FFF000)");
         BOOT_LOG_ERR("Run scripts/gen_stm_chip_otp_secrets.py + factory OTP program");
         Error_Handler();
     } else {
 #ifdef STM_PROD_DHUK_WRAP_HUK
         BOOT_LOG_INF("Chip OTP secrets OK (HUK via SAES DHUK when flagged)");
 #else
-        BOOT_LOG_INF("Chip OTP device secrets OK (HUK/IAK)");
+        BOOT_LOG_INF("Chip OTP device secrets OK (HUK)");
 #endif
     }
+#ifdef STM_PROD_IAK_FLASH_DHUK
+    if (!stm_iak_flash_dhuk_is_provisioned()) {
+        BOOT_LOG_WRN("IAK Secure Flash blob missing @ 0x0C030000");
+        BOOT_LOG_WRN("Seal on-device: stm_iak_flash_dhuk_seal_and_store()");
+    } else {
+        BOOT_LOG_INF("IAK DHUK blob OK (Secure Flash)");
+    }
+#endif
 #endif /* STM_PROD_CHIP_OTP_SECRETS */
 #ifdef FLASH_DEV_NAME_2
     if (FLASH_DEV_NAME_2.Initialize(NULL) != ARM_DRIVER_OK)
