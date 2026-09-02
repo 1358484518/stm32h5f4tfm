@@ -20,7 +20,7 @@
 3. **tf-m-tests**：NS 测试镜像随 SPE 导出的 `api_ns` 密钥签名（无需单独改测试仓密钥）
 4. **makefile 工程**：`tfmmakeproject/api_ns/image_signing/keys/`（及 `sign_kit/keys/`）
 5. **CubeIDE 工程**：`sign_kit/keys/` 与 `spe/api_ns/image_signing/keys/`（含 `mbedtls-411` 平行树）
-6. **独立签名工具 / 压缩包**：根目录 `sign_kit.zip`、`tfm-h573-flash…zip`、`ns_make_project.zip`、`tfmcubeideproject.7z` 内密钥与样例签名镜像
+6. **独立签名工具 / 压缩包**：根目录 `sign_kit.zip`、`ns_make_project.zip`、`tfmcubeideproject.7z` 内密钥与样例签名镜像
 7. **Linux 一键烧录**：根目录 `./flash_stm32h573.sh`（回归 + 烧 BL2/S/NS；Windows 仍用 `windows-tfm-tools\tfm_update.bat`）
 
 ### 密钥文件名对应（同内容、不同路径）
@@ -227,7 +227,6 @@ Windows 一键：`windows-tfm-tools\tfm_update.bat`（会调 `regression.bat`）
 
 - 增加 sign_kit.tar.xz 签名工具，只是用来对未加密固件进行签名使用。
 
-- 增加 tfm-h573-flash签名固件下载固件快捷脚本.zip 签名回归烧录工具，里面有使用说明文档，用来签名未签名的固件和下载程序到flash。
 
 - 增加 makefile 编译的非安全侧工程 tfmmakeproject ，可以使用make编译生成代码，正式版本关闭非安全侧测试，开启硬件浮点，使用内部晶振 PLL 240 MHZ
 
