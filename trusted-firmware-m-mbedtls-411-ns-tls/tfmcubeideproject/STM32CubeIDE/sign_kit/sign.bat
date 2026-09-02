@@ -5,15 +5,16 @@ rem Drop the unsigned .bin into this folder and run:
 rem   sign.bat tfm_ns.bin
 rem   sign.bat sapp.bin
 rem SPDX-License-Identifier: BSD-3-Clause
-rem Do not test the last character against a quoted backslash: cmd.exe
-rem treats backslash-quote as an escaped quote and, with LF line endings
-rem from a GitHub zip, swallows the rest of this script.
 
 setlocal EnableExtensions EnableDelayedExpansion
 
-rem %~dp0 always ends with a backslash; strip it unconditionally.
 set "KIT=%~dp0"
-set "KIT=%KIT:~0,-1%"
+if "%KIT:~-1%"=="\" set "KIT=%KIT:~0,-1%"
+
+if exist "%KIT%\DEBUG_SKIP_SIGN" (
+    echo DBG-NOSIG: skip signing (debug branch). Download NS to NS_CODE_START.
+    exit /b 0
+)
 
 call :load_config
 if errorlevel 1 exit /b 1

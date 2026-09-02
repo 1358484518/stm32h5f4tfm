@@ -1,5 +1,5 @@
-echo === Starting signing process ===
 @echo off
+echo === Starting signing process ===
 rem Standalone MCUboot signer for TF-M Secure / Non-Secure binaries (STM32H573I-DK).
 rem Drop the unsigned .bin into this folder and run:
 rem   sign.bat tfm_ns.bin
@@ -10,6 +10,11 @@ setlocal EnableExtensions EnableDelayedExpansion
 
 set "KIT=%~dp0"
 if "%KIT:~-1%"=="\" set "KIT=%KIT:~0,-1%"
+
+if exist "%KIT%\DEBUG_SKIP_SIGN" (
+    echo DBG-NOSIG: skip signing (debug branch). Download NS to NS_CODE_START.
+    exit /b 0
+)
 
 call :load_config
 if errorlevel 1 exit /b 1
