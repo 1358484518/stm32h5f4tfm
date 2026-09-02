@@ -1,4 +1,5 @@
 @echo off
+rem This file MUST use Windows CRLF line endings (LF-only breaks cmd.exe).
 echo === Starting signing process ===
 rem Standalone MCUboot signer for TF-M Secure / Non-Secure binaries (STM32H573I-DK).
 rem Drop the unsigned .bin into this folder and run:
