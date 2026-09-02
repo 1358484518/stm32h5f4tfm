@@ -204,7 +204,7 @@ git checkout stm32h573p256
 
 若串口已是 `sig_type: EC-P256` 且 primary `magic=good`，仍报 `Image in the primary slot is not valid`：多半是 OTP 里 ROTPK 不对——请 `git pull` 后重新 `./buildtfm.sh test`（或使用已修补的 `bl2.hex`），再 `./flash_stm32h573.sh` 做一次回归+烧录。
 
-Windows 一键：`windows-tfm-tools\tfm_update.bat`（会调 `regression.bat`）。无装包还可解压根目录 `tfm-h573-flash…zip` 里的 `flash_all.sh`。
+Windows 一键：`windows-tfm-tools\tfm_update.bat`（会调 `regression.bat`）。
 
 
 
