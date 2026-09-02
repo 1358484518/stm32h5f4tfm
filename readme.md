@@ -147,6 +147,11 @@ rm -rf trusted-firmware-m/build_s trusted-firmware-m/build_ns
 **可选：不用 `keys/` 时**，仍可手动覆盖 `trusted-firmware-m/bl2/ext/mcuboot/root-EC-P256*.pem` 与各 `sign_kit` / `image_signing/keys` 下同名文件，或传 `MCUBOOT_KEY_S` / `MCUBOOT_KEY_NS`。
 
 
+## 量产 HUK/IAK（本生产分支）
+
+片上 Flash OTP 预置方案见 [`docs/prod-otp-huk-iak.md`](docs/prod-otp-huk-iak.md)。  
+现有 `*p256` / debug 等 6 条长期分支不含此方案。
+
 ## keys/、versions/ 与清编译
 
 ### keys/（更换签名密钥）

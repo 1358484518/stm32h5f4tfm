@@ -56,3 +56,6 @@ dkms.conf
 
 # FetchContent dependency cache (kept across clean builds; see scripts/clean_tfm_build.sh)
 trusted-firmware-m/.deps-cache/
+
+# Per-device production OTP secrets (never commit)
+factory/
