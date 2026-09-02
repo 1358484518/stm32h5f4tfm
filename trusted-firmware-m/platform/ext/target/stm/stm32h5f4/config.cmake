@@ -38,11 +38,13 @@ set(TFM_PARTITION_PROTECTED_STORAGE        ON           CACHE BOOL      "Disable
 set(TFM_PARTITION_INITIAL_ATTESTATION      ON           CACHE BOOL      "Disable Initial Attestation partition")
 set(PLATFORM_HAS_FIRMWARE_UPDATE_SUPPORT   ON           CACHE BOOL      "Wheter the platform has firmware update support")
 ################################## Production device secrets (on-chip OTP) ############################
-# HUK/IAK/boot_seed/implementation_id are read from STM32H5 Flash OTP @ 0x08FFF000
-# (factory-programmed). ROTPK hashes stay in flash-emulated OTP and are synced from keys/.
+# HUK/boot_seed/implementation_id from STM32H5 Flash OTP @ 0x08FFF000.
+# IAK: DHUK-sealed blob in Secure Flash (FLASH_IAK_DHUK_AREA @ 0x0C030000).
+# ROTPK hashes stay in flash-emulated OTP and are synced from keys/.
 # Do NOT enable TFM_DUMMY_PROVISIONING on this branch.
-set(STM_PROD_CHIP_OTP_SECRETS              ON           CACHE BOOL      "Use on-chip Flash OTP for HUK/IAK device secrets")
+set(STM_PROD_CHIP_OTP_SECRETS              ON           CACHE BOOL      "Use on-chip Flash OTP for HUK device secrets")
 set(STM_PROD_DHUK_WRAP_HUK                 ON           CACHE BOOL      "Protect OTP HUK with SAES DHUK (AES-CBC); unwrap at runtime")
+set(STM_PROD_IAK_FLASH_DHUK                ON           CACHE BOOL      "Store IAK DHUK-sealed in Secure Flash (re-programmable)")
 set(TFM_DUMMY_PROVISIONING                 OFF          CACHE BOOL      "Provision with dummy values. NOT for production")
 set(PLATFORM_DEFAULT_OTP                   OFF          CACHE BOOL      "OFF skips stock otp_flash.c; STM_PROD still -DPLATFORM_DEFAULT_OTP for struct layout + stm_otp_flash_prod.c")
 set(PLATFORM_DEFAULT_OTP_WRITEABLE         ON           CACHE BOOL      "Allow writes to flash-emulated OTP (ROTPK/NV); chip OTP is R/O at runtime")

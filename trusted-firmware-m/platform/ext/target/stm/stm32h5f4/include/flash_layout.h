@@ -43,7 +43,8 @@
  * 0x0001_0000 BL2 - MCUBoot (96 KB)
  * 0x0002_8000 OTP Write Protect (16 KB)
  * 0x0002_C000 NV counters area (16 KB)
- * 0x0003_0000 Secure Storage Area (16 KB)
+ * 0x0003_0000 IAK DHUK secrets (8 KB, Secure Flash)
+ * 0x0003_2000 Secure Storage Area (8 KB)
  * 0x0003_4000 Internal Trusted Storage Area (16 KB)
  * 0x0003_8000 Secure image     primary slot (352 KB)
  * 0x0009_0000 Non-secure image primary slot (1200 KB)
@@ -135,9 +136,21 @@
 #error "FLASH_NV_COUNTER_AREA_SIZE not aligned on FLASH_AREA_IMAGE_SECTOR_SIZE"
 #endif /*  (FLASH_NV_COUNTER_AREA_SIZE % FLASH_AREA_IMAGE_SECTOR_SIZE) != 0 */
 
-/* Secure Storage (PS) Service definitions */
-#define FLASH_PS_AREA_SIZE             (FLASH_AREA_IMAGE_SECTOR_SIZE+FLASH_AREA_IMAGE_SECTOR_SIZE)
-#define FLASH_PS_AREA_OFFSET           (FLASH_NV_COUNTERS_AREA_OFFSET+FLASH_NV_COUNTERS_AREA_SIZE)
+/*
+ * IAK sealed with SAES DHUK (AES-CBC). One sector in Secure Flash so the
+ * blob is re-programmable in bring-up; S primary offset stays 0x38000.
+ */
+#define FLASH_IAK_DHUK_AREA_SIZE        (FLASH_AREA_IMAGE_SECTOR_SIZE)
+#define FLASH_IAK_DHUK_AREA_OFFSET      (FLASH_NV_COUNTERS_AREA_OFFSET + \
+                                         FLASH_NV_COUNTERS_AREA_SIZE)
+#if (FLASH_IAK_DHUK_AREA_OFFSET % FLASH_AREA_IMAGE_SECTOR_SIZE) != 0
+#error "FLASH_IAK_DHUK_AREA_OFFSET not aligned on FLASH_AREA_IMAGE_SECTOR_SIZE"
+#endif
+
+/* Secure Storage (PS) Service definitions (shrunk by one sector for IAK) */
+#define FLASH_PS_AREA_SIZE             (FLASH_AREA_IMAGE_SECTOR_SIZE)
+#define FLASH_PS_AREA_OFFSET           (FLASH_IAK_DHUK_AREA_OFFSET + \
+                                        FLASH_IAK_DHUK_AREA_SIZE)
 
 /* Control Secure Storage (PS) Service definitions*/
 #if (FLASH_PS_AREA_OFFSET % FLASH_AREA_IMAGE_SECTOR_SIZE) != 0
@@ -322,6 +335,11 @@
 #define TFM_OTP_NV_COUNTERS_SECTOR_SIZE FLASH_OTP_NV_COUNTERS_SECTOR_SIZE
 #define TFM_OTP_NV_COUNTERS_BACKUP_AREA_ADDR (TFM_OTP_NV_COUNTERS_AREA_ADDR + \
                                               TFM_OTP_NV_COUNTERS_AREA_SIZE)
+
+/* IAK DHUK-sealed blob in Secure Flash (offset from flash base) */
+#define TFM_IAK_DHUK_AREA_ADDR              FLASH_IAK_DHUK_AREA_OFFSET
+#define TFM_IAK_DHUK_AREA_SIZE              FLASH_IAK_DHUK_AREA_SIZE
+
 /* NV Counters definitions */
 #define TFM_NV_COUNTERS_AREA_ADDR        FLASH_NV_COUNTERS_AREA_OFFSET
 #define TFM_NV_COUNTERS_AREA_SIZE        (0x20)/* 32 Bytes */
