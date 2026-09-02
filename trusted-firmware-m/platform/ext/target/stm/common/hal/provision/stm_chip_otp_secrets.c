@@ -140,7 +140,13 @@ enum tfm_plat_err_t stm_chip_otp_secrets_build_dhuk_image(
         return err;
     }
 
+#ifdef STM_PROD_IAK_FLASH_DHUK
+    /* IAK is sealed into Secure Flash separately; keep OTP field zeroed. */
+    (void)iak;
+    memset(out_image->iak, 0, STM_CHIP_OTP_IAK_LEN);
+#else
     memcpy(out_image->iak, iak, STM_CHIP_OTP_IAK_LEN);
+#endif
     memcpy(out_image->boot_seed, boot_seed, STM_CHIP_OTP_BOOT_SEED_LEN);
     memcpy(out_image->implementation_id, implementation_id,
            STM_CHIP_OTP_IMPL_ID_LEN);

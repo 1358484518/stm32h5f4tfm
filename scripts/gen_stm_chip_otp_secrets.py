@@ -1,20 +1,16 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: BSD-3-Clause
 """
-Generate per-device STM32H5 on-chip Flash OTP secrets (HUK + IAK + boot_seed + impl_id).
+Generate per-device STM32H5 secrets for production feature branches.
 
-Writes a binary/Intel-HEX image mapped at FLASH_OTP_BASE (0x08FFF000) matching
-struct stm_chip_otp_secrets in stm_chip_otp_secrets.h.
+On-chip Flash OTP @ 0x08FFF000:
+  - HUK, boot_seed, implementation_id (IAK field zeroed when using Flash IAK)
 
-Also exports:
-  - iak_private.pem / iak_public.pem  (ECDSA P-256) for attestation enrollment
-  - huk.bin                           (raw 32-byte HUK; keep offline)
+Secure Flash IAK (DHUK-sealed on-device):
+  - iak_raw.bin / iak_*.pem for factory seal via
+    stm_iak_flash_dhuk_seal_and_store() into FLASH_IAK_DHUK_AREA (0x0C030000)
 
-Factory flow (irreversible OTP programming — use scrap silicon first):
-  1) python3 scripts/gen_stm_chip_otp_secrets.py --out-dir factory/<sn>
-  2) Program chip OTP with STM32CubeProgrammer OTP panel / CLI (see README)
-  3) Optionally lock OTP blocks 0-9 via Option Bytes
-  4) Flash BL2 + S + NS from this production branch
+Also exports huk.bin for HSM archive.
 """
 from __future__ import annotations
 
@@ -39,7 +35,7 @@ MAGIC = 0x53544D31  # 'STM1'
 # via stm_chip_otp_secrets_build_dhuk_image() — the PC has no DHUK.
 VERSION = 1
 OTP_BASE = 0x08FFF000
-FLAG_HUK_DHUK = 1 << 0
+IAK_FLASH_BASE = 0x0C030000  # FLASH_BASE + FLASH_IAK_DHUK_AREA_OFFSET
 
 
 def crc32_iso(data: bytes) -> int:
@@ -56,7 +52,6 @@ def ihex_line(addr: int, data: bytes, rectype: int = 0) -> str:
 
 def write_ihex(path: Path, base: int, blob: bytes) -> None:
     lines = []
-    # Extended linear address
     ela = (base >> 16) & 0xFFFF
     lines.append(ihex_line(0, bytes([(ela >> 8) & 0xFF, ela & 0xFF]), rectype=4))
     offset = base & 0xFFFF
@@ -67,11 +62,12 @@ def write_ihex(path: Path, base: int, blob: bytes) -> None:
     path.write_text("\n".join(lines) + "\n")
 
 
-def build_blob(huk: bytes, iak: bytes, boot_seed: bytes, impl_id: bytes) -> bytes:
-    assert len(huk) == 32 and len(iak) == 32
-    assert len(boot_seed) == 32 and len(impl_id) == 32
+def build_otp_blob(huk: bytes, boot_seed: bytes, impl_id: bytes) -> bytes:
+    """OTP image with IAK field zeroed (IAK lives in Secure Flash + DHUK)."""
+    assert len(huk) == 32 and len(boot_seed) == 32 and len(impl_id) == 32
+    iak_placeholder = bytes(32)
     head = struct.pack("<IIII", MAGIC, VERSION, 0, 0)
-    body = head + huk + iak + boot_seed + impl_id
+    body = head + huk + iak_placeholder + boot_seed + impl_id
     return body + struct.pack("<I", crc32_iso(body))
 
 
@@ -108,12 +104,11 @@ def main() -> int:
 
     priv = ec.generate_private_key(ec.SECP256R1(), default_backend())
     iak = priv.private_numbers().private_value.to_bytes(32, "big")
-    # Reject TF-M known dummy IAK leading qword
     if int.from_bytes(iak[:8], "little") == 0xA4906F6DB254B4A9:
         print("极端巧合撞上 dummy IAK 前缀，请重跑", file=sys.stderr)
         return 1
 
-    blob = build_blob(huk, iak, boot_seed, impl_id)
+    blob = build_otp_blob(huk, boot_seed, impl_id)
 
     (out / "chip_otp_secrets.bin").write_bytes(blob)
     write_ihex(out / "chip_otp_secrets.hex", OTP_BASE, blob)
@@ -138,41 +133,44 @@ def main() -> int:
 
     meta = out / "README.txt"
     meta.write_text(
-        f"""STM32H5 chip OTP secrets (production)
+        f"""STM32H5 production secrets
 =====================================
-Target address : 0x{OTP_BASE:08X}
-Blob size      : {len(blob)} bytes
-Magic/version  : 0x{MAGIC:08X} / {VERSION}  (host v1 = plaintext HUK)
+Chip OTP @ 0x{OTP_BASE:08X} : HUK + boot_seed + impl_id (IAK field = 0)
+IAK Secure Flash @ 0x{IAK_FLASH_BASE:08X} : DHUK-sealed on-device
+Blob size (OTP)  : {len(blob)} bytes
+Magic/version    : 0x{MAGIC:08X} / {VERSION}  (host v1 = plaintext HUK)
 
-DHUK note
----------
-This host image stores HUK in plaintext (v1). For builds with
-STM_PROD_DHUK_WRAP_HUK, seal ON the MCU with:
-  stm_chip_otp_secrets_build_dhuk_image(...)
-then program the returned v2 image (flag HUK_DHUK) into Flash OTP.
-The PC cannot apply DHUK — it lives only inside SAES.
+IAK (Secure Flash + DHUK)
+-------------------------
+Do NOT program iak_raw.bin as plaintext into flash.
+On the target MCU call:
+  stm_iak_flash_dhuk_seal_and_store(iak_raw)
+This encrypts with SAES DHUK and erases/programs the 8 KB Secure Flash sector
+at FLASH_IAK_DHUK_AREA_OFFSET (0x30000 → 0x0C030000). Re-run to rotate IAK
+during bring-up. After debug lock, only SPE can read/decrypt.
+
+HUK (on-chip OTP + optional DHUK)
+---------------------------------
+This host OTP image stores HUK in plaintext (v1). For STM_PROD_DHUK_WRAP_HUK,
+seal ON the MCU with stm_chip_otp_secrets_build_dhuk_image(...) then program
+the returned v2 image into Flash OTP. PC has no DHUK.
 
 Files
 -----
-chip_otp_secrets.bin / .hex  — program into on-chip Flash OTP (or seal first)
+chip_otp_secrets.bin / .hex  — program into on-chip Flash OTP (or seal HUK first)
 huk.bin                      — keep in HSM / offline vault (never commit)
-iak_private.pem / iak_raw.bin— device attestation private key material
+iak_private.pem / iak_raw.bin— feed to on-device IAK seal API
 iak_public.pem               — enroll with your attestation verifier
 boot_seed.bin / implementation_id.bin
 
-Program (example, adjust to your CubeProgrammer version)
---------------------------------------------------------
-STM32_Programmer_CLI -c port=SWD mode=UR -w chip_otp_secrets.hex
-# Then lock OTP blocks that contain this blob (blocks 0..N) via Option Bytes.
-# OTP programming is ONE-WAY. Validate on scrap parts first.
-
-After OTP is programmed, flash BL2+S+NS from the DHUK/production feature branch.
-ROTPK (image verify) still comes from keys/ via ./buildtfm.sh — separate from IAK/HUK.
+After secrets are provisioned, flash BL2+S+NS from the feature branch.
+ROTPK still comes from keys/ via ./buildtfm.sh.
 """
     )
 
     print(f">>> wrote {out}")
     print(f"    chip OTP image: {out / 'chip_otp_secrets.hex'} @ 0x{OTP_BASE:08X}")
+    print(f"    IAK seal input : {out / 'iak_raw.bin'} → on-device @ 0x{IAK_FLASH_BASE:08X}")
     print(f"    enroll pubkey : {out / 'iak_public.pem'}")
     return 0
 

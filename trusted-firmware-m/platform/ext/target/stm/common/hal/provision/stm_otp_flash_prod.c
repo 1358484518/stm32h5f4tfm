@@ -14,6 +14,9 @@
 #include "flash_layout.h"
 #include "flash_otp_nv_counters_backend.h"
 #include "stm_chip_otp_secrets.h"
+#ifdef STM_PROD_IAK_FLASH_DHUK
+#include "stm_iak_flash_dhuk.h"
+#endif
 #include <string.h>
 #include <stddef.h>
 
@@ -52,7 +55,11 @@ enum tfm_plat_err_t tfm_plat_otp_read(enum tfm_otp_element_id_t id,
     case PLAT_OTP_ID_HUK:
         return stm_chip_otp_secrets_read_huk(out, out_len);
     case PLAT_OTP_ID_IAK:
+#ifdef STM_PROD_IAK_FLASH_DHUK
+        return stm_iak_flash_dhuk_read(out, out_len);
+#else
         return stm_chip_otp_secrets_read_iak(out, out_len);
+#endif
     case PLAT_OTP_ID_IAK_LEN:
         return write_to_output(id, offsetof(struct flash_otp_nv_counters_region_t, iak_len), out_len, out);
     case PLAT_OTP_ID_IAK_TYPE:

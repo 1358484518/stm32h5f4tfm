@@ -82,6 +82,7 @@ target_sources(platform_s
         $<$<BOOL:${STM_PROD_CHIP_OTP_SECRETS}>:${STM_COMMON_DIR}/hal/provision/stm_chip_otp_secrets.c>
         $<$<BOOL:${STM_PROD_CHIP_OTP_SECRETS}>:${STM_COMMON_DIR}/hal/provision/stm_otp_flash_prod.c>
         $<$<BOOL:${STM_PROD_DHUK_WRAP_HUK}>:${STM_COMMON_DIR}/hal/provision/stm_saes_dhuk.c>
+        $<$<BOOL:${STM_PROD_IAK_FLASH_DHUK}>:${STM_COMMON_DIR}/hal/provision/stm_iak_flash_dhuk.c>
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/hal/Src/stm32h5xx_hal_hash.c
         ${CMAKE_CURRENT_SOURCE_DIR}/hal/Src/stm32h5xx_hal_pka.c
@@ -102,6 +103,7 @@ if(STM_PROD_CHIP_OTP_SECRETS)
             STM_PROD_CHIP_OTP_SECRETS
             PLATFORM_DEFAULT_OTP
             $<$<BOOL:${STM_PROD_DHUK_WRAP_HUK}>:STM_PROD_DHUK_WRAP_HUK>
+            $<$<BOOL:${STM_PROD_IAK_FLASH_DHUK}>:STM_PROD_IAK_FLASH_DHUK>
             $<$<BOOL:${PLATFORM_DEFAULT_OTP_WRITEABLE}>:OTP_WRITEABLE>
     )
 endif()
@@ -121,6 +123,7 @@ if(STM_PROD_CHIP_OTP_SECRETS)
                 PLATFORM_DEFAULT_OTP
                 STM_PROD_CHIP_OTP_SECRETS
                 $<$<BOOL:${STM_PROD_DHUK_WRAP_HUK}>:STM_PROD_DHUK_WRAP_HUK>
+                $<$<BOOL:${STM_PROD_IAK_FLASH_DHUK}>:STM_PROD_IAK_FLASH_DHUK>
                 $<$<BOOL:${PLATFORM_DEFAULT_OTP_WRITEABLE}>:OTP_WRITEABLE>
         )
     endif()
@@ -193,6 +196,7 @@ if(BL2)
             $<$<BOOL:${STM_PROD_CHIP_OTP_SECRETS}>:${STM_COMMON_DIR}/hal/provision/stm_chip_otp_secrets.c>
             $<$<BOOL:${STM_PROD_CHIP_OTP_SECRETS}>:${STM_COMMON_DIR}/hal/provision/stm_otp_flash_prod.c>
             $<$<BOOL:${STM_PROD_DHUK_WRAP_HUK}>:${STM_COMMON_DIR}/hal/provision/stm_saes_dhuk.c>
+            $<$<BOOL:${STM_PROD_IAK_FLASH_DHUK}>:${STM_COMMON_DIR}/hal/provision/stm_iak_flash_dhuk.c>
     )
 
     if(STM_PROD_CHIP_OTP_SECRETS)
@@ -206,6 +210,7 @@ if(BL2)
                 STM_PROD_CHIP_OTP_SECRETS
                 PLATFORM_DEFAULT_OTP
                 $<$<BOOL:${STM_PROD_DHUK_WRAP_HUK}>:STM_PROD_DHUK_WRAP_HUK>
+                $<$<BOOL:${STM_PROD_IAK_FLASH_DHUK}>:STM_PROD_IAK_FLASH_DHUK>
                 $<$<BOOL:${PLATFORM_DEFAULT_OTP_WRITEABLE}>:OTP_WRITEABLE>
         )
     endif()
