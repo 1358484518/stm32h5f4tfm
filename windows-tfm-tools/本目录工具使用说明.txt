@@ -1,4 +1,5 @@
 【调试分支 stm32h573p256-debug】
+预置镜像为 ./buildtfm.sh prod（ERROR 日志，少打印）。
 BL2 含 DBG-NOSIG skip-NS：只启动 S，不加载 NS。
 先双击 tfm_update.bat 烧 BL2+S，再用 CubeIDE F5 下 NS 到 0x08088400。
 量产请改用 stm32h573p256 / master。
