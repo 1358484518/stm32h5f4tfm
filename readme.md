@@ -60,7 +60,7 @@ git checkout master
 
 可用环境变量 `TFM_NS_BIN=` 指定其它已签名 NS。`BOOT_UBE=0xB4`（OEM-iRoT）。串口 **115200**。
 
-Windows 一键：`windows-tfm-tools\tfm_update.bat`（会调 `regression.bat`）。用装包还可解压根目录 `tfm-h573-flash…zip` 里的 `flash_all.sh`。
+Windows 一键：`windows-tfm-tools\tfm_update.bat`（会调 `regression.bat`）。
 
 
 ## 文档
@@ -81,7 +81,6 @@ Windows 一键：`windows-tfm-tools\tfm_update.bat`（会调 `regression.bat`）
 
 - 增加 sign_kit.tar.xz 签名工具，只是用来对未加密固件进行签名使用。
 
-- 增加 tfm-h573-flash签名固件下载固件快捷脚本.zip 签名回归烧录工具，里面有使用说明文档，用来签名未签名的固件和下载程序到flash。
 
 - 增加 makefile 编译的非安全侧工程 tfmmakeproject ，可以使用make编译生成代码，正式版本关闭非安全侧测试，开启硬件浮点，使用内部晶振 PLL 240 MHZ
 
