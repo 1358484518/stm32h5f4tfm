@@ -18,10 +18,12 @@ set(MCUBOOT_DATA_SHARING                   ON          CACHE BOOL      "Enable D
 set(MCUBOOT_BOOTSTRAP                      ON          CACHE BOOL      "Allow initial state with images in secondary slots(empty primary slots)")
 set(MCUBOOT_ENC_IMAGES                     OFF          CACHE BOOL      "Enable encrypted image upgrade support")
 set(MCUBOOT_ENCRYPT_RSA                    OFF          CACHE BOOL      "Use RSA for encrypted image upgrade support")
-# This branch (stm32h573p256): MCUboot image signatures are ECDSA P-256
-# (not the TF-M default RSA-3072). Changing this requires a clean rebuild
-# of BL2/SPE and matching sign_kit / api_ns keys (see readme.md).
+# This branch (stm32h573p256-debug): EC-P256 key material kept for SPE/tooling,
+# but BL2 skips image signature validation (see apply_debug_skip_signature.py).
 set(MCUBOOT_SIGNATURE_TYPE                 "EC-P256"    CACHE STRING    "Algorithm to use for signature validation [RSA-2048, RSA-3072, EC-P256, EC-P384]")
+# Debug: allow CubeIDE unsigned NS download; do not enforce NV security counters.
+set(MCUBOOT_HW_ROLLBACK_PROT            OFF         CACHE BOOL      "Enable security counter validation against non-volatile HW counters")
+set(TFM_BL2_DEBUG_SKIP_SIGNATURE        ON          CACHE BOOL      "BL2 accepts images without signature/hash verify (debug only)")
 ################################## Dependencies ########################################
 set(TFM_PARTITION_INTERNAL_TRUSTED_STORAGE ON          CACHE BOOL      "Enable Internal Trusted Storage partition")
 set(TFM_PARTITION_CRYPTO                   ON          CACHE BOOL      "Enable Crypto partition")
@@ -31,7 +33,6 @@ set(MCUBOOT_FIH_PROFILE                    LOW         CACHE STRING    "Fault in
 ################################## LOG LEVEL ###########################################
 set(TFM_SPM_LOG_LEVEL             LOG_LEVEL_INFO       CACHE STRING    "Set default SPM log level as INFO level")
 set(TFM_PARTITION_LOG_LEVEL       LOG_LEVEL_INFO       CACHE STRING    "Set default Secure Partition log level as INFO level")
-set(MCUBOOT_HW_ROLLBACK_PROT            ON          CACHE BOOL      "Enable security counter validation against non-volatile HW counters")
 ################################## Platform-specific configurations ####################################
 set(CONFIG_TFM_USE_TRUSTZONE               ON           CACHE BOOL      "Use TrustZone")
 set(TFM_PARTITION_PROTECTED_STORAGE        ON           CACHE BOOL      "Disable Protected Storage partition")

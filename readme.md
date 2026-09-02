@@ -6,10 +6,27 @@
 
 | 分支 | 签名算法 | 说明 |
 |------|----------|------|
-| `master` | **RSA-3072** | 默认主线 |
-| `stm32h573p256` | **EC-P256** | 仅改 MCUboot 镜像签名算法与配套密钥 |
+| `master` | **RSA-3072** | 正式主线（验签） |
+| `stm32h573p256` | **EC-P256** | 正式 P256 支线（验签） |
+| `stm32h573p256-debug` | **EC-P256 密钥布局** | **调试：BL2 不验签**，SPE/PSA 保留；CubeIDE 可直接下 NS |
 
-本文档所在分支为 **`stm32h573p256`**。
+本文档所在分支为 **`stm32h573p256-debug`**（基于 `stm32h573p256`）。
+
+### 调试分支做什么
+
+- BL2 仍启动、仍跳进 SPE；**Crypto / ITS / PS / FWU 等 PSA 分区照常**
+- BL2 **跳过** MCUBoot 镜像签名与 hash 校验（串口有 `DBG-NOSIG`），并关闭 HW security counter 校验
+- 方便 STM32CubeIDE 编 NS：把 **带 MCUBoot 头的槽镜像** 直接烧到 NS primary 即可跑、可调试
+- **不要用于量产**；量产请回 `master` / `stm32h573p256`
+
+```bash
+./buildtfm.sh test
+./flash_stm32h573.sh
+python3 scripts/wrap_unsigned_mcuboot_image.py ns_app.bin -o ns_slot.bin
+STM32_Programmer_CLI -c port=SWD ap=1 mode=UR -d ns_slot.bin 0x0C088000 -v
+```
+
+NS primary：`0x0C088000` / `0x08088000`。应用从 `+0x400` 起跑。
 
 ### 相对 `master` 改了什么
 

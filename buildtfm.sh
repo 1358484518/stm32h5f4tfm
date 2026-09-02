@@ -308,7 +308,36 @@ if [[ -f "${TFM_ROOT}/build_s/build-spe/CMakeCache.txt" ]]; then
         "${TFM_ROOT}/build_s/build-spe"
 fi
 
+# Debug branch: BL2 skips image signature / hash validation (CubeIDE NS download).
+apply_mcuboot_debug_nosig() {
+    local helper="${TFM_ROOT}/lib/ext/mcuboot/apply_debug_skip_signature.py"
+    local src validate
+    local found=0
+    [[ -f "${helper}" ]] || { echo "错误: 缺少 ${helper}"; exit 1; }
+    while IFS= read -r src; do
+        validate="${src}/boot/bootutil/src/image_validate.c"
+        [[ -f "${validate}" ]] || continue
+        found=1
+        python3 "${helper}" "${src}"
+        grep -q 'DBG-NOSIG' "${validate}" || { echo "错误: ${validate} 仍没有 DBG-NOSIG"; exit 1; }
+        touch "${validate}"
+        find "${TFM_ROOT}/build_s" -name 'image_validate.c.o' -delete 2>/dev/null || true
+    done < <(find "${TFM_ROOT}/build_s" -type d -name 'mcuboot-src' 2>/dev/null)
+    if [[ "${found}" -eq 0 ]]; then
+        echo "错误: 找不到 mcuboot-src，无法打 DBG-NOSIG 跳过验签补丁"
+        exit 1
+    fi
+}
+# 首次干净构建时 MCUBoot 可能还没 FetchContent 出来：先尝试轻量构建再打补丁
+if ! find "${TFM_ROOT}/build_s" -type d -name 'mcuboot-src' 2>/dev/null | grep -q .; then
+    echo ">>> 尚未找到 mcuboot-src，先配置/拉取依赖…"
+    ninja -C build_s mcuboot-src 2>/dev/null || ninja -C build_s -j"$(nproc)" || true
+fi
+apply_mcuboot_debug_nosig
+
 ninja -C build_s install -j"$(nproc)"
+# ninja 可能再次用未打补丁的源码生成依赖；安装前再打一次并确认标记
+apply_mcuboot_debug_nosig
 mkdir -p "$(dirname "${STAMP}")"
 echo "${STAMP_VAL}" > "${STAMP}"
 # 编译成功后刷新本地依赖缓存，供下次清目录后离线使用
@@ -365,11 +394,17 @@ fi
 echo ""
 grep -E '^boot=|^slot0=|^slot1=' TFM_UPDATE.sh || true
 echo ""
-echo "=== 编译完成（${BUILD_LABEL}，硬件浮点 ON）==="
+BL2_BIN="${TFM_ROOT}/build_s/api_ns/bin/bl2.bin"
+if [[ -f "${BL2_BIN}" ]] && ! grep -a -F -q "DBG-NOSIG" "${BL2_BIN}"; then
+    echo "错误: ${BL2_BIN} 没有 DBG-NOSIG（本调试分支 BL2 应跳过验签）"
+    exit 1
+fi
+echo "=== 编译完成（${BUILD_LABEL}，硬件浮点 ON，调试分支 DBG-NOSIG）==="
 echo "推荐一键烧录（回归+BL2/S/NS）: ${WORK_ROOT}/flash_stm32h573.sh"
 echo "或手动: cd ${TFM_ROOT}/build_s/api_ns && ./regression.sh"
 echo "      STM32_Programmer_CLI -c port=SWD ap=1 mode=HotPlug -ob BOOT_UBE=0xB4"
 echo "      ./TFM_UPDATE.sh"
 echo "NS 测试程序: ${TFM_ROOT}/build_ns/bin/tfm_ns_signed.bin  地址 0x0C088000"
+echo "CubeIDE NS 调试: wrap 后烧 NS primary 0x0C088000（见 readme DBG-NOSIG）"
 echo "烧录后会上电自动跑回归测试（串口 115200 看 PASSED/FAILED）。"
 echo "排查 primary slot invalid 时请用: ./buildtfm.sh test （BL2 INFO 日志含 sig_type）。"

@@ -65,6 +65,9 @@ __asm("  .global __use_no_semihosting\n");
 static uint8_t mbedtls_mem_buf[BL2_MBEDTLS_MEM_BUF_LEN];
 struct boot_rsp rsp;
 
+/* Debug-branch marker: signature checks are skipped (DBG-NOSIG). */
+__attribute__((used)) static const char bl2_debug_nosig[] = "DBG-NOSIG";
+
 static void do_boot(struct boot_rsp *rsp)
 {
     struct boot_arm_vector_table *vt;
@@ -126,6 +129,7 @@ int main(void)
 
 #if (LOG_LEVEL > LOG_LEVEL_NONE) || defined(TEST_BL2)
     stdio_init();
+    BOOT_LOG_ERR("%s", bl2_debug_nosig);
 #if defined(TEST_BL2)
     for (int i = 0; i < 0xFFFFF; i++) {
         if ((i & 0xFFF) == 0x0) {
@@ -143,6 +147,7 @@ int main(void)
         boot_platform_error_state(err);
     }
 
+    (void)bl2_debug_nosig;
     BOOT_LOG_INF("Starting bootloader");
 
     plat_err = tfm_plat_otp_init();
