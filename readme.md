@@ -6,10 +6,36 @@
 
 | 分支 | 签名算法 | 说明 |
 |------|----------|------|
-| `stm32h5f4` | **RSA-3072** | 默认开发支线 |
-| `stm32h5f4p256`（及 `stm32h5f4-p256`） | **EC-P256** | 仅改 MCUboot 镜像签名算法与配套密钥 |
+| `stm32h5f4` | **RSA-3072** | 正式开发支线（验签） |
+| `stm32h5f4p256` | **EC-P256** | 正式 P256 支线（验签） |
+| `stm32h5f4p256-debug` | **EC-P256 密钥布局** | **调试：BL2 不验签**，SPE/PSA 保留；CubeIDE 可直接下 NS |
 
-本文档所在分支为 **`stm32h5f4p256`**。
+本文档所在分支为 **`stm32h5f4p256-debug`**（基于 `stm32h5f4p256`）。
+
+### 调试分支做什么
+
+- BL2 仍启动、仍跳进 SPE；**Crypto / ITS / PS / FWU 等 PSA 分区照常**
+- BL2 **跳过** MCUBoot 镜像签名与 hash 校验（串口有 `DBG-NOSIG`），并关闭 HW security counter 校验
+- 方便 STM32CubeIDE 编 NS：把 **带 MCUBoot 头的槽镜像** 直接烧到 NS primary 即可跑、可调试
+- **不要用于量产**；量产请回 `stm32h5f4` / `stm32h5f4p256`
+
+CubeIDE / makefile NS 调试流程：
+
+```bash
+# 1) 本分支编一次并烧 BL2 + S（可用官方 NS，或稍后被 CubeIDE 覆盖）
+./buildtfm.sh test
+./flash_stm32h5f4.sh
+
+# 2) CubeIDE 编出未签名 NS 应用 .bin（向量表在文件开头，链接地址仍是 slot+0x400）
+# 3) 包一层 MCUBoot 头（不签名）：
+python3 scripts/wrap_unsigned_mcuboot_image.py Debug/ns_app.bin -o ns_slot.bin
+
+# 4) 烧到 NS primary（不要烧到升级槽）
+STM32_Programmer_CLI -c port=SWD ap=1 mode=UR -d ns_slot.bin 0x0C090000 -v
+# 复位后串口应有: H5F4BL2 / DBG-NOSIG，然后进 SPE + 你的 NS
+```
+
+NS primary：`0x0C090000`（安全别名）/ `0x08090000`（非安全）。应用本身仍从 `+0x400` 起跑。
 
 ### 相对 `stm32h5f4` 改了什么
 

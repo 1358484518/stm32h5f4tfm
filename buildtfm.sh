@@ -287,6 +287,27 @@ apply_mcuboot_0002() {
     fi
 }
 
+# Debug branch: BL2 skips image signature / hash validation (CubeIDE NS download).
+apply_mcuboot_debug_nosig() {
+    local helper="${TFM_ROOT}/lib/ext/mcuboot/apply_debug_skip_signature.py"
+    local src validate
+    local found=0
+    [[ -f "${helper}" ]] || { echo "错误: 缺少 ${helper}"; exit 1; }
+    while IFS= read -r src; do
+        validate="${src}/boot/bootutil/src/image_validate.c"
+        [[ -f "${validate}" ]] || continue
+        found=1
+        python3 "${helper}" "${src}"
+        grep -q 'DBG-NOSIG' "${validate}" || { echo "错误: ${validate} 仍没有 DBG-NOSIG"; exit 1; }
+        touch "${validate}"
+        find "${TFM_ROOT}/build_s" -name 'image_validate.c.o' -delete 2>/dev/null || true
+    done < <(find "${TFM_ROOT}/build_s" -type d -name 'mcuboot-src' 2>/dev/null)
+    if [[ "${found}" -eq 0 ]]; then
+        echo "错误: 找不到 mcuboot-src，无法打 DBG-NOSIG 跳过验签补丁"
+        exit 1
+    fi
+}
+
 # tests_reg/spe 只生成 wrapper。MCUBoot 是内层 TF-M cmake（FetchContent）下的，
 # 第一次或切 test/prod 清掉 build_s 之后还不存在。先跑 TF-M-configure 再打补丁。
 ensure_mcuboot_src() {
@@ -351,6 +372,7 @@ if [[ -f "${TFM_ROOT}/build_s/build-spe/CMakeCache.txt" ]]; then
 fi
 
 apply_mcuboot_0002
+apply_mcuboot_debug_nosig
 
 ninja -C build_s install -j"$(nproc)"
 mkdir -p "$(dirname "${STAMP}")"
@@ -418,6 +440,11 @@ fi
 if ! grep -a -F -q "H5F4SWP2" "${BL2_BIN}"; then
     echo "错误: ${BL2_BIN} 没有 MCUBoot 0002 标记 H5F4SWP2（image 0 会在 0x30180000 BusFault）"
     echo "cmake 可能冲掉了补丁。请再跑一次 ./buildtfm.sh ${BUILD_TYPE}；仍失败则: ${CLEAN_SH} && ./buildtfm.sh ${BUILD_TYPE}"
+    exit 1
+fi
+if ! grep -a -F -q "DBG-NOSIG" "${BL2_BIN}"; then
+    echo "错误: ${BL2_BIN} 没有 DBG-NOSIG（本调试分支 BL2 应跳过验签）"
+    echo "请确认 apply_debug_skip_signature.py 已打上，再: ./buildtfm.sh ${BUILD_TYPE}"
     exit 1
 fi
 if ! grep -q '^slot2=0xc200000$' TFM_UPDATE.sh; then
