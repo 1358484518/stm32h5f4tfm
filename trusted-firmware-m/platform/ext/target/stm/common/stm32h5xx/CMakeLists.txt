@@ -79,6 +79,8 @@ target_sources(platform_s
         ${CMAKE_CURRENT_SOURCE_DIR}/hal/Src/stm32h5xx_hal_rng_ex.c
         ${CMAKE_CURRENT_SOURCE_DIR}/hal/Src/stm32h5xx_hal_rtc.c
         ${CMAKE_CURRENT_SOURCE_DIR}/hal/Src/stm32h5xx_hal_rtc_ex.c
+        $<$<BOOL:${STM_PROD_CHIP_OTP_SECRETS}>:${STM_COMMON_DIR}/hal/provision/stm_chip_otp_secrets.c>
+        $<$<BOOL:${STM_PROD_CHIP_OTP_SECRETS}>:${STM_COMMON_DIR}/hal/provision/stm_otp_flash_prod.c>
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/hal/Src/stm32h5xx_hal_hash.c
         ${CMAKE_CURRENT_SOURCE_DIR}/hal/Src/stm32h5xx_hal_pka.c
@@ -87,6 +89,19 @@ target_sources(platform_s
         ${CMAKE_CURRENT_SOURCE_DIR}/hal/Src/stm32h5xx_hal_icache.c
         ${STM_COMMON_DIR}/hal/Native_Driver/low_level_rng.c
 )
+
+if(STM_PROD_CHIP_OTP_SECRETS)
+    target_include_directories(platform_s
+        PUBLIC
+            ${STM_COMMON_DIR}/hal/provision
+            ${CMAKE_SOURCE_DIR}/platform/ext/common/template
+    )
+    target_compile_definitions(platform_s
+        PUBLIC
+            STM_PROD_CHIP_OTP_SECRETS
+            $<$<BOOL:${PLATFORM_DEFAULT_OTP_WRITEABLE}>:OTP_WRITEABLE>
+    )
+endif()
 
 target_compile_options(platform_s
     PUBLIC
@@ -152,7 +167,21 @@ if(BL2)
             ${CMAKE_CURRENT_SOURCE_DIR}/hal/Src/stm32h5xx_hal_rtc_ex.c
             ${CMAKE_CURRENT_SOURCE_DIR}/hal/Src/stm32h5xx_hal_icache.c
             ${STM_COMMON_DIR}/hal/Native_Driver/low_level_rng.c
+            $<$<BOOL:${STM_PROD_CHIP_OTP_SECRETS}>:${STM_COMMON_DIR}/hal/provision/stm_chip_otp_secrets.c>
+            $<$<BOOL:${STM_PROD_CHIP_OTP_SECRETS}>:${STM_COMMON_DIR}/hal/provision/stm_otp_flash_prod.c>
     )
+
+    if(STM_PROD_CHIP_OTP_SECRETS)
+        target_include_directories(platform_bl2
+            PUBLIC
+                ${STM_COMMON_DIR}/hal/provision
+        )
+        target_compile_definitions(platform_bl2
+            PUBLIC
+                STM_PROD_CHIP_OTP_SECRETS
+                $<$<BOOL:${PLATFORM_DEFAULT_OTP_WRITEABLE}>:OTP_WRITEABLE>
+        )
+    endif()
 
     # Add sources TF-PSA-Crypto for BL2
     target_sources(bl2

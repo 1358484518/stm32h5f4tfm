@@ -64,6 +64,11 @@ rm -rf trusted-firmware-m/build_s trusted-firmware-m/build_ns
 
 
 
+## 量产 HUK/IAK（本生产分支）
+
+片上 Flash OTP 预置方案见 [`docs/prod-otp-huk-iak.md`](docs/prod-otp-huk-iak.md)。  
+现有 `*p256` / debug 等 6 条长期分支不含此方案。
+
 ## keys/、versions/ 与清编译
 
 ### keys/（更换签名密钥）

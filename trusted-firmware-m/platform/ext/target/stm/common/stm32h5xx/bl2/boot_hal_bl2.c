@@ -60,6 +60,9 @@
 #endif /* MCUBOOT_EXT_LOADER */
 #include "template/flash_otp_nv_counters_backend.h"
 #include "nv_counters.h"
+#ifdef STM_PROD_CHIP_OTP_SECRETS
+#include "stm_chip_otp_secrets.h"
+#endif
 
 #ifdef BL2_OTP_AREA_BASE
 extern  struct flash_otp_nv_counters_region_t otp_stm_provision;
@@ -670,6 +673,16 @@ int32_t boot_platform_init(void)
         Error_Handler();
     }
 #endif /* FLASH_DEV_NAME */
+#ifdef STM_PROD_CHIP_OTP_SECRETS
+    /* Fail closed if factory did not program on-chip OTP HUK/IAK. */
+    if (!stm_chip_otp_secrets_is_provisioned()) {
+        BOOT_LOG_ERR("Chip OTP HUK/IAK not provisioned (FLASH_OTP @ 0x08FFF000)");
+        BOOT_LOG_ERR("Run scripts/gen_stm_chip_otp_secrets.py + factory OTP program");
+        Error_Handler();
+    } else {
+        BOOT_LOG_INF("Chip OTP device secrets OK (HUK/IAK)");
+    }
+#endif /* STM_PROD_CHIP_OTP_SECRETS */
 #ifdef FLASH_DEV_NAME_2
     if (FLASH_DEV_NAME_2.Initialize(NULL) != ARM_DRIVER_OK)
     {

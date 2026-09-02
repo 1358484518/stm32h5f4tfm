@@ -33,6 +33,14 @@ set(CONFIG_TFM_USE_TRUSTZONE               ON           CACHE BOOL      "Use Tru
 set(TFM_PARTITION_PROTECTED_STORAGE        ON           CACHE BOOL      "Disable Protected Storage partition")
 set(TFM_PARTITION_INITIAL_ATTESTATION      ON           CACHE BOOL      "Disable Initial Attestation partition")
 set(PLATFORM_HAS_FIRMWARE_UPDATE_SUPPORT   ON           CACHE BOOL      "Wheter the platform has firmware update support")
+################################## Production device secrets (on-chip OTP) ############################
+# HUK/IAK/boot_seed/implementation_id are read from STM32H5 Flash OTP @ 0x08FFF000
+# (factory-programmed). ROTPK hashes stay in flash-emulated OTP and are synced from keys/.
+# Do NOT enable TFM_DUMMY_PROVISIONING on this branch.
+set(STM_PROD_CHIP_OTP_SECRETS              ON           CACHE BOOL      "Use on-chip Flash OTP for HUK/IAK device secrets")
+set(TFM_DUMMY_PROVISIONING                 OFF          CACHE BOOL      "Provision with dummy values. NOT for production")
+set(PLATFORM_DEFAULT_OTP                   OFF          CACHE BOOL      "Use stock otp_flash.c; replaced by stm_otp_flash_prod.c")
+set(PLATFORM_DEFAULT_OTP_WRITEABLE         ON           CACHE BOOL      "Allow writes to flash-emulated OTP (ROTPK/NV); chip OTP is R/O at runtime")
 ################################## FIRMWARE_UPDATE #############################################################
 set(TFM_PARTITION_FIRMWARE_UPDATE          ON           CACHE BOOL      "Enable firmware update partition")
 set(TFM_FWU_BOOTLOADER_LIB                 "mcuboot"    CACHE STRING    "Bootloader configure file for Firmware Update partition")
