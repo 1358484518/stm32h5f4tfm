@@ -1,3 +1,6 @@
+预置镜像：./buildtfm.sh prod（正式版，ERROR 日志）。
+双击 tfm_update.bat。量产支线 stm32h5f4。
+
 STM32H5F4 Windows 烧录说明（ST-Link）
 本文件是 windows-tfm-tools 的用法。
 
