@@ -1,3 +1,5 @@
+预置镜像：./buildtfm.sh prod（正式版，ERROR 日志）。
+
 一.使用说明
 	双击 tfm_update.bat 即可。
 二.工具说明
