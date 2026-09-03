@@ -83,7 +83,7 @@ Linux 烧录 `./flash_stm32h5f4.sh` 会用 SPE 编出来的那份脚本；NS 工
 ### 签名（自己编的未加密 .bin）
 
 `./buildtfm.sh` 编出来的 `tfm_s_signed.bin` / `tfm_ns_signed.bin` 已经签过。  
-makefile / CubeIDE 自己编的未签名 `.bin` 必须先签再烧。工具按 H5F4 槽位（NS 1200 KB、S 352 KB）。仓库根目录旧的 `sign_kit.zip`（H573：NS `0x0C088000` / 576 KB）已删除。
+makefile / CubeIDE 自己编的未签名 `.bin` 必须先签再烧。工具按 H5F4 槽位（NS 1200 KB、S 352 KB）。仓库根目录另有独立工具包 **`sign_kit/`** 与 **`sign_kit.zip`**（含 `使用说明.txt`，含换密钥步骤；H5F4 槽位）。不要使用 H573 的 NS `0x0C088000` / 576 KB 布局。
 
 | 工程 | 工具目录 | 签完写到哪 |
 |------|----------|------------|
