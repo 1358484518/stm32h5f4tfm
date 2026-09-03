@@ -25,6 +25,9 @@
  */
  /* Flash layout for stm32h573i_dk with BL2 (multiple image boot):
  *
+ * Debug layout (stm32h573p256-debug-ns1m): NS primary enlarged to 1 MB;
+ * upgrade secondary slots are compressed to one 8 KB sector each (no FWU).
+ *
  * 0x0000_0000 SCRATCH (48 KB)
  * 0x0000_C000 BL2 - counters(16 KB)
  * 0x0001_0000 BL2 - MCUBoot (96 KB)
@@ -33,10 +36,10 @@
  * 0x0003_0000 Secure Storage Area (16 KB)
  * 0x0003_4000 Internal Trusted Storage Area (16 KB)
  * 0x0003_8000 Secure image     primary slot (320 KB)
- * 0x0008_8000 Non-secure image primary slot (576 KB)
- * 0x0011_8000 Secure image     secondary slot (320 KB)
- * 0x0016_8000 Non-secure image secondary slot (576 KB)
- * 0x001f_8000 Non-secure free data (32 KB)
+ * 0x0008_8000 Non-secure image primary slot (1024 KB)
+ * 0x0018_8000 Secure image     secondary slot (8 KB, debug stub)
+ * 0x0018_A000 Non-secure image secondary slot (8 KB, debug stub)
+ * 0x0018_C000 Non-secure free data (to end of 2 MB flash)
  *
  * Bl2 binary is written at 0x1_0000:
  * it contains bl2_counter init value, OTP write protect, NV counters area init.
@@ -139,8 +142,15 @@
 #error "FLASH_ITS_AREA_OFFSET not aligned on FLASH_AREA_IMAGE_SECTOR_SIZE"
 #endif /*  (FLASH_ITS_AREA_OFFSET % FLASH_AREA_IMAGE_SECTOR_SIZE) != 0 */
 
-#define FLASH_S_PARTITION_SIZE          (0x50000) /* 320 KB for S partition */
-#define FLASH_NS_PARTITION_SIZE         (0x90000) /* 576 KB for NS partition */
+#define FLASH_S_PARTITION_SIZE          (0x50000) /* 320 KB for S primary */
+#define FLASH_NS_PARTITION_SIZE         (0x100000) /* 1024 KB for NS primary (debug) */
+
+/*
+ * Debug-only: secondary slots are stubs (one sector). Do not use for FWU /
+ * image swap. Keeps FLASH_AREA_END within the 2 MB device.
+ */
+#define FLASH_S_SECONDARY_PARTITION_SIZE  (FLASH_AREA_IMAGE_SECTOR_SIZE) /* 8 KB */
+#define FLASH_NS_SECONDARY_PARTITION_SIZE (FLASH_AREA_IMAGE_SECTOR_SIZE) /* 8 KB */
 
 #define FLASH_PARTITION_SIZE            (FLASH_S_PARTITION_SIZE+FLASH_NS_PARTITION_SIZE)
 
@@ -180,7 +190,7 @@
 #if (FLASH_AREA_2_OFFSET  % FLASH_AREA_IMAGE_SECTOR_SIZE) != 0
 #error "FLASH_AREA_2_OFFSET  not aligned on FLASH_AREA_IMAGE_SECTOR_SIZE"
 #endif /*   (FLASH_AREA_2_OFFSET  % FLASH_AREA_IMAGE_SECTOR_SIZE) != 0 */
-#define FLASH_AREA_2_SIZE               (FLASH_S_PARTITION_SIZE)
+#define FLASH_AREA_2_SIZE               (FLASH_S_SECONDARY_PARTITION_SIZE)
 
 /* Non-secure image secondary slot */
 #define FLASH_AREA_3_ID                 (FLASH_AREA_2_ID + 1)
@@ -190,8 +200,11 @@
 #error "FLASH_AREA_3_OFFSET  not aligned on FLASH_AREA_IMAGE_SECTOR_SIZE"
 #endif /*  (FLASH_AREA_3_OFFSET  % FLASH_AREA_IMAGE_SECTOR_SIZE) != 0 */
 /*Control Non-secure image secondary slot */
-#define FLASH_AREA_3_SIZE               (FLASH_NS_PARTITION_SIZE)
+#define FLASH_AREA_3_SIZE               (FLASH_NS_SECONDARY_PARTITION_SIZE)
 #define FLASH_AREA_END_OFFSET           (FLASH_AREA_3_OFFSET + FLASH_AREA_3_SIZE)
+#if (FLASH_AREA_END_OFFSET > FLASH_TOTAL_SIZE)
+#error "FLASH_AREA_END_OFFSET exceeds FLASH_TOTAL_SIZE"
+#endif
 #define FLASH_AREA_SCRATCH_ID           (FLASH_AREA_3_ID + 1)
 #define FLASH_AREA_SCRATCH_DEVICE_ID    (FLASH_AREA_3_DEVICE_ID)
 

@@ -8,7 +8,7 @@
 |------|----------|------|
 | `master` | **RSA-3072** | 正式主线（验签） |
 | `stm32h573p256` | **EC-P256** | 正式 P256 支线（验签） |
-| `stm32h573p256-debug` | **EC-P256** | **调试：BL2 不加载 NS**，只启动 S；CubeIDE 直接下 NS |
+| `stm32h573p256-debug` | **EC-P256** | **调试：BL2 不加载 NS**；NS 主槽 **1MB**（副槽 8KB stub） |
 
 本文档所在分支为 **`stm32h573p256-debug`**（基于 `stm32h573p256`）。
 
@@ -20,9 +20,26 @@
 - `sign_kit/DEBUG_SKIP_SIGN`：post-build 跳过签名
 - **不要用于量产**；量产回 `master` / `stm32h573p256`
 
+### 调试专用 Flash 布局（NS=1MB）
+
+本调试线把 NS **主槽扩到 1MB**，升级副槽压成各 **8KB stub**（不做 FWU/swap）：
+
+| 区域 | 偏移 | 大小 |
+|------|------|------|
+| S primary | `0x00038000`（`0x0C038000`） | 320 KB |
+| **NS primary** | `0x00088000`（`0x0C088000` / `0x08088000`） | **1024 KB** |
+| S secondary | `0x00188000` | 8 KB（stub） |
+| NS secondary | `0x0018A000` | 8 KB（stub） |
+| NS free data | `0x0018C000` → 2MB 末尾 | ~464 KB |
+
+- 源文件：`trusted-firmware-m/platform/ext/target/stm/stm32h573i_dk/include/flash_layout.h`
+- `NS_CODE_START` 仍是 `0x08088400`；可用代码约 `1MB - header - trailer`（`BL2_TRAILER_SIZE=0x2000` 时约 **1015 KB**）
+- 改布局后必须 **重编并重烧 BL2+S**，再按新 `NS_CODE_SIZE` 编/下 NS
+- NS 链接脚本请用 `ORIGIN=NS_CODE_START, LENGTH=NS_CODE_SIZE`（不要只手改 LENGTH）
+
 ### 相对 `master` 改了什么
 
-本支线相对 `master` **只围绕签名换成 EC-P256**，Flash 布局 / 槽位等不变。主要包括：
+本支线相对 `master` 以 **EC-P256** 为主，并带上 **调试用 NS=1MB Flash 布局**。主要包括：
 
 1. **TF-M BL2**：`stm32h573i_dk/config.cmake` 设 `MCUBOOT_SIGNATURE_TYPE=EC-P256`（公钥编进 BL2）
 2. **TF-M SPE 签名**：默认密钥改为 `root-EC-P256.pem` / `root-EC-P256_1.pem`；`buildtfm.sh` 带 `SIG=` stamp 并 `-UMCUBOOT_KEY_S/NS`
