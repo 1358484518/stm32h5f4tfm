@@ -9,7 +9,29 @@
 | `stm32h5f4` | **RSA-3072** | 默认开发支线 |
 | `stm32h5f4p256`（及 `stm32h5f4-p256`） | **EC-P256** | 仅改 MCUboot 镜像签名算法与配套密钥 |
 
-本文档所在分支为 **`stm32h5f4p256`**。
+本文档所在分支为 **`stm32h5f4p256` 衍生支线（ITS 加密 + 可编辑 OTP）**。
+
+相对 `stm32h5f4p256` 额外默认：
+
+- `TFM_DUMMY_PROVISIONING=OFF`（不用 TF-M 内置 dummy HUK/IAK）
+- `ITS_ENCRYPTION=ON`（ITS 落盘用 HUK 派生 AEAD 加密）
+- 设备密钥来自 `keys/otp_device_secrets.json`，编进 Flash 仿真 OTP `@ 0x0C028000`，一键烧录会写 OTP
+
+### 设备 OTP 密钥（HUK / IAK）一键流程
+
+```bash
+cp keys/otp_device_secrets.example.json keys/otp_device_secrets.json
+# 编辑 huk / iak / boot_seed / implementation_id（各 32 字节 = 64 hex）
+./buildtfm.sh test          # 注入 .inc、编 BL2/S/NS，并导出 keys/otp_flash_emulated.hex
+./flash_stm32h5f4.sh        # 烧 BL2/S/NS + OTP @ 0x0C028000
+```
+
+说明：
+
+- `otp_device_secrets.json` 已 gitignore；仓库只带 `.example.json`。
+- 换 HUK 会使旧 ITS 密文失效。IAK 勿用 TF-M dummy 前缀（脚本会拒绝）。
+- `./flash_stm32h5f4.sh` 在 `TFM_UPDATE` / `bl2.bin` 之外会**显式**烧 OTP（`bl2.bin` 不含 `0x0C028000`）。
+- ROTPK 仍由 `./buildtfm.sh` 按签名私钥自动同步到同一 OTP 区。
 
 ### 相对 `stm32h5f4` 改了什么
 
@@ -128,10 +150,8 @@ SPE / BL2 / 官方 NS 测试固件只使用仓库根目录的 `./buildtfm.sh` �
 在仓库根目录：
 
 ```bash
-git checkout stm32h5f4p256
-git pull origin stm32h5f4p256
-
-# 测试版：TEST_S + TEST_NS，INFO 日志（硬件回归用这个）
+cp keys/otp_device_secrets.example.json keys/otp_device_secrets.json   # 首次
+# 按需修改 huk/iak 后：
 ./buildtfm.sh test
 
 # 正式版：SPE 不带 S 测试分区，NS 测试程序仍可烧可跑，ERROR 日志
@@ -141,10 +161,13 @@ git pull origin stm32h5f4p256
 成功结尾应有 `=== 编译完成（测试版，硬件浮点 ON）===`，并且检查：
 
 - `bl2.bin` 含 `H5F4BL2`、`H5F4SWP2`
+- `keys/otp_flash_emulated.hex` 已导出（Flash 仿真 OTP `@ 0x0C028000`）
 - 槽位：BL2 `0xc00e000`，S `0xc038000`，NS `0xc090000`，S 升级 `0xc200000`，NS 升级 `0xc258000`
 
 产物目录：`trusted-firmware-m/build_s/api_ns`（BL2 / S）和 `trusted-firmware-m/build_ns/bin`（NS 测试镜像）。
 Linux 烧录 `./flash_stm32h5f4.sh` 会用 SPE 编出来的那份脚本；NS 工程（`tfmmakeproject` / CubeIDE）里不再带 `TFM_UPDATE.sh` / `regression.sh`。
+
+本支线默认 `ITS_ENCRYPTION=ON`、`TFM_DUMMY_PROVISIONING=OFF`。改过 `keys/otp_device_secrets.json` 后必须重新编译再烧，OTP 才会更新。
 
 ### 签名（自己编的未加密 .bin）
 
@@ -186,6 +209,8 @@ sign.bat sapp.bin
 ./flash_stm32h5f4.sh
 ```
 
+脚本会烧 **BL2 + S + NS**，并**显式烧录** Flash 仿真 OTP（`keys/otp_flash_emulated.hex` → `0x0C028000`）。仅 `bl2.bin` 不会写到 OTP 区。
+
 片上若还有旧 BL2 的 HDP（盖住 `0x0C00E000`），脚本会整片擦除再烧。需要强制擦除：
 
 ```bash
@@ -195,7 +220,7 @@ sign.bat sapp.bin
 烧完复位，串口第一行必须有 **`H5F4BL2`**（测试版常见 `[INF] H5F4BL2`）。  
 如果仍是 `Starting bootloader` 且没有 `H5F4BL2`，说明 BL2 没写进去，不要继续用旧工程脚本补烧。
 
-开发镜像用 TF-M dummy **EC-P256** 密钥（`stm32h5f4` 支线仍为 RSA-3072），启动日志里的 `NOT SECURE` 是预期现象。与 RSA 支线互切后必须整片重烧 BL2 + S + NS，并使用本支线的 `sign_kit/keys`。更换自有密钥见上文「更换密钥」。
+开发镜像用 TF-M dummy **EC-P256** 签名密钥（`stm32h5f4` 支线仍为 RSA-3072），启动日志里的 `NOT SECURE` 是预期现象。与 RSA 支线互切后必须整片重烧 BL2 + S + NS，并使用本支线的 `sign_kit/keys`。更换自有密钥见上文「更换密钥」。设备 HUK/IAK 见上文「设备 OTP 密钥」。
 
 `./flash_stm32h5f4.sh` 只写当前运行槽（BL2 / S primary / NS primary）。**升级下载**请写 MCUBoot secondary：S `0x0C200000`（`slot2`）、NS `0x0C258000`（`slot3`）。不要用 H573 的 `0x0C118000` / `0x0C168000`。完整表见下面 Windows 一节。
 

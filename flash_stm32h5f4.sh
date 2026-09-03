@@ -16,13 +16,33 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 API_NS="${ROOT}/trusted-firmware-m/build_s/api_ns"
 REGRESSION_SRC="${ROOT}/trusted-firmware-m/platform/ext/target/stm/stm32h5f4/regression.sh"
 BL2_BIN="${API_NS}/bin/bl2.bin"
+BL2_HEX="${API_NS}/bin/bl2.hex"
+OTP_HEX="${ROOT}/keys/otp_flash_emulated.hex"
 BOOT_ADDR=0xc00e000
+OTP_ADDR=0x0C028000
 # First mismatch in the user's log: start of sector 8 / SECBOOTADD.
 BL2_VEC_ADDR=0x0C010000
 DUMP="${API_NS}/bl2_onchip.bin"
 MODE="${1:-unlock}"
 
 die() { echo "错误: $*" >&2; exit 1; }
+
+program_otp() {
+    # bl2.bin alone does not cover flash-emulated OTP @ 0x0C028000.
+    if [[ -f "${OTP_HEX}" ]]; then
+        echo ">>> Write flash-emulated OTP @ ${OTP_ADDR} <- ${OTP_HEX}"
+        STM32_Programmer_CLI ${CONNECT_HP} -d "${OTP_HEX}" -v \
+            || die "OTP 下载失败（${OTP_HEX}）"
+        return 0
+    fi
+    if [[ -f "${BL2_HEX}" ]]; then
+        echo ">>> Write OTP via bl2.hex（内含 .BL2_OTP @ ${OTP_ADDR}）<- ${BL2_HEX}"
+        STM32_Programmer_CLI ${CONNECT_HP} -d "${BL2_HEX}" -v \
+            || die "bl2.hex（含 OTP）下载失败"
+        return 0
+    fi
+    die "缺少 OTP 镜像（${OTP_HEX} 或 ${BL2_HEX}）。请先: ./buildtfm.sh test"
+}
 
 ob_hex_field() {
     local dump="$1"
@@ -190,6 +210,9 @@ if [[ "${upd_rc}" -ne 0 ]]; then
     echo "警告: TFM_UPDATE.sh 退出码 ${upd_rc}，继续单独重写并回读 BL2"
 fi
 
+# Explicit OTP: TFM_UPDATE / bl2.bin path does not program 0x0C028000.
+program_otp
+
 echo ">>> 单独再写一次 BL2 并校验"
 STM32_Programmer_CLI ${CONNECT_UR} -d "${BL2_BIN}" ${BOOT_ADDR} -v \
     || die "BL2 下载失败。若地址是 0x0C010000：这是 HDP，不是 WRP。请 ./flash_stm32h5f4.sh erase，或 GUI Reset MCU to Factory Settings"
@@ -204,9 +227,10 @@ grep -a -F -q "H5F4BL2" "${DUMP}" \
     || die "片上 BL2 没有 H5F4BL2。写保护还在，bootloader 没换掉"
 
 echo
-echo "片上已经是新 BL2。复位后串口必须有:"
+echo "片上已经是新 BL2（含 OTP @ ${OTP_ADDR}）。复位后串口必须有:"
 echo "  H5F4BL2                         （BOOT_LOG_ERR，正式版也会打）"
 echo "  BANK 2 secure flash [0, 39]     （不能再是 [255, 0]）"
 echo "  不能出现 set wrp1 / set hdp1"
 echo "  Image 0 boot_go done"
+echo "改过 keys/otp_device_secrets.json 后须重新 ./buildtfm.sh 再烧。"
 STM32_Programmer_CLI ${CONNECT_UR} -hardRst || true

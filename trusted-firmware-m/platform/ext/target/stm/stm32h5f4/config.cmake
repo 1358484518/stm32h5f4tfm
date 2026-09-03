@@ -45,3 +45,9 @@ set(TFM_CONFIG_FWU_MAX_MANIFEST_SIZE       0            CACHE STRING    "The max
 set(FWU_DEVICE_CONFIG_FILE                 ""           CACHE STRING    "The device configuration file for Firmware Update partition")
 set(DMCUBOOT_UPGRADE_STRATEGY              SWAP_USING_MOVE)
 set(DEFAULT_MCUBOOT_FLASH_MAP             ON            CACHE BOOL     "Whether to use the default flash map defined by TF-M project")
+################################## Device secrets / ITS encryption ############################
+# No TF-M dummy HUK/IAK. Provision real secrets via keys/otp_device_secrets.json
+# (see keys/otp_device_secrets.example.json). Values are baked into flash-emulated
+# OTP @ 0x0C028000 through otp_device_secrets.inc + bl2.hex / one-click flash.
+set(TFM_DUMMY_PROVISIONING                 OFF          CACHE BOOL      "Provision with dummy values. NOT for production")
+set(ITS_ENCRYPTION                         ON           CACHE BOOL      "Encrypt ITS files at rest (HUK-derived AEAD)")
