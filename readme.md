@@ -8,7 +8,7 @@
 |------|----------|------|
 | `master` | **RSA-3072** | 正式主线（验签） |
 | `stm32h573p256` | **EC-P256** | 正式 P256 支线（验签） |
-| `stm32h573p256-debug` | **EC-P256** | **调试：BL 不验签/不升级**；直跳 S→NS；NS 主槽约 **1504 KB** |
+| `stm32h573p256-debug` | **EC-P256** | **调试：BL2 只验签/启动 S**；跳过 NS；NS 主槽约 **1504 KB** |
 
 本文档所在分支为 **`stm32h573p256-debug`**（基于 `stm32h573p256`）。
 
@@ -16,11 +16,13 @@
 
 目标模型（本支线）：
 
-1. **BL2**：初始化 TrustZone / OTP / 静态保护等环境后，**不验签、不加载镜像、不做升级**，直接跳到 `S_CODE_START`（`0x0C038400`）
-2. **S（SPE）**：初始化 TF-M 后，按固定地址跳到 `NS_CODE_START`（`0x08088400`）
-3. **NS**：CubeIDE F5 直接下载；只要能经 veneer 调 S 侧 **PSA** 即可
+1. **BL2**：初始化 TrustZone / OTP 等后，**验签并启动 S**（仍走 MCUboot `boot_go`，否则 SPE 会缺共享数据一直复位）
+2. **BL2 不加载/不验 NS**；**S（SPE）** 初始化后跳到 `NS_CODE_START`（`0x08088400`）
+3. **NS**：CubeIDE F5 直接下载；能经 veneer 调 S 侧 **PSA** 即可
 4. **无 FWU / 无副槽**；`sign_kit/DEBUG_SKIP_SIGN` 可跳过 NS 签名步骤
 5. **不要用于量产**；量产回 `master` / `stm32h573p256`
+
+> 注意：曾试过 BL2 完全不验签、裸跳 `S_CODE_START`，SPE 起不来会复位循环。调试线必须保留 S 的正常启动路径；NS 仍可自由下载。
 
 ### 调试专用 Flash 布局（NS 吃满剩余 Flash）
 

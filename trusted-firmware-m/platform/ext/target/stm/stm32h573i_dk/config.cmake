@@ -18,13 +18,13 @@ set(MCUBOOT_DATA_SHARING                   ON          CACHE BOOL      "Enable D
 set(MCUBOOT_BOOTSTRAP                      OFF         CACHE BOOL      "Debug: no secondary-slot bootstrap / FWU")
 set(MCUBOOT_ENC_IMAGES                     OFF          CACHE BOOL      "Enable encrypted image upgrade support")
 set(MCUBOOT_ENCRYPT_RSA                    OFF          CACHE BOOL      "Use RSA for encrypted image upgrade support")
-# stm32h573p256-debug: EC-P256 keys kept for tooling; BL2 does NOT validate
-# images — init TrustZone/OTP then jump to S_CODE_START. SPE jumps to NS.
+# stm32h573p256-debug: EC-P256 keys kept for tooling. BL2 validates/boots S
+# only; SPE jumps to NS_CODE_START (CubeIDE can download NS freely).
 # Not for production.
 set(MCUBOOT_SIGNATURE_TYPE                 "EC-P256"    CACHE STRING    "Algorithm to use for signature validation [RSA-2048, RSA-3072, EC-P256, EC-P384]")
 set(MCUBOOT_HW_ROLLBACK_PROT            OFF         CACHE BOOL      "Enable security counter validation against non-volatile HW counters")
-set(TFM_BL2_DEBUG_FAST_BOOT             ON          CACHE BOOL      "Debug: BL2 skips image validate/upgrade; jump S after env init")
-set(TFM_BL2_DEBUG_SKIP_NS               ON          CACHE BOOL      "Legacy name: NS is never loaded by BL2 on this branch")
+set(TFM_BL2_DEBUG_SKIP_NS               ON          CACHE BOOL      "Debug: BL2 does not load/validate NS image")
+set(TFM_BL2_DEBUG_FAST_BOOT             OFF         CACHE BOOL      "Deprecated: raw jump to S without boot_go breaks SPE; keep OFF")
 ################################## Dependencies ########################################
 set(TFM_PARTITION_INTERNAL_TRUSTED_STORAGE ON          CACHE BOOL      "Enable Internal Trusted Storage partition")
 set(TFM_PARTITION_CRYPTO                   ON          CACHE BOOL      "Enable Crypto partition")
