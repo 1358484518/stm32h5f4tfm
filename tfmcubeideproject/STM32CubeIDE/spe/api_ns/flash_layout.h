@@ -23,10 +23,11 @@
  * some of the values are redefined here with different names, these are marked
  * with comment.
  */
- /* Flash layout for stm32h573i_dk with BL2 (debug fast-boot):
+ /* Flash layout for stm32h573i_dk with BL2 (debug DBG-NOSIG):
  *
- * No firmware upgrade: secondary slots are size 0. NS primary takes all
- * flash after S primary through the end of the 2 MB device.
+ * BL2 still boot_go's the Secure image (SWAP needs an S secondary slot).
+ * NS is not loaded by BL2; NS secondary stays 0. NS primary uses the rest
+ * of flash between S primary and S secondary (~1184 KB).
  *
  * 0x0000_0000 SCRATCH (48 KB)
  * 0x0000_C000 BL2 - counters(16 KB)
@@ -36,7 +37,8 @@
  * 0x0003_0000 Secure Storage Area (16 KB)
  * 0x0003_4000 Internal Trusted Storage Area (16 KB)
  * 0x0003_8000 Secure image     primary slot (320 KB)
- * 0x0008_8000 Non-secure image primary slot (1504 KB)
+ * 0x0008_8000 Non-secure image primary slot (1184 KB)
+ * 0x001B_0000 Secure image     secondary slot (320 KB)
  *
  * Bl2 binary is written at 0x1_0000:
  * it contains bl2_counter init value, OTP write protect, NV counters area init.
@@ -142,16 +144,17 @@
 #define FLASH_S_PARTITION_SIZE          (0x50000) /* 320 KB for S primary */
 
 /*
- * Debug: no upgrade slots (size 0). FLASH_AREA_END == end of NS primary.
+ * Debug: keep S secondary so MCUboot boot_go(S) can open primary+secondary.
+ * NS secondary stays 0 (BL2 skips NS). No FWU.
  */
-#define FLASH_S_SECONDARY_PARTITION_SIZE  (0)
+#define FLASH_S_SECONDARY_PARTITION_SIZE  (FLASH_S_PARTITION_SIZE)
 #define FLASH_NS_SECONDARY_PARTITION_SIZE (0)
 
 /* BL2 flash areas */
 #define FLASH_AREA_BEGIN_OFFSET         (FLASH_ITS_AREA_OFFSET + FLASH_ITS_AREA_SIZE)
 
-/* NS primary: everything after S primary through end of 2 MB flash. */
-#define FLASH_NS_PARTITION_SIZE         (FLASH_TOTAL_SIZE - FLASH_AREA_BEGIN_OFFSET - FLASH_S_PARTITION_SIZE)
+/* NS primary: flash between S primary and S secondary. */
+#define FLASH_NS_PARTITION_SIZE         (FLASH_TOTAL_SIZE - FLASH_AREA_BEGIN_OFFSET -                                          FLASH_S_PARTITION_SIZE -                                          FLASH_S_SECONDARY_PARTITION_SIZE -                                          FLASH_NS_SECONDARY_PARTITION_SIZE)
 
 #define FLASH_PARTITION_SIZE            (FLASH_S_PARTITION_SIZE+FLASH_NS_PARTITION_SIZE)
 

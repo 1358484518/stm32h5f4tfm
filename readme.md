@@ -8,7 +8,7 @@
 |------|----------|------|
 | `master` | **RSA-3072** | 正式主线（验签） |
 | `stm32h573p256` | **EC-P256** | 正式 P256 支线（验签） |
-| `stm32h573p256-debug` | **EC-P256** | **调试：BL2 只验签/启动 S**；跳过 NS；NS 主槽约 **1504 KB** |
+| `stm32h573p256-debug` | **EC-P256** | **调试：BL2 只验签/启动 S**；跳过 NS；NS 主槽约 **1184 KB** |
 
 本文档所在分支为 **`stm32h573p256-debug`**（基于 `stm32h573p256`）。
 
@@ -19,21 +19,22 @@
 1. **BL2**：初始化 TrustZone / OTP 等后，**验签并启动 S**（仍走 MCUboot `boot_go`，否则 SPE 会缺共享数据一直复位）
 2. **BL2 不加载/不验 NS**；**S（SPE）** 初始化后跳到 `NS_CODE_START`（`0x08088400`）
 3. **NS**：CubeIDE F5 直接下载；能经 veneer 调 S 侧 **PSA** 即可
-4. **无 FWU / 无副槽**；`sign_kit/DEBUG_SKIP_SIGN` 可跳过 NS 签名步骤
+4. **无 FWU**；保留 **S 副槽**（MCUboot `boot_go(S)` 需要），**NS 副槽为 0**；`sign_kit/DEBUG_SKIP_SIGN` 可跳过 NS 签名步骤
 5. **不要用于量产**；量产回 `master` / `stm32h573p256`
 
-> 注意：曾试过 BL2 完全不验签、裸跳 `S_CODE_START`，SPE 起不来会复位循环。调试线必须保留 S 的正常启动路径；NS 仍可自由下载。
+> 注意：曾试过 BL2 完全不验签、裸跳 `S_CODE_START`，SPE 起不来会复位循环。调试线必须保留 S 的正常启动路径；NS 仍可自由下载。S 副槽不能为 0，否则 `boot_go` 会报 primary invalid。
 
-### 调试专用 Flash 布局（NS 吃满剩余 Flash）
+### 调试专用 Flash 布局
 
 | 区域 | 偏移 | 大小 |
 |------|------|------|
 | S primary | `0x00038000`（`0x0C038000`） | 320 KB |
-| **NS primary** | `0x00088000`（`0x0C088000` / `0x08088000`） | **1504 KB**（至 2MB 末尾） |
-| S/NS secondary | — | **0**（无升级） |
+| **NS primary** | `0x00088000`（`0x0C088000` / `0x08088000`） | **1184 KB** |
+| S secondary | `0x001B0000` | **320 KB**（给 MCUboot，非升级用途） |
+| NS secondary | — | **0** |
 
 - 源文件：`trusted-firmware-m/platform/ext/target/stm/stm32h573i_dk/include/flash_layout.h`
-- `NS_CODE_START` = `0x08088400`；可用代码 ≈ `1504KB - header - trailer`（`BL2_TRAILER_SIZE=0x2000` 时约 **1495 KB**）
+- `NS_CODE_START` = `0x08088400`；可用代码 ≈ `1184KB - header - trailer`（`BL2_TRAILER_SIZE=0x2000` 时约 **1175 KB**）
 - 改布局后必须 **重编并重烧 BL2+S**，再按新 `NS_CODE_SIZE` 编/下 NS
 - NS 链接脚本：`ORIGIN=NS_CODE_START, LENGTH=NS_CODE_SIZE`
 

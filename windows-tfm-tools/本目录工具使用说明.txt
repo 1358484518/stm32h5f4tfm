@@ -4,7 +4,7 @@
 BL2 含 DBG-NOSIG skip-NS：
   验签并启动 S（必须走 boot_go，否则 SPE 会复位循环）；
   不加载/不验 NS。S 初始化后跳 NS_CODE_START（0x08088400）。
-NS 主槽约 1504KB（可用约 1495KB）；无副槽/无 FWU。
+NS 主槽约 1184KB（可用约 1175KB）；保留 S 副槽供 boot_go，NS 副槽/FWU 关闭。
 预置 NS 测试镜像约 1MB：启动时会按每 10KB 打印 flash probe sum（串口 115200）。
 
 推荐流程：

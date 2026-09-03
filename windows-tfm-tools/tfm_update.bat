@@ -1,7 +1,7 @@
 @echo off
 rem ****************************************************************************
 rem  * STM32H573I-DK TF-M flash after regression (Windows)
-rem  * Debug branch: BL2=DBG-NOSIG (validate S, skip NS), NS slot ~1504KB @ 0x0C088000
+rem  * Debug branch: BL2=DBG-NOSIG (validate S, skip NS), NS slot ~1184KB @ 0x0C088000
 rem  *
 rem  * 1) Run regression.bat (option bytes + erase + OEM-iRoT)
 rem  * 2) If present in current dir (or this script's dir), download:
