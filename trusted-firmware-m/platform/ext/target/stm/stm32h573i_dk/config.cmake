@@ -15,14 +15,16 @@ set(MCUBOOT_UPGRADE_STRATEGY        "SWAP_USING_SCRATCH"      CACHE STRING    "U
 set(MCUBOOT_USE_PSA_CRYPTO                 ON          CACHE BOOL      "Enable the cryptographic abstraction layer to use PSA Crypto APIs")
 set(TFM_PARTITION_PLATFORM                 ON          CACHE BOOL      "Enable platform partition")
 set(MCUBOOT_DATA_SHARING                   ON          CACHE BOOL      "Enable Data Sharing")
-set(MCUBOOT_BOOTSTRAP                      ON          CACHE BOOL      "Allow initial state with images in secondary slots(empty primary slots)")
+set(MCUBOOT_BOOTSTRAP                      OFF         CACHE BOOL      "Debug: no secondary-slot bootstrap / FWU")
 set(MCUBOOT_ENC_IMAGES                     OFF          CACHE BOOL      "Enable encrypted image upgrade support")
 set(MCUBOOT_ENCRYPT_RSA                    OFF          CACHE BOOL      "Use RSA for encrypted image upgrade support")
-# This branch (stm32h573p256-debug): EC-P256 key layout kept; BL2 skips NS
-# image load (SPE jumps to NS_CODE_START). Not for production.
+# stm32h573p256-debug: EC-P256 keys kept for tooling; BL2 does NOT validate
+# images — init TrustZone/OTP then jump to S_CODE_START. SPE jumps to NS.
+# Not for production.
 set(MCUBOOT_SIGNATURE_TYPE                 "EC-P256"    CACHE STRING    "Algorithm to use for signature validation [RSA-2048, RSA-3072, EC-P256, EC-P384]")
 set(MCUBOOT_HW_ROLLBACK_PROT            OFF         CACHE BOOL      "Enable security counter validation against non-volatile HW counters")
-set(TFM_BL2_DEBUG_SKIP_NS               ON          CACHE BOOL      "Debug: BL2 does not load/validate NS image")
+set(TFM_BL2_DEBUG_FAST_BOOT             ON          CACHE BOOL      "Debug: BL2 skips image validate/upgrade; jump S after env init")
+set(TFM_BL2_DEBUG_SKIP_NS               ON          CACHE BOOL      "Legacy name: NS is never loaded by BL2 on this branch")
 ################################## Dependencies ########################################
 set(TFM_PARTITION_INTERNAL_TRUSTED_STORAGE ON          CACHE BOOL      "Enable Internal Trusted Storage partition")
 set(TFM_PARTITION_CRYPTO                   ON          CACHE BOOL      "Enable Crypto partition")
@@ -34,11 +36,11 @@ set(TFM_SPM_LOG_LEVEL             LOG_LEVEL_INFO       CACHE STRING    "Set defa
 set(TFM_PARTITION_LOG_LEVEL       LOG_LEVEL_INFO       CACHE STRING    "Set default Secure Partition log level as INFO level")
 ################################## Platform-specific configurations ####################################
 set(CONFIG_TFM_USE_TRUSTZONE               ON           CACHE BOOL      "Use TrustZone")
-set(TFM_PARTITION_PROTECTED_STORAGE        ON           CACHE BOOL      "Disable Protected Storage partition")
-set(TFM_PARTITION_INITIAL_ATTESTATION      ON           CACHE BOOL      "Disable Initial Attestation partition")
-set(PLATFORM_HAS_FIRMWARE_UPDATE_SUPPORT   ON           CACHE BOOL      "Wheter the platform has firmware update support")
+set(TFM_PARTITION_PROTECTED_STORAGE        ON           CACHE BOOL      "Enable Protected Storage partition")
+set(TFM_PARTITION_INITIAL_ATTESTATION      ON           CACHE BOOL      "Enable Initial Attestation partition")
+set(PLATFORM_HAS_FIRMWARE_UPDATE_SUPPORT   OFF          CACHE BOOL      "Debug: no firmware update support")
 ################################## FIRMWARE_UPDATE #############################################################
-set(TFM_PARTITION_FIRMWARE_UPDATE          ON           CACHE BOOL      "Enable firmware update partition")
+set(TFM_PARTITION_FIRMWARE_UPDATE          OFF          CACHE BOOL      "Debug: disable FWU partition")
 set(TFM_FWU_BOOTLOADER_LIB                 "mcuboot"    CACHE STRING    "Bootloader configure file for Firmware Update partition")
 set(TFM_CONFIG_FWU_MAX_WRITE_SIZE          1024         CACHE STRING    "The maximum permitted size for block in psa_fwu_write, in bytes.")
 set(TFM_CONFIG_FWU_MAX_MANIFEST_SIZE       0            CACHE STRING    "The maximum permitted size for manifest in psa_fwu_start(), in bytes.")

@@ -33,6 +33,7 @@
 #include "uart_stdout.h"
 #include "tfm_plat_otp.h"
 #include "tfm_plat_provisioning.h"
+#include "region_defs.h"
 #ifdef TEST_BL2
 #include "mcuboot_suites.h"
 #endif /* TEST_BL2 */
@@ -65,8 +66,12 @@ __asm("  .global __use_no_semihosting\n");
 static uint8_t mbedtls_mem_buf[BL2_MBEDTLS_MEM_BUF_LEN];
 struct boot_rsp rsp;
 
-/* Debug branch: BL2 does not load NS; SPE jumps to NS_CODE_START. */
+/* Debug branch: BL2 only brings up TrustZone/OTP, then jumps to S. */
+#if defined(TFM_BL2_DEBUG_FAST_BOOT)
+__attribute__((used)) static const char bl2_debug_nosig[] = "DBG-FAST skip-validate";
+#else
 __attribute__((used)) static const char bl2_debug_nosig[] = "DBG-NOSIG skip-NS";
+#endif
 
 static void do_boot(struct boot_rsp *rsp)
 {
@@ -184,6 +189,24 @@ int main(void)
         boot_platform_error_state(err);
     }
 
+#if defined(TFM_BL2_DEBUG_FAST_BOOT)
+    /*
+     * Debug fast path: no image load, no signature, no upgrade.
+     * TrustZone / OTP / static protections are already applied; jump to SPE.
+     * SPE then jumps to NS_CODE_START; NS uses PSA toward S as usual.
+     */
+    (void)image_id;
+    (void)recovery_succeeded;
+    BOOT_LOG_INF("DBG-FAST: jump S @ 0x%x (no validate)", (unsigned)S_CODE_START);
+#if (LOG_LEVEL > LOG_LEVEL_NONE) || defined(TEST_BL2)
+    stdio_uninit();
+#endif
+    boot_platform_start_next_image((struct boot_arm_vector_table *)S_CODE_START);
+    BOOT_LOG_ERR("Never should get here");
+    boot_platform_error_state(0);
+    return FIH_FAILURE;
+#else /* !TFM_BL2_DEBUG_FAST_BOOT */
+
 #if defined(MCUBOOT_USE_PSA_CRYPTO)
     /* If the bootloader is configured to use PSA Crypto APIs in the
      * abstraction layer, the component needs to be explicitly initialized
@@ -255,6 +278,7 @@ int main(void)
                                                     rsp.br_hdr->ih_ver.iv_revision);
     BOOT_LOG_INF("Jumping to the first image slot");
     do_boot(&rsp);
+#endif /* TFM_BL2_DEBUG_FAST_BOOT */
 
     BOOT_LOG_ERR("Never should get here");
     boot_platform_error_state(0);

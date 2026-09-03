@@ -35,6 +35,12 @@ if(BL2)
             ${STM_COMMON_DIR}/hal/provision/nvm_init.c
             ${STM_COMMON_DIR}/hal/provision/nvmcnt_init.c
     )
+    if(TFM_BL2_DEBUG_FAST_BOOT)
+        target_compile_definitions(bl2
+            PRIVATE
+                TFM_BL2_DEBUG_FAST_BOOT
+        )
+    endif()
 endif()
 
 install(FILES
