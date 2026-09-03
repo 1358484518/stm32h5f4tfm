@@ -17,6 +17,19 @@
 - `ITS_ENCRYPTION=ON`（ITS 落盘用 HUK 派生 AEAD 加密）
 - 设备密钥来自 `keys/otp_device_secrets.json`，编进 Flash 仿真 OTP `@ 0x0C028000`，一键烧录会写 OTP
 
+### HUK 与 IAK 分别干什么
+
+| 密钥 | 用途 | 说明 |
+|------|------|------|
+| **HUK**（Hardware Unique Key） | **加密存储** | 派生 PS（及本支线 ITS）落盘用的 AEAD 密钥。管“数据怎么加密存放”。 |
+| **IAK**（Initial Attestation Key） | **设备认证 / 证明** | 只用于 Initial Attestation：用私钥签 attestation token，对端用公钥验签。管“我是谁、证明给别人看”。 |
+
+补充：
+
+- 换 **HUK**：旧的 PS / ITS 密文会解不开，需按新密钥重新写入。
+- 换 **IAK**：只影响**之后**新签的 attestation（要用新公钥才能验过）；一般**不影响**已用 HUK 加密存好的数据。
+- 二者都写在 `keys/otp_device_secrets.json`，编进 Flash 仿真 OTP `@ 0x0C028000`。
+
 ### 设备 OTP 密钥（HUK / IAK）一键流程
 
 本支线关闭了 dummy 预置，编译前把示例拷成可编辑文件并改成自己的值：
