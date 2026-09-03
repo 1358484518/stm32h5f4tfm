@@ -79,6 +79,7 @@ target_sources(platform_s
         ${CMAKE_CURRENT_SOURCE_DIR}/hal/Src/stm32h5xx_hal_rng_ex.c
         ${CMAKE_CURRENT_SOURCE_DIR}/hal/Src/stm32h5xx_hal_rtc.c
         ${CMAKE_CURRENT_SOURCE_DIR}/hal/Src/stm32h5xx_hal_rtc_ex.c
+        $<$<AND:$<BOOL:${ITS_ENCRYPTION}>,$<BOOL:${TFM_PARTITION_INTERNAL_TRUSTED_STORAGE}>>:${CMAKE_SOURCE_DIR}/platform/ext/common/template/tfm_hal_its_encryption.c>
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/hal/Src/stm32h5xx_hal_hash.c
         ${CMAKE_CURRENT_SOURCE_DIR}/hal/Src/stm32h5xx_hal_pka.c
@@ -87,6 +88,13 @@ target_sources(platform_s
         ${CMAKE_CURRENT_SOURCE_DIR}/hal/Src/stm32h5xx_hal_icache.c
         ${STM_COMMON_DIR}/hal/Native_Driver/low_level_rng.c
 )
+
+if(ITS_ENCRYPTION)
+    target_compile_definitions(platform_s
+        PUBLIC
+            ITS_ENCRYPTION
+    )
+endif()
 
 target_compile_options(platform_s
     PUBLIC

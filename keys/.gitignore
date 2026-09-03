@@ -1,3 +1,8 @@
 # Do not commit real signing keys
 *.pem
 !README.md
+
+# Local device OTP secrets (copy from example)
+otp_device_secrets.json
+otp_flash_emulated.addr.txt
+otp_flash_emulated.hex

@@ -198,6 +198,40 @@ sync_stm_otp_rotpk() {
         --key-ns "${key_ns}"
 }
 
+# TFM_DUMMY_PROVISIONING=OFF: bake HUK/IAK from keys/otp_device_secrets.json
+# into flash-emulated OTP (otp_device_secrets.inc).
+apply_stm_otp_device_secrets() {
+    local apply_py="${WORK_ROOT}/scripts/apply_stm_otp_device_secrets.py"
+    if [[ ! -f "${apply_py}" ]]; then
+        echo "警告: 缺少 ${apply_py}，跳过设备 OTP 密钥注入"
+        return 0
+    fi
+    "${PYTHON}" "${apply_py}" --repo-root "${WORK_ROOT}"
+}
+
+# After BL2 links, export .BL2_OTP as a standalone hex for one-click OTP burn.
+export_otp_flash_hex() {
+    local elf hex objcopy
+    elf="${TFM_ROOT}/build_s/bin/bl2.elf"
+    [[ -f "${elf}" ]] || elf="${TFM_ROOT}/build_s/build-spe/bin/bl2.axf"
+    hex="${WORK_ROOT}/keys/otp_flash_emulated.hex"
+    objcopy="$(command -v arm-none-eabi-objcopy || true)"
+    if [[ -z "${objcopy}" ]]; then
+        echo "警告: 无 arm-none-eabi-objcopy，跳过导出 ${hex}"
+        return 0
+    fi
+    if [[ ! -f "${elf}" ]]; then
+        echo "警告: 缺少 ${elf}，跳过导出 OTP hex"
+        return 0
+    fi
+    mkdir -p "$(dirname "${hex}")"
+    if "${objcopy}" -O ihex -j .BL2_OTP "${elf}" "${hex}" 2>/dev/null; then
+        echo ">>> OTP flash hex: ${hex} (@ 0x0C028000)"
+    else
+        echo "警告: 无法从 ${elf} 导出 .BL2_OTP（bl2.hex 仍含 OTP 区）"
+    fi
+}
+
 # Python：用 python -m pip，避免拷贝来的 venv shebang 失效
 VENV_DIR="${WORK_ROOT}/.venv"
 if [[ ! -x "${VENV_DIR}/bin/python" ]]; then
@@ -224,6 +258,7 @@ PYTHON="${VENV_DIR}/bin/python"
     || { echo "错误: hex_generation 未安装"; exit 1; }
 
 sync_user_signing_keys
+apply_stm_otp_device_secrets
 sync_stm_otp_rotpk
 
 
@@ -366,7 +401,8 @@ echo ""
 grep -E '^boot=|^slot0=|^slot1=' TFM_UPDATE.sh || true
 echo ""
 echo "=== 编译完成（${BUILD_LABEL}，硬件浮点 ON）==="
-echo "推荐一键烧录（回归+BL2/S/NS）: ${WORK_ROOT}/flash_stm32h573.sh"
+export_otp_flash_hex
+echo "推荐一键烧录（回归+BL2/S/NS+OTP）: ${WORK_ROOT}/flash_stm32h573.sh"
 echo "或手动: cd ${TFM_ROOT}/build_s/api_ns && ./regression.sh"
 echo "      STM32_Programmer_CLI -c port=SWD ap=1 mode=HotPlug -ob BOOT_UBE=0xB4"
 echo "      ./TFM_UPDATE.sh"

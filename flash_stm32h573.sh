@@ -8,6 +8,7 @@
 #   ./flash_stm32h573.sh download <SN>
 #
 # 地址（安全别名）：BL2 0x0C00E000，S 0x0C038000，NS 0x0C088000
+# Flash-emulated OTP：0x0C028000（HUK/IAK 等，见 keys/otp_device_secrets.example.json）
 # BOOT_UBE=0xB4（OEM-iRoT）。需要 STM32_Programmer_CLI，且 SWD 用 AP=1。
 # Windows 对应：windows-tfm-tools\tfm_update.bat
 #
@@ -19,6 +20,7 @@ API_NS="${ROOT}/trusted-firmware-m/build_s/api_ns"
 REGRESSION_SRC="${ROOT}/trusted-firmware-m/platform/ext/target/stm/stm32h573i_dk/regression.sh"
 BL2_BIN="${API_NS}/bin/bl2.bin"
 BL2_HEX="${API_NS}/bin/bl2.hex"
+OTP_HEX="${ROOT}/keys/otp_flash_emulated.hex"
 S_BIN="${API_NS}/bin/tfm_s_signed.bin"
 NS_BIN_DEFAULT="${ROOT}/trusted-firmware-m/build_ns/bin/tfm_ns_signed.bin"
 NS_BIN_FALLBACK="${ROOT}/windows-tfm-tools/tfm_ns_signed.bin"
@@ -26,6 +28,7 @@ NS_BIN_FALLBACK="${ROOT}/windows-tfm-tools/tfm_ns_signed.bin"
 BOOT_ADDR=0xc00e000
 SLOT_S=0xc038000
 SLOT_NS=0xc088000
+OTP_ADDR=0x0C028000
 # MCUboot image magic little-endian 0x96f3b83d
 MAGIC_BYTES="3db8f396"
 
@@ -34,15 +37,17 @@ die() { echo "错误: $*" >&2; exit 1; }
 usage() {
     cat <<'EOF'
 用法:
-  ./flash_stm32h573.sh                 # 一键：回归 + 烧录
+  ./flash_stm32h573.sh                 # 一键：回归 + 烧录（含 OTP @ 0x0C028000）
   ./flash_stm32h573.sh all [SN]        # 同上
-  ./flash_stm32h573.sh download [SN]   # 只烧 BL2 + S + NS
+  ./flash_stm32h573.sh download [SN]   # 只烧 BL2 + OTP + S + NS
   ./flash_stm32h573.sh regression [SN] # 只写 option bytes（会全片擦除）
   ./flash_stm32h573.sh --help
 
 先编译: ./buildtfm.sh test   （推荐 test：BL2 INFO 日志更全，便于看验签）
 产物: trusted-firmware-m/build_s/api_ns/bin/{bl2,tfm_s_signed}.bin
       trusted-firmware-m/build_ns/bin/tfm_ns_signed.bin
+      keys/otp_flash_emulated.hex（由 buildtfm 从 BL2 .BL2_OTP 导出）
+OTP 密钥: 编辑 keys/otp_device_secrets.json（可从 .example.json 复制）后再编。
 EOF
 }
 
@@ -158,15 +163,30 @@ readback_magic() {
     echo "    ${label} magic OK"
 }
 
+program_otp() {
+    # Prefer standalone OTP hex from buildtfm; else bl2.hex already embeds .BL2_OTP.
+    if [[ -f "${OTP_HEX}" ]]; then
+        echo ">>> Write flash-emulated OTP @ ${OTP_ADDR} <- ${OTP_HEX}"
+        "${CLI}" ${CONNECT_HP} -d "${OTP_HEX}" -v
+        return 0
+    fi
+    if [[ -f "${BL2_HEX}" ]]; then
+        echo ">>> OTP：无 ${OTP_HEX}，依赖随后 bl2.hex 内嵌的 .BL2_OTP @ ${OTP_ADDR}"
+        return 0
+    fi
+    die "缺少 OTP 镜像（${OTP_HEX} 或 ${BL2_HEX}）。请先: ./buildtfm.sh test"
+}
+
 run_download() {
     local ns_bin
     [[ -f "${BL2_BIN}" ]] || die "缺少 ${BL2_BIN}，请先: ./buildtfm.sh test"
     [[ -f "${S_BIN}" ]] || die "缺少 ${S_BIN}，请先: ./buildtfm.sh test"
     ns_bin="$(resolve_ns_bin)" || die "缺少 NS 已签名镜像。请 ./buildtfm.sh test，或设置 TFM_NS_BIN=/path/to/tfm_ns_signed.bin"
 
-    echo "=== H573 下载 BL2 + SPE + NS ==="
+    echo "=== H573 下载 BL2 + OTP + SPE + NS ==="
     echo "S    ${SLOT_S}  <- ${S_BIN}"
     echo "NS   ${SLOT_NS}  <- ${ns_bin}"
+    echo "OTP  ${OTP_ADDR}  <- ${OTP_HEX}（或 bl2.hex 内嵌）"
     if [[ -f "${BL2_HEX}" ]]; then
         echo "BL2  (hex 内含地址) <- ${BL2_HEX}"
     else
@@ -184,6 +204,8 @@ run_download() {
     "${CLI}" ${CONNECT_HP} -d "${S_BIN}" ${SLOT_S} -v
     echo ">>> Write Non-Secure"
     "${CLI}" ${CONNECT_HP} -d "${ns_bin}" ${SLOT_NS} -v
+    # Explicit OTP before BL2 so even bin-only BL2 path still provisions secrets.
+    program_otp
     echo ">>> Write BL2"
     if [[ -f "${BL2_HEX}" ]]; then
         "${CLI}" ${CONNECT_HP} -d "${BL2_HEX}" -v
@@ -199,10 +221,11 @@ run_download() {
     echo "download Done"
     echo
     echo "若仍报 Image in the primary slot is not valid："
-    echo "  1) 必须烧含 OTP 区的 bl2.hex（本脚本默认用它）；勿只烧旧 RSA 的 BL2"
+    echo "  1) 必须烧含 OTP 区的 bl2.hex / otp_flash_emulated.hex；勿只烧旧 RSA 的 BL2"
     echo "  2) 从 RSA 切到 EC-P256 后先 ./flash_stm32h573.sh（回归全片擦除）再烧"
     echo "  3) 串口应有: PSA Crypto init done, sig_type: EC-P256"
     echo "  4) S/NS 须与 BL2 同一次 ./buildtfm.sh test 产物"
+    echo "  5) 改过 keys/otp_device_secrets.json 后须重新 ./buildtfm.sh 再烧"
     echo "串口 ST-Link VCP 115200 8N1。"
 }
 

@@ -9,7 +9,31 @@
 | `master` | **RSA-3072** | 默认主线 |
 | `stm32h573p256` | **EC-P256** | 仅改 MCUboot 镜像签名算法与配套密钥 |
 
-本文档所在分支为 **`stm32h573p256`**。
+本文档所在分支为 **`stm32h573p256` 衍生支线（ITS 加密 + 可编辑 OTP）**。
+
+相对 `stm32h573p256` 额外默认：
+
+- `TFM_DUMMY_PROVISIONING=OFF`（不用 TF-M 内置 dummy HUK/IAK）
+- `ITS_ENCRYPTION=ON`（ITS 落盘用 HUK 派生 AEAD 加密）
+- 设备密钥来自 `keys/otp_device_secrets.json`，编进 Flash 仿真 OTP `@ 0x0C028000`，一键烧录会写 OTP
+
+### 设备 OTP 密钥（HUK / IAK）一键流程
+
+本支线关闭了 dummy 预置，编译前把示例拷成可编辑文件并改成自己的值：
+
+```bash
+cp keys/otp_device_secrets.example.json keys/otp_device_secrets.json
+# 编辑 huk / iak / boot_seed / implementation_id（各 32 字节 = 64 hex）
+./buildtfm.sh test          # 注入 .inc、编 BL2/S/NS，并导出 keys/otp_flash_emulated.hex
+./flash_stm32h573.sh        # 回归 + 烧 BL2/S/NS + OTP @ 0x0C028000
+```
+
+说明：
+
+- `otp_device_secrets.json` 已 gitignore，勿提交真密钥；仓库只带 `.example.json`。
+- 换 HUK 会使旧 ITS 密文失效（与 PS 类似）。
+- IAK 勿再使用 TF-M dummy 前缀（脚本会拒绝）。
+- ROTPK 仍由 `./buildtfm.sh` 按签名私钥自动同步到同一 OTP 区。
 
 ### 相对 `master` 改了什么
 
@@ -183,28 +207,33 @@ imgtool verify trusted-firmware-m/build_ns/bin/tfm_ns_signed.bin
 
 ### 一键回归烧录（Linux）
 
-仓库根目录 `./flash_stm32h573.sh`：先写 option bytes（含全片擦除），再烧 **BL2 + S + NS**。需已安装 `STM32_Programmer_CLI`，板子用 ST-Link。
+仓库根目录 `./flash_stm32h573.sh`：先写 option bytes（含全片擦除），再烧 **BL2 + OTP + S + NS**。需已安装 `STM32_Programmer_CLI`，板子用 ST-Link。
 
 ```bash
-git checkout stm32h573p256
-./buildtfm.sh test          # 或 prod
-./flash_stm32h573.sh        # 一键：回归 + 烧录
-# ./flash_stm32h573.sh download     # 只烧，不擦片
+# 首次 / 换密钥：
+cp keys/otp_device_secrets.example.json keys/otp_device_secrets.json
+# 按需改 huk/iak 后：
+./buildtfm.sh test
+./flash_stm32h573.sh        # 一键：回归 + 烧录（含 OTP）
+# ./flash_stm32h573.sh download     # 只烧（含 OTP），不擦片
 # ./flash_stm32h573.sh regression   # 只回归
 # ./flash_stm32h573.sh all <ST-LINK SN>
 ```
 
 | 镜像 | 地址 | 默认文件 |
 |------|------|----------|
-| BL2（含 OTP 区） | `0x0C00E000`（`bl2.hex` 另含 `0x0C028000` OTP） | `…/api_ns/bin/bl2.hex`（优先）或 `bl2.bin` |
+| Flash 仿真 OTP（HUK/IAK/ROTPK…） | `0x0C028000` | `keys/otp_flash_emulated.hex`（优先）；否则依赖 `bl2.hex` 内嵌 |
+| BL2 | `0x0C00E000`（`bl2.hex` 也可带 OTP） | `…/api_ns/bin/bl2.hex`（优先）或 `bl2.bin` |
 | S | `0x0C038000` | `…/api_ns/bin/tfm_s_signed.bin` |
 | NS | `0x0C088000` | `trusted-firmware-m/build_ns/bin/tfm_ns_signed.bin` |
 
 可用环境变量 `TFM_NS_BIN=` 指定其它已签名 NS。`BOOT_UBE=0xB4`（OEM-iRoT）。串口 **115200**。
 
-若串口已是 `sig_type: EC-P256` 且 primary `magic=good`，仍报 `Image in the primary slot is not valid`：多半是 OTP 里 ROTPK 不对——请 `git pull` 后重新 `./buildtfm.sh test`（或使用已修补的 `bl2.hex`），再 `./flash_stm32h573.sh` 做一次回归+烧录。
+本支线默认 `ITS_ENCRYPTION=ON`、`TFM_DUMMY_PROVISIONING=OFF`。改过 `keys/otp_device_secrets.json` 后必须重新 `./buildtfm.sh` 再烧，OTP 才会更新。
 
-Windows 一键：`windows-tfm-tools\tfm_update.bat`（会调 `regression.bat`）。
+若串口已是 `sig_type: EC-P256` 且 primary `magic=good`，仍报 `Image in the primary slot is not valid`：多半是 OTP 里 ROTPK 不对——请重新 `./buildtfm.sh test` 再 `./flash_stm32h573.sh` 做一次回归+烧录。
+
+Windows 一键：`windows-tfm-tools\tfm_update.bat`（会调 `regression.bat`）。OTP 独立 hex 以 Linux 脚本为准；Windows 侧请烧含 OTP 的 `bl2.hex` 或自行下载 `otp_flash_emulated.hex`。
 
 
 
