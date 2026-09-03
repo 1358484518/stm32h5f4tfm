@@ -14,7 +14,7 @@
 相对 `stm32h5f4p256` 额外默认：
 
 - `TFM_DUMMY_PROVISIONING=OFF`（不用 TF-M 内置 dummy HUK/IAK）
-- `ITS_ENCRYPTION=ON`（ITS 落盘用 HUK 派生 AEAD 加密；STM32H5 使用 `stm32h5xx/secure/tfm_hal_its_encryption.c`，nonce 走 `psa_generate_random`）
+- `ITS_ENCRYPTION=ON`（ITS 落盘用 HUK 派生 AEAD 加密；STM32H5 使用 `stm32h5xx/secure/tfm_hal_its_encryption.c`，不调用 Crypto 分区：OTP HUK + mbedtls_gcm + RNG_GetBytes）
 - 设备密钥来自 `keys/otp_device_secrets.json`，编进 Flash 仿真 OTP `@ 0x0C028000`，一键烧录会写 OTP
 
 ### HUK 与 IAK 分别干什么
