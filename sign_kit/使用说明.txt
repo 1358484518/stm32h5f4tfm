@@ -1,0 +1,102 @@
+【STM32H5F4 独立签名工具 sign_kit 使用说明】
+适用分支：stm32h5f4p256 / stm32h5f4p256-debug / stm32h5f4p256-opt-iak-huk
+算法：EC-P256
+默认密钥：DEV-CCU（SPE=S，NS=NS）
+
+一、这是什么
+  独立签名工具：给未签名的 S / NS 固件 .bin 加上 MCUboot 头和签名，
+  生成可烧录的 *_signed.bin。不依赖完整 TF-M 工程编译。
+
+二、目录内容
+  sign.sh / sign.bat     签名脚本（Linux/macOS / Windows）
+  keys/                  签名私钥（及公钥）
+    image_s_signing_private_key.pem   Secure（S / SPE）私钥
+    image_s_signing_public_key.pem    Secure 公钥
+    image_ns_signing_private_key.pem  Non-Secure（NS）私钥
+    image_ns_signing_public_key.pem   Non-Secure 公钥
+  layout/                与当前 SPE 配套的 signing_layout_*.o
+  config                 版本号、security counter、MCUboot 选项
+  scripts/               imgtool 与包装脚本
+  requirements.txt       Python 依赖
+
+三、首次准备
+  1) 安装 Python 3
+  2) 在本目录执行：
+       Linux/macOS:  python3 -m pip install -r requirements.txt
+       Windows:      py -3 -m pip install -r requirements.txt
+     建议在本目录使用独立 .venv；不要混用仓库根目录 TF-M 的 .venv。
+
+四、怎么签名
+  1) 把未签名 bin 拷到本目录（或给出路径）
+  2) 执行：
+       ./sign.sh tfm_ns.bin          # 文件名含 ns → 按 NS 签
+       ./sign.sh sapp.bin            # 含 sapp / tfm_s / _s.bin → 按 S 签
+       ./sign.sh ns  app.bin         # 强制 NS
+       ./sign.sh s   app.bin         # 强制 S
+     Windows 用 sign.bat，参数相同；也可把 bin 拖到 sign.bat 上。
+  3) 输出在本目录：
+       tfm_ns_signed.bin / sapp_signed.bin（或 <输入名>_signed.bin）
+
+五、烧录地址（STM32H5F4，与 windows-tfm-tools / flash 脚本一致）
+  S  主槽：0x0C038000   签完约 352 KB
+  NS 主槽：0x0C090000   签完约 1200 KB
+  S  副槽（升级）：0x0C200000
+  NS 副槽（升级）：0x0C258000
+  不要使用 H573 的 0x0C088000 等地址。
+  Windows 可把签好的镜像放进 windows-tfm-tools 后双击 tfm_update.bat。
+  Linux 可用仓库根目录 ./flash_stm32h5f4.sh。
+
+六、替换密钥（重要）
+  签名私钥必须与板上 BL2 内嵌公钥、OTP ROTPK 哈希一致。
+  只改本工具 keys/、不重编不重烧 BL2，板上会验签失败
+  （常见日志：Image in the primary slot is not valid）。
+
+  6.1 本工具内替换（仅改签名用的 pem）
+    用你的 EC-P256 密钥覆盖：
+      keys/image_s_signing_private_key.pem
+      keys/image_ns_signing_private_key.pem
+    建议同时更新公钥：
+      keys/image_s_signing_public_key.pem
+      keys/image_ns_signing_public_key.pem
+    可用 imgtool 从私钥导出公钥：
+      python3 scripts/imgtool/main.py getpub -k keys/image_s_signing_private_key.pem  > keys/image_s_signing_public_key.pem
+      python3 scripts/imgtool/main.py getpub -k keys/image_ns_signing_private_key.pem > keys/image_ns_signing_public_key.pem
+    算法必须是 ecdsa-p256（EC-P256）。不要把 RSA 私钥放到本 P256 工具包。
+
+  6.2 与整仓 / 板端同步（换钥后必做）
+    推荐在仓库根目录放置固定文件名后编译自动覆盖：
+      keys/image_s_signing_private_key.pem
+      keys/image_s_signing_public_key.pem
+      keys/image_ns_signing_private_key.pem
+      keys/image_ns_signing_public_key.pem
+    然后执行：
+      ./buildtfm.sh prod          # 或 test
+    脚本会：
+      - 覆盖各工程 sign_kit / api_ns 同名 pem
+      - 覆盖 BL2 的 root-EC-P256.pem / root-EC-P256_1.pem
+      - 按新私钥重算 OTP ROTPK（otp_rotpk_hashes.inc 等）
+    最后务必：回归擦片并重烧 BL2 + S + NS。
+
+  6.3 本包默认密钥说明
+    当前 keys/ 为 DEV-CCU：
+      DEV-CCU-SPE → S（Secure / SPE）
+      DEV-CCU-NS  → NS（Non-Secure）
+    与 stm32h5f4p256 主线已合入的 DEV-CCU 密钥一致。
+
+七、更换 SPE 布局后
+  若重编 SPE 改了槽大小/MCUboot 选项，请从
+    trusted-firmware-m/build_s/api_ns/image_signing/layout_files/
+  拷贝新的 signing_layout_s.o / signing_layout_ns.o 到本目录 layout/，
+  并核对本目录 config 中的版本与选项。
+
+八、与 CubeIDE / makefile 工程内 sign_kit 的关系
+  仓库里还有：
+    tfmcubeideproject/STM32CubeIDE/sign_kit/
+    tfmmakeproject/sign_kit/
+  本目录（或 sign_kit.zip）是独立拷贝，便于单独分发。
+  换密钥时建议三处 keys/ 保持一致（或走根目录 keys/ + buildtfm.sh 自动同步）。
+
+九、常见问题
+  - 签名成功但板子不启动 / primary slot invalid：密钥或 ROTPK 与 BL2 不一致，按第六节整仓同步并重烧。
+  - cryptography / imgtool 报错：使用本目录独立 .venv 重装 requirements.txt。
+  - 槽溢出：未签名镜像过大，检查 layout 与槽大小（S 352KB / NS 1200KB）。
