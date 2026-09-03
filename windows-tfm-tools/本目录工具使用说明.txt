@@ -1,7 +1,15 @@
-【调试分支 stm32h573p256-debug】
+【调试分支 stm32h573p256-debug / stm32h573p256-debug-ns1m】
 预置镜像为 ./buildtfm.sh prod（ERROR 日志，少打印）。
-BL2 含 DBG-NOSIG skip-NS：只启动 S，不加载 NS。
-先双击 tfm_update.bat 烧 BL2+S，再用 CubeIDE F5 下 NS 到 0x08088400。
+
+BL2 含 DBG-FAST skip-validate：
+  只做 TrustZone/OTP 等环境初始化，不验签、不加载镜像、不做升级，
+  然后直跳 S_CODE_START（0x0C038400）。
+S 初始化后跳 NS_CODE_START（0x08088400）。
+NS 主槽约 1504KB（可用约 1495KB）；无副槽/无 FWU。
+
+推荐流程：
+  1) 双击 tfm_update.bat 烧 BL2+S（NS 也可一并烧预置测试 NS）
+  2) CubeIDE F5 下自己的 NS 到 0x08088400（链接 LENGTH=NS_CODE_SIZE）
 量产请改用 stm32h573p256 / master。
 
 一.使用说明
