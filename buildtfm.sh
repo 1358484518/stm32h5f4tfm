@@ -367,16 +367,16 @@ grep -E '^boot=|^slot0=|^slot1=' TFM_UPDATE.sh || true
 echo ""
 BL2_BIN="${TFM_ROOT}/build_s/bin/bl2.bin"
 [[ -f "${BL2_BIN}" ]] || BL2_BIN="${TFM_ROOT}/build_s/api_ns/bin/bl2.bin"
-if [[ -f "${BL2_BIN}" ]] && ! grep -a -F -q "DBG-NOSIG skip-NS" "${BL2_BIN}"; then
-    echo "错误: ${BL2_BIN} 没有 DBG-NOSIG skip-NS（本调试分支 BL2 应跳过 NS 加载）"
+if [[ -f "${BL2_BIN}" ]] && ! grep -a -F -q "DBG-FAST skip-validate" "${BL2_BIN}"; then
+    echo "错误: ${BL2_BIN} 没有 DBG-FAST skip-validate（本调试分支 BL2 应跳过验签直跳 S）"
     exit 1
 fi
-echo "=== 编译完成（${BUILD_LABEL}，硬件浮点 ON，调试分支 DBG-NOSIG skip-NS）==="
+echo "=== 编译完成（${BUILD_LABEL}，硬件浮点 ON，调试分支 DBG-FAST 不验签直跳 S→NS）==="
 echo "推荐一键烧录（回归+BL2/S/NS）: ${WORK_ROOT}/flash_stm32h573.sh"
 echo "或手动: cd ${TFM_ROOT}/build_s/api_ns && ./regression.sh"
 echo "      STM32_Programmer_CLI -c port=SWD ap=1 mode=HotPlug -ob BOOT_UBE=0xB4"
 echo "      ./TFM_UPDATE.sh"
 echo "NS 测试程序: ${TFM_ROOT}/build_ns/bin/tfm_ns_signed.bin  地址 0x0C088000"
-echo "CubeIDE: 直接下载 NS 到 NS_CODE_START（0x08088400），BL2 不校验 NS"
+echo "CubeIDE: 直接下载 NS 到 NS_CODE_START（0x08088400）；BL2 不验签，S 跳 NS"
 echo "烧录后会上电自动跑回归测试（串口 115200 看 PASSED/FAILED）。"
-echo "排查 primary slot invalid 时请用: ./buildtfm.sh test （BL2 INFO 日志含 sig_type）。"
+echo "排查 primary slot invalid 时请用: ./buildtfm.sh test"
