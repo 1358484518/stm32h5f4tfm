@@ -200,8 +200,7 @@ H5F4 签名工具：
 
 签名需要 Python 3（第一次会自动建 sign_kit\.venv）。
 不要用仓库根目录 TF-M 的 .venv（cryptography 版本经常对不上）。
-不要用电脑上残留的 sign_kit.zip，也不要用 trusted-firmware-m-mbedtls-411-ns-tls 里那份 H573 sign_kit
-（NS 地址还是 0x0C088000 / 576 KB）。
+不要用电脑上残留的旧 sign_kit.zip，也不要用仍按 H573（NS 0x0C088000 / 576 KB）布局的签名包。
 
 签完的 *_signed.bin 放到本目录后再双击 tfm_update.bat。
 详细：tfmmakeproject\sign_kit\README.md
