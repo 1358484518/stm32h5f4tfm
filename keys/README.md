@@ -41,3 +41,40 @@ imgtool getpub -k keys/image_ns_signing_private_key.pem > keys/image_ns_signing_
 
 `keys/*.pem` 已 gitignore，勿把量产私钥提交进仓库。
 切到 RSA 支线前请换成 RSA-3072 密钥，或清空本目录。
+
+## 设备 OTP 密钥（HUK / IAK）
+
+本支线 `TFM_DUMMY_PROVISIONING=OFF`，设备密钥来自本目录的 JSON，编进 Flash 仿真 OTP `@ 0x0C028000`（一键烧录会写进去）。
+
+| 文件 | 用途 |
+|------|------|
+| `otp_device_secrets.example.json` | 仓库自带的**示例**（可提交）。各字段 32 字节 = 64 hex。 |
+| `otp_device_secrets.json` | **你自己的**密钥（已 gitignore）。编译真正读取的是这个。 |
+| `otp_flash_emulated.hex` | 编译结束后由 `buildtfm.sh` 从 BL2 的 `.BL2_OTP` 导出，供烧录脚本写 OTP（gitignore）。 |
+
+字段含义：
+
+| 字段 | 用途 |
+|------|------|
+| `huk` | **加密存储**（PS / 本支线 ITS 派生 AEAD） |
+| `iak` | **设备 attestation**（Initial Attestation 签名） |
+| `boot_seed` / `implementation_id` | 证明相关设备标识材料 |
+
+### 编译时如何处理 `otp_device_secrets.json`
+
+`./buildtfm.sh` 会调用 `scripts/apply_stm_otp_device_secrets.py`：
+
+1. **若 `otp_device_secrets.json` 不存在**：自动从 `otp_device_secrets.example.json` **复制一份**再继续（所以不手动 `cp` 也能编过，但用的是示例值）。
+2. **若文件已存在**：**不会覆盖**，直接用你改过的内容生成 `otp_device_secrets.inc` 等。
+3. 改完 JSON 后必须重新 `./buildtfm.sh` 再烧，OTP 才会更新。
+
+推荐流程：
+
+```bash
+cp keys/otp_device_secrets.example.json keys/otp_device_secrets.json
+# 编辑 huk / iak / …
+./buildtfm.sh test
+./flash_stm32h5f4.sh
+```
+
+勿把真密钥提交进仓库。IAK 勿使用 TF-M 内置 dummy 前缀（脚本会拒绝）。
