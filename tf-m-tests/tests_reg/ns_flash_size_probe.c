@@ -56,13 +56,14 @@ void ns_flash_size_probe(void)
         }
         total_sum += chunk_sum;
 
-        LOG_MSG("NS flash read %u KB .. %u KB: sum=0x%08x\r\n",
+        /* tfm_log_printf only supports %x/%u/… — not width flags like %08x. */
+        LOG_MSG("NS flash read %u KB .. %u KB: sum=0x%x\r\n",
                  (unsigned)(offset / 1024u),
                  (unsigned)((offset + chunk_len) / 1024u),
                  (unsigned)chunk_sum);
     }
 
-    LOG_MSG("NS flash probe done, total_sum=0x%08x first=0x%02x last=0x%02x\r\n",
+    LOG_MSG("NS flash probe done, total_sum=0x%x first=0x%x last=0x%x\r\n",
              (unsigned)total_sum,
              (unsigned)ns_flash_probe_blob[0],
              (unsigned)ns_flash_probe_blob[NS_FLASH_PROBE_SIZE - 1u]);
