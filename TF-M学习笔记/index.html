@@ -633,10 +633,9 @@ ALL PASSED</pre>
 <figure class="fig"><img src="media/image22.png" alt="image22.png" style="max-width:min(100%,552px)"></figure>
 <p class="p">路径和符号配置：</p>
 <figure class="fig"><img src="media/image23.png" alt="image23.png" style="max-width:min(100%,552px)"></figure>
-<p class="p">具体请参考工程 trusted-firmware-m-mbedtls-411-ns-tls 地址为：</p>
-<p class="p">https://gitee.com/already_use/trusted-firmware-m.git</p>
+<p class="p">具体请参考仓库根目录工程 <code>tfmcubeideproject/</code>（含 mbedtls 4.1.1 NS 工程与 sign_kit）。</p>
 <p class="p">单独下载bin文件执行</p>
-<p class="p">在工程trusted-firmware-m-mbedtls-411-ns-tls里面有打包好的boot（bl2.hex）文件和工程文件tfm_s_ns_signed.hex（这个是官方固件编译出来的安全和非安全侧各自签名打包到一起的hex文件），tfm_ns_signed.bin（这个是我们的工程编译后生成的签名文件下载到0x0C088000）可以使用编程器进行下载然后修改选项字节然后复位单片机即可执行程序。</p>
+<p class="p">在 <code>tfmcubeideproject/</code> 与对应 build 输出里有 boot（bl2.hex）以及签名后的镜像（如 tfm_s_ns_signed.hex、tfm_ns_signed.bin）。烧写地址以当前分支 flash_layout / 工具说明为准，不要沿用旧 H573 的 0x0C088000。</p>
 <p class="p">程序文件如图所示：</p>
 <figure class="fig"><img src="media/image24.png" alt="image24.png" style="max-width:min(100%,553px)"></figure>
 <p class="p">配置启动地址：</p>
@@ -804,7 +803,7 @@ ALL PASSED</pre>
 <h2 id="s-50">8.10 常见踩坑（H573 习惯带到 H5F4）</h2>
 <p class="p">1. 烧错 NS 地址：仍往 0x0C088000 下 576 KB 镜像。H5F4 NS primary 是 0x0C090000 / 1200 KB。</p>
 <p class="p">2. 升级包写到 primary，或仍用 H573 升级地址 0x0C118000 / 0x0C168000。升级必须是 0x0C200000 / 0x0C258000。</p>
-<p class="p">3. 用根目录旧 sign_kit.zip（已删除）或 trusted-firmware-m-mbedtls-411-ns-tls 里那份 H573 sign_kit。签出来的长度和 load 地址都是错的。</p>
+<p class="p">3. 用电脑上残留的旧 sign_kit.zip，或任何仍按 H573（NS 0x0C088000 / 576 KB）布局的签名包。签出来的长度和 load 地址都是错的。请用仓库根目录 <code>sign_kit/</code> 或 <code>tfmcubeideproject/STM32CubeIDE/sign_kit/</code>。</p>
 <p class="p">4. NS 工程里再跑 TFM_UPDATE.sh：工程里已经删了。要用 flash_stm32h5f4.sh 或 tfm_update.bat。</p>
 <p class="p">5. 签名用仓库根 .venv：cryptography 扩展版本对不上。用 sign_kit 自己的 venv。</p>
 <p class="p">6. 选项字节写 WRPSGn1：H5F4 没有这个名字，必须 WRPSG11/12/21/22。</p>
