@@ -79,7 +79,6 @@ target_sources(platform_s
         ${CMAKE_CURRENT_SOURCE_DIR}/hal/Src/stm32h5xx_hal_rng_ex.c
         ${CMAKE_CURRENT_SOURCE_DIR}/hal/Src/stm32h5xx_hal_rtc.c
         ${CMAKE_CURRENT_SOURCE_DIR}/hal/Src/stm32h5xx_hal_rtc_ex.c
-        $<$<AND:$<BOOL:${ITS_ENCRYPTION}>,$<BOOL:${TFM_PARTITION_INTERNAL_TRUSTED_STORAGE}>>:${CMAKE_SOURCE_DIR}/platform/ext/common/template/tfm_hal_its_encryption.c>
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/hal/Src/stm32h5xx_hal_hash.c
         ${CMAKE_CURRENT_SOURCE_DIR}/hal/Src/stm32h5xx_hal_pka.c
@@ -89,7 +88,29 @@ target_sources(platform_s
         ${STM_COMMON_DIR}/hal/Native_Driver/low_level_rng.c
 )
 
-if(ITS_ENCRYPTION)
+# ITS encryption HAL: provide Arm template via the ITS partition (same pattern as
+# adi/max32657). Needs TF-M root on include path for platform/include/*.h.
+# CRYPTO_NV_SEED is already 0 on stm32h5 targets (required by the template).
+if(ITS_ENCRYPTION AND TFM_PARTITION_INTERNAL_TRUSTED_STORAGE)
+    set(_STM_ITS_CRYPTO_DIR "${CMAKE_SOURCE_DIR}/secure_fw/partitions/crypto")
+    target_sources(tfm_psa_rot_partition_its
+        PRIVATE
+            ${CMAKE_SOURCE_DIR}/platform/ext/common/template/tfm_hal_its_encryption.c
+    )
+    target_include_directories(tfm_psa_rot_partition_its
+        PRIVATE
+            ${CMAKE_SOURCE_DIR}
+            $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/interface/include>
+            ${_STM_ITS_CRYPTO_DIR}/psa_driver_api
+    )
+    target_compile_definitions(tfm_psa_rot_partition_its
+        PRIVATE
+            TF_PSA_CRYPTO_CONFIG_FILE="${TFM_TF_PSA_CRYPTO_CONFIG_PATH}"
+    )
+    target_link_libraries(tfm_psa_rot_partition_its
+        PRIVATE
+            psa_crypto_config
+    )
     target_compile_definitions(platform_s
         PUBLIC
             ITS_ENCRYPTION
