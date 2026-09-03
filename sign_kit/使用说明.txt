@@ -1,0 +1,30 @@
+【STM32H5F4 独立签名工具 sign_kit 使用说明】
+适用分支：stm32h5f4（RSA-3072 主线）
+算法：RSA-3072
+默认密钥：仓库自带 dummy RSA（与本分支 BL2 配套）
+
+一、用法概要
+  cd sign_kit
+  python3 -m pip install -r requirements.txt
+  ./sign.sh tfm_ns.bin
+  ./sign.sh sapp.bin
+  Windows 使用 sign.bat，用法相同。
+
+二、烧录地址（STM32H5F4）
+  S  主槽：0x0C038000   约 352 KB
+  NS 主槽：0x0C090000   约 1200 KB
+  副槽：S 0x0C200000，NS 0x0C258000
+
+三、替换密钥
+  本分支必须使用 RSA-3072 密钥，不能直接使用 DEV-CCU（EC-P256）。
+  覆盖 keys/image_s_signing_private_key.pem 与 image_ns_signing_private_key.pem 后，
+  还须同步 BL2 的 root-RSA-3072.pem / root-RSA-3072_1.pem 与 OTP ROTPK，
+  再 ./buildtfm.sh 并回归擦片重烧 BL2+S+NS。
+
+  若要用 DEV-CCU EC-P256 密钥，请改用分支：
+    stm32h5f4p256 / stm32h5f4p256-debug / stm32h5f4p256-opt-iak-huk
+  及其配套 sign_kit（算法与 BL2 均为 EC-P256）。
+
+四、签名规则
+  文件名含 ns → NS；含 sapp/tfm_s → S；
+  也可用 ./sign.sh ns app.bin 或 ./sign.sh s app.bin 强制指定。
