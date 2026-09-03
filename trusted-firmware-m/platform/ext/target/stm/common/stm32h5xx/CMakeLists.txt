@@ -88,12 +88,11 @@ target_sources(platform_s
         ${STM_COMMON_DIR}/hal/Native_Driver/low_level_rng.c
 )
 
-# ITS encryption HAL (STM32H5): do NOT use the Arm common template as-is.
-# That template only generates nonces when MBEDTLS_PSA_CRYPTO_EXTERNAL_RNG is
-# defined in the ITS compile unit (it is not), so every psa_its_set() failed.
-# Use the STM port that calls psa_generate_random() for the nonce.
+# ITS encryption HAL (STM32H5):
+# Must NOT call PSA Crypto APIs (Crypto partition depends on ITS → circular
+# SPM call → reset loop). Use OTP HUK + mbedtls_gcm from TF-PSA-Crypto lib +
+# Native_Driver RNG_GetBytes for nonces.
 if(ITS_ENCRYPTION AND TFM_PARTITION_INTERNAL_TRUSTED_STORAGE)
-    set(_STM_ITS_CRYPTO_DIR "${CMAKE_SOURCE_DIR}/secure_fw/partitions/crypto")
     target_sources(tfm_psa_rot_partition_its
         PRIVATE
             ${CMAKE_CURRENT_SOURCE_DIR}/secure/tfm_hal_its_encryption.c
@@ -101,16 +100,12 @@ if(ITS_ENCRYPTION AND TFM_PARTITION_INTERNAL_TRUSTED_STORAGE)
     target_include_directories(tfm_psa_rot_partition_its
         PRIVATE
             ${CMAKE_SOURCE_DIR}
-            $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/interface/include>
-            ${_STM_ITS_CRYPTO_DIR}/psa_driver_api
-    )
-    target_compile_definitions(tfm_psa_rot_partition_its
-        PRIVATE
-            TF_PSA_CRYPTO_CONFIG_FILE="${TFM_TF_PSA_CRYPTO_CONFIG_PATH}"
+            ${STM_COMMON_DIR}/hal/Native_Driver
     )
     target_link_libraries(tfm_psa_rot_partition_its
         PRIVATE
-            psa_crypto_config
+            crypto_service_tfpsacrypto
+            crypto_service_tfpsacrypto_config
     )
     target_compile_definitions(platform_s
         PUBLIC

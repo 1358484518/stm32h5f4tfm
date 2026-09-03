@@ -3,28 +3,16 @@
  * Copyright (c) 2024-2025, Arm Limited. All rights reserved.
  * Copyright (c) 2026 STMicroelectronics / project adaptations.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * SPDX-License-Identifier: Apache-2.0
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * STM32H5 ITS encryption HAL — must NOT call the PSA Crypto *partition*.
+ * Crypto depends on ITS for persistent keys; ITS→Crypto→ITS causes an SPM
+ * panic and the board resets in a loop (seen at TFM_S_ITS_TEST_1001 Set).
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
-/*
- * STM32H5 ITS encryption HAL.
- *
- * Derived from platform/ext/common/template/tfm_hal_its_encryption.c.
- * The Arm template gates nonce generation on MBEDTLS_PSA_CRYPTO_EXTERNAL_RNG,
- * which is not defined when compiling the ITS partition on this platform, so
- * tfm_hal_its_aead_generate_nonce() always returned TFM_HAL_ERROR_NOT_SUPPORTED
- * and every psa_its_set() failed. Use psa_generate_random() instead (same
- * approach as adi/max32657).
+ * Nordic documents the same constraint and uses a HW driver directly. Here we:
+ *  - read HUK via tfm_plat_otp_read()
+ *  - AEAD with mbedtls_gcm_* from the already-built TF-PSA-Crypto library
+ *  - nonce seed from RNG_GetBytes() (Native_Driver), not psa_generate_random()
  */
 
 #include <stdint.h>
@@ -33,104 +21,79 @@
 #include "config_tfm.h"
 #include "platform/include/tfm_hal_its_encryption.h"
 #include "platform/include/tfm_hal_its.h"
-#include "platform/include/tfm_platform_system.h"
-
-#include "tfm_plat_crypto_keys.h"
-#include "crypto_keys/tfm_builtin_key_ids.h"
 #include "tfm_plat_otp.h"
-#include "psa_manifest/pid.h"
-#include "tfm_builtin_key_loader.h"
-#include "psa/crypto.h"
+#include "low_level_rng.h"
 
-#ifndef ITS_CRYPTO_AEAD_ALG
-#define ITS_CRYPTO_AEAD_ALG PSA_ALG_GCM
-#endif
-
-#define ITS_KEY_TYPE PSA_KEY_TYPE_AES
-#define ITS_KEY_USAGE (PSA_KEY_USAGE_ENCRYPT | PSA_KEY_USAGE_DECRYPT)
-
-#define ITS_CRYPTO_ALG \
-    PSA_ALG_AEAD_WITH_SHORTENED_TAG(ITS_CRYPTO_AEAD_ALG, TFM_ITS_AUTH_TAG_LENGTH)
+#define MBEDTLS_DECLARE_PRIVATE_IDENTIFIERS
+#include "mbedtls/private/gcm.h"
+#include "mbedtls/private/cipher.h"
 
 #if TFM_ITS_ENC_NONCE_LENGTH != 12
 #error "This implementation only supports a ITS nonce of size 12"
 #endif
 
-static psa_status_t its_crypto_setkey(mbedtls_svc_key_id_t *its_key,
-                                      const uint8_t *key_label,
-                                      size_t key_label_len)
+#if TFM_ITS_KEY_LENGTH != 16 && TFM_ITS_KEY_LENGTH != 24 && TFM_ITS_KEY_LENGTH != 32
+#error "Unsupported TFM_ITS_KEY_LENGTH"
+#endif
+
+static uint32_t g_enc_counter;
+static uint8_t g_enc_nonce_seed[TFM_ITS_ENC_NONCE_LENGTH - sizeof(g_enc_counter)];
+
+static enum tfm_hal_status_t its_load_aes_key(uint8_t *key, size_t key_len)
 {
-    psa_status_t status;
-    psa_key_attributes_t attributes = PSA_KEY_ATTRIBUTES_INIT;
-    psa_key_derivation_operation_t op = PSA_KEY_DERIVATION_OPERATION_INIT;
-    mbedtls_svc_key_id_t seed_key =
-        mbedtls_svc_key_id_make(TFM_SP_ITS, TFM_BUILTIN_KEY_ID_HUK);
+    enum tfm_plat_err_t perr;
+    uint8_t huk[32];
+    size_t huk_size = 0;
 
-    if (key_label_len == 0 || key_label == NULL) {
-        return PSA_ERROR_INVALID_ARGUMENT;
+    if (key == NULL || key_len == 0 || key_len > sizeof(huk)) {
+        return TFM_HAL_ERROR_INVALID_INPUT;
     }
 
-    psa_set_key_usage_flags(&attributes, ITS_KEY_USAGE);
-    psa_set_key_algorithm(&attributes, ITS_CRYPTO_ALG);
-    psa_set_key_type(&attributes, ITS_KEY_TYPE);
-    psa_set_key_bits(&attributes, PSA_BYTES_TO_BITS(TFM_ITS_KEY_LENGTH));
-
-    status = psa_key_derivation_setup(&op, PSA_ALG_HKDF(PSA_ALG_SHA_256));
-    if (status != PSA_SUCCESS) {
-        return status;
+    perr = tfm_plat_otp_get_size(PLAT_OTP_ID_HUK, &huk_size);
+    if (perr != TFM_PLAT_ERR_SUCCESS || huk_size < key_len) {
+        return TFM_HAL_ERROR_GENERIC;
     }
 
-    status = psa_key_derivation_input_key(&op, PSA_KEY_DERIVATION_INPUT_SECRET,
-                                          seed_key);
-    if (status != PSA_SUCCESS) {
-        goto err_release_op;
+    memset(huk, 0, sizeof(huk));
+    perr = tfm_plat_otp_read(PLAT_OTP_ID_HUK, key_len, huk);
+    if (perr != TFM_PLAT_ERR_SUCCESS) {
+        return TFM_HAL_ERROR_GENERIC;
     }
 
-    status = psa_key_derivation_input_bytes(&op, PSA_KEY_DERIVATION_INPUT_INFO,
-                                            key_label,
-                                            key_label_len);
-    if (status != PSA_SUCCESS) {
-        goto err_release_op;
-    }
-
-    status = psa_key_derivation_output_key(&attributes, &op, its_key);
-    if (status != PSA_SUCCESS) {
-        goto err_release_op;
-    }
-
-    status = psa_key_derivation_abort(&op);
-    if (status != PSA_SUCCESS) {
-        goto err_release_key;
-    }
-
-    return PSA_SUCCESS;
-
-err_release_key:
-    (void)psa_destroy_key(*its_key);
-
-err_release_op:
-    (void)psa_key_derivation_abort(&op);
-
-    return PSA_ERROR_GENERIC_ERROR;
+    /*
+     * Use the leading TFM_ITS_KEY_LENGTH bytes of HUK as the AES key.
+     * File identity is already bound in AEAD AAD (fid/flags/size). Avoiding
+     * PSA HKDF keeps us out of the Crypto partition.
+     */
+    memcpy(key, huk, key_len);
+    memset(huk, 0, sizeof(huk));
+    return TFM_HAL_SUCCESS;
 }
 
 enum tfm_hal_status_t tfm_hal_its_aead_generate_nonce(uint8_t *nonce,
                                                       const size_t nonce_size)
 {
-    psa_status_t status;
+    size_t out_len = 0;
 
-    if (nonce == NULL || nonce_size < TFM_ITS_ENC_NONCE_LENGTH) {
+    if (nonce == NULL ||
+        nonce_size < sizeof(g_enc_nonce_seed) + sizeof(g_enc_counter)) {
         return TFM_HAL_ERROR_INVALID_INPUT;
     }
 
-    /* Prefer PSA RNG (Crypto service / platform EXT RNG) over the Arm
-     * template's MBEDTLS_PSA_CRYPTO_EXTERNAL_RNG-gated path, which is not
-     * compiled into the ITS partition on STM32H5.
-     */
-    status = psa_generate_random(nonce, TFM_ITS_ENC_NONCE_LENGTH);
-    if (status != PSA_SUCCESS) {
+    if (g_enc_counter == UINT32_MAX) {
         return TFM_HAL_ERROR_GENERIC;
     }
+
+    if (g_enc_counter == 0) {
+        RNG_GetBytes(g_enc_nonce_seed, sizeof(g_enc_nonce_seed), &out_len);
+        if (out_len != sizeof(g_enc_nonce_seed)) {
+            return TFM_HAL_ERROR_GENERIC;
+        }
+    }
+
+    memcpy(nonce, g_enc_nonce_seed, sizeof(g_enc_nonce_seed));
+    memcpy(nonce + sizeof(g_enc_nonce_seed), &g_enc_counter, sizeof(g_enc_counter));
+    g_enc_counter++;
 
     return TFM_HAL_SUCCESS;
 }
@@ -150,6 +113,56 @@ static bool ctx_is_valid(struct tfm_hal_its_auth_crypt_ctx *ctx)
     return !ret;
 }
 
+static enum tfm_hal_status_t its_gcm_crypt(
+                                        struct tfm_hal_its_auth_crypt_ctx *ctx,
+                                        int mode,
+                                        const uint8_t *input,
+                                        size_t input_size,
+                                        uint8_t *output,
+                                        uint8_t *tag,
+                                        size_t tag_size)
+{
+    mbedtls_gcm_context gcm;
+    uint8_t key[TFM_ITS_KEY_LENGTH];
+    enum tfm_hal_status_t herr;
+    int rc;
+
+    if (!ctx_is_valid(ctx) || tag == NULL || tag_size < TFM_ITS_AUTH_TAG_LENGTH) {
+        return TFM_HAL_ERROR_INVALID_INPUT;
+    }
+
+    herr = its_load_aes_key(key, sizeof(key));
+    if (herr != TFM_HAL_SUCCESS) {
+        return herr;
+    }
+
+    mbedtls_gcm_init(&gcm);
+    rc = mbedtls_gcm_setkey(&gcm, MBEDTLS_CIPHER_ID_AES, key,
+                            (unsigned int)(sizeof(key) * 8));
+    memset(key, 0, sizeof(key));
+    if (rc != 0) {
+        mbedtls_gcm_free(&gcm);
+        return TFM_HAL_ERROR_GENERIC;
+    }
+
+    if (mode == MBEDTLS_GCM_ENCRYPT) {
+        rc = mbedtls_gcm_crypt_and_tag(&gcm, MBEDTLS_GCM_ENCRYPT, input_size,
+                                       ctx->nonce, ctx->nonce_size,
+                                       ctx->aad, ctx->aad_size,
+                                       input, output,
+                                       TFM_ITS_AUTH_TAG_LENGTH, tag);
+    } else {
+        rc = mbedtls_gcm_auth_decrypt(&gcm, input_size,
+                                      ctx->nonce, ctx->nonce_size,
+                                      ctx->aad, ctx->aad_size,
+                                      tag, TFM_ITS_AUTH_TAG_LENGTH,
+                                      input, output);
+    }
+
+    mbedtls_gcm_free(&gcm);
+    return (rc == 0) ? TFM_HAL_SUCCESS : TFM_HAL_ERROR_GENERIC;
+}
+
 enum tfm_hal_status_t tfm_hal_its_aead_encrypt(
                                         struct tfm_hal_its_auth_crypt_ctx *ctx,
                                         const uint8_t *plaintext,
@@ -159,43 +172,13 @@ enum tfm_hal_status_t tfm_hal_its_aead_encrypt(
                                         uint8_t *tag,
                                         const size_t tag_size)
 {
-    psa_status_t status;
-    mbedtls_svc_key_id_t its_key = MBEDTLS_SVC_KEY_ID_INIT;
-    size_t ciphertext_length;
-
-    if (!ctx_is_valid(ctx) || tag == NULL) {
-        return TFM_HAL_ERROR_INVALID_INPUT;
-    }
-
     if (plaintext_size > ciphertext_size) {
         return TFM_HAL_ERROR_INVALID_INPUT;
     }
 
-    status = its_crypto_setkey(&its_key, ctx->deriv_label, ctx->deriv_label_size);
-    if (status != PSA_SUCCESS) {
-        return TFM_HAL_ERROR_GENERIC;
-    }
-
-    status = psa_aead_encrypt(its_key, ITS_CRYPTO_ALG,
-                              ctx->nonce, ctx->nonce_size,
-                              ctx->aad, ctx->aad_size,
-                              plaintext, plaintext_size,
-                              ciphertext, ciphertext_size,
-                              &ciphertext_length);
-    if (status != PSA_SUCCESS) {
-        (void)psa_destroy_key(its_key);
-        return TFM_HAL_ERROR_GENERIC;
-    }
-
-    ciphertext_length -= TFM_ITS_AUTH_TAG_LENGTH;
-    (void)memcpy(tag, (ciphertext + ciphertext_length), tag_size);
-
-    status = psa_destroy_key(its_key);
-    if (status != PSA_SUCCESS) {
-        return TFM_HAL_ERROR_GENERIC;
-    }
-
-    return TFM_HAL_SUCCESS;
+    (void)ctx; /* used inside its_gcm_crypt */
+    return its_gcm_crypt(ctx, MBEDTLS_GCM_ENCRYPT, plaintext, plaintext_size,
+                         ciphertext, tag, tag_size);
 }
 
 enum tfm_hal_status_t tfm_hal_its_aead_decrypt(
@@ -207,45 +190,10 @@ enum tfm_hal_status_t tfm_hal_its_aead_decrypt(
                                         uint8_t *plaintext,
                                         const size_t plaintext_size)
 {
-    psa_status_t status;
-    mbedtls_svc_key_id_t its_key = MBEDTLS_SVC_KEY_ID_INIT;
-    size_t ciphertext_and_tag_size, out_len;
-
-    (void)tag_size;
-
-    if (!ctx_is_valid(ctx) || tag == NULL) {
-        return TFM_HAL_ERROR_INVALID_INPUT;
-    }
-
     if (plaintext_size < ciphertext_size) {
         return TFM_HAL_ERROR_INVALID_INPUT;
     }
 
-    /* Tag is appended after ciphertext for psa_aead_decrypt (caller buffer). */
-    (void)memcpy((uint8_t *)(ciphertext + ciphertext_size), tag,
-                 TFM_ITS_AUTH_TAG_LENGTH);
-    ciphertext_and_tag_size = ciphertext_size + TFM_ITS_AUTH_TAG_LENGTH;
-
-    status = its_crypto_setkey(&its_key, ctx->deriv_label, ctx->deriv_label_size);
-    if (status != PSA_SUCCESS) {
-        return TFM_HAL_ERROR_GENERIC;
-    }
-
-    status = psa_aead_decrypt(its_key, ITS_CRYPTO_ALG,
-                              ctx->nonce, ctx->nonce_size,
-                              ctx->aad, ctx->aad_size,
-                              ciphertext, ciphertext_and_tag_size,
-                              plaintext, plaintext_size,
-                              &out_len);
-    if (status != PSA_SUCCESS) {
-        (void)psa_destroy_key(its_key);
-        return TFM_HAL_ERROR_GENERIC;
-    }
-
-    status = psa_destroy_key(its_key);
-    if (status != PSA_SUCCESS) {
-        return TFM_HAL_ERROR_GENERIC;
-    }
-
-    return TFM_HAL_SUCCESS;
+    return its_gcm_crypt(ctx, MBEDTLS_GCM_DECRYPT, ciphertext, ciphertext_size,
+                         plaintext, tag, tag_size);
 }
