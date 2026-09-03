@@ -58,6 +58,7 @@ endif()
 target_sources(tfm_ns
     PRIVATE
         test_app.c
+        ns_flash_size_probe.c
         $<$<C_COMPILER_ID:GNU>:../app_broker/syscalls_stub.c>
 )
 

@@ -11,6 +11,7 @@
 #include "non_secure_suites.h"
 #endif
 #include "os_wrapper/thread.h"
+#include "ns_flash_size_probe.h"
 
 /**
  * \brief Services test thread
@@ -20,6 +21,9 @@ __attribute__((noreturn))
 void test_app(void *argument)
 {
     UNUSED_VARIABLE(argument);
+
+    /* Extra debug check only: large flash blob walk (does not replace tests). */
+    ns_flash_size_probe();
 
 #ifdef TFM_NS_REG_TEST
     ns_reg_test_start();

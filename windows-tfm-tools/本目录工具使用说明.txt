@@ -6,6 +6,7 @@ BL2 含 DBG-FAST skip-validate：
   然后直跳 S_CODE_START（0x0C038400）。
 S 初始化后跳 NS_CODE_START（0x08088400）。
 NS 主槽约 1504KB（可用约 1495KB）；无副槽/无 FWU。
+预置 NS 测试镜像约 1MB：启动时会按每 10KB 打印 flash probe sum（串口 115200）。
 
 推荐流程：
   1) 双击 tfm_update.bat 烧 BL2+S（NS 也可一并烧预置测试 NS）
