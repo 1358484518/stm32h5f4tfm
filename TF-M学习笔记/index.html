@@ -246,7 +246,7 @@ pre.textbox, pre.cmd {
  * All other C files come from TF-M or tf-m-tests (or the SPE api_ns export).
  *
  * Requires the matching flashed tfm_s.bin (s_veneers.o addresses must match).
- * USART1 / ST-Link VCP: 115200 8N1, JP1 not fitted.
+ * USART6 PC6/PC7: 115200 8N1（非 ST-Link 默认 VCP）。
  *
  * If SPE was built with TEST_S=ON, colored &quot;PASSED&quot; / &quot;*** End of Secure
  * test suites ***&quot; prints first. This app then prints NS-SMOKE.
@@ -738,9 +738,9 @@ ALL PASSED</pre>
 <p class="p">5）改选项字节脚本。H5F4 写保护寄存器名是 WRPSG11/12/21/22，不是 H573 的 WRPSGn1/WRPSGn2。每 bank 256 个扇区，SECWM 起止是 0～255（H573 是 0～127）。开发阶段 boot_hal_cfg.h 不要让 BL2 自己上 WRP/HDP，否则 CubeProgrammer 写不进 0x0C010000。</p>
 <p class="p">6）MCUBoot 补丁。NS 槽 1200 KB / 8 KB = 150 个扇区，MCUBOOT_MAX_IMG_SECTORS 变大，swap trailer 变长。出厂镜像 magic=good 且 copy_done 未置时，MCUBoot 会当成“交换做到一半”，swap_size=0xffffffff 会把扇区表走出 SRAM。补丁 0002-bootutil-Bound-scratch-swap-sector-walk.patch 丢掉非法 swap status；BL2 里有标记字符串 H5F4SWP2。BL2_TRAILER_SIZE 从 H573 的 0x2000 改成 0x3000。</p>
 <p class="p">7）工程与工具。buildtfm.sh 指定 -DTFM_PLATFORM=stm/stm32h5f4。Linux 烧录 flash_stm32h5f4.sh，Windows 用 windows-tfm-tools/tfm_update.bat。NS 工程 tfmmakeproject、tfmcubeideproject 改 MCU 宏 STM32H5F4xx、链接地址、sign_kit 槽位。仓库根目录旧的 H573 sign_kit.zip（NS 0x0C088000 / 576 KB）已删除。</p>
-<p class="p">8）验证。bl2.bin 必须能搜到 H5F4BL2 和 H5F4SWP2；串口 115200 USART1 PA9/PA10，复位第一行要有 H5F4BL2。如果只有 Starting bootloader，说明烧进去的还是旧 H573 BL2。</p>
+<p class="p">8）验证。bl2.bin 必须能搜到 H5F4BL2 和 H5F4SWP2；串口 115200 USART6 PC6/PC7，复位第一行要有 H5F4BL2。如果只有 Starting bootloader，说明烧进去的还是旧 H573 BL2。</p>
 <h2 id="s-39">8.2 芯片与平台对照</h2>
-<div class="table-wrap"><table><tr><th>项目</th><th>STM32H573（笔记前文）</th><th>STM32H5F4（当前仓库）</th></tr><tr><td>TF-M 平台名</td><td>stm/stm32h573i_dk</td><td>stm/stm32h5f4</td></tr><tr><td>编译宏</td><td>STM32H573xx</td><td>STM32H5F4xx</td></tr><tr><td>内核</td><td>Cortex-M33 + TrustZone</td><td>同左，沿用 stm32h5xx 公共代码</td></tr><tr><td>内部 Flash</td><td>2 MB，双 bank，每 bank 1 MB</td><td>4 MB，双 bank，每 bank 2 MB</td></tr><tr><td>扇区</td><td>8 KB（0x2000）</td><td>同左</td></tr><tr><td>每 bank 扇区数</td><td>128（SECWM 0～127）</td><td>256（SECWM 0～255）</td></tr><tr><td>SRAM 合计</td><td>约 640 KB（SRAM1 256 + SRAM2 64 + SRAM3 320）</td><td>1536 KB（SRAM1 256 + SRAM2 128 + SRAM3/4/5 各 384）</td></tr><tr><td>控制台</td><td>USART1 PA9/PA10，115200</td><td>同左（board.h 未改引脚）</td></tr><tr><td>系统时钟</td><td>内部 HSI PLL，约 240 MHz</td><td>同左</td></tr><tr><td>加密加速</td><td>CRYPTO_HW_ACCELERATOR stm</td><td>同左</td></tr><tr><td>开发分支</td><td>早期 master / H573 工程</td><td>stm32h5f4</td></tr></table></div>
+<div class="table-wrap"><table><tr><th>项目</th><th>STM32H573（笔记前文）</th><th>STM32H5F4（当前仓库）</th></tr><tr><td>TF-M 平台名</td><td>stm/stm32h573i_dk</td><td>stm/stm32h5f4</td></tr><tr><td>编译宏</td><td>STM32H573xx</td><td>STM32H5F4xx</td></tr><tr><td>内核</td><td>Cortex-M33 + TrustZone</td><td>同左，沿用 stm32h5xx 公共代码</td></tr><tr><td>内部 Flash</td><td>2 MB，双 bank，每 bank 1 MB</td><td>4 MB，双 bank，每 bank 2 MB</td></tr><tr><td>扇区</td><td>8 KB（0x2000）</td><td>同左</td></tr><tr><td>每 bank 扇区数</td><td>128（SECWM 0～127）</td><td>256（SECWM 0～255）</td></tr><tr><td>SRAM 合计</td><td>约 640 KB（SRAM1 256 + SRAM2 64 + SRAM3 320）</td><td>1536 KB（SRAM1 256 + SRAM2 128 + SRAM3/4/5 各 384）</td></tr><tr><td>控制台</td><td>USART6 PC6/PC7，115200</td><td>USART6 PC6/PC7，115200（本分支）</td></tr><tr><td>系统时钟</td><td>内部 HSI PLL，约 240 MHz</td><td>同左</td></tr><tr><td>加密加速</td><td>CRYPTO_HW_ACCELERATOR stm</td><td>同左</td></tr><tr><td>开发分支</td><td>早期 master / H573 工程</td><td>stm32h5f4</td></tr></table></div>
 <p class="p">公共代码仍在 platform/ext/target/stm/common/stm32h5xx/（HAL、startup_stm32h5xx_*.c、bl2.ld、GTZC）。H5F4 专用差异用 #if defined(STM32H5F4xx) 包起来，避免破坏还能编的 H573 平台目录。</p>
 <h2 id="s-40">8.3 Flash 布局差异（必须改对）</h2>
 <p class="p">H573 和 H5F4 前面几块（SCRATCH、BL2 counters、BL2 96 KB、OTP/NV/PS/ITS）偏移相同，都从 Flash 开头排到 0x0003_8000。分叉从 S/NS 槽大小和升级槽位置开始。头文件：</p>
@@ -799,7 +799,7 @@ ALL PASSED</pre>
 <p class="p">./flash_stm32h5f4.sh</p>
 <p class="p">./flash_stm32h5f4.sh erase   # 强制整片擦（旧 HDP 还在时）</p>
 <p class="p">Windows：把 bl2.bin、tfm_s_signed.bin、tfm_ns_signed.bin 放到 windows-tfm-tools 后双击 tfm_update.bat（或拷一份 build_s / build_ns）。只烧镜像：tfm_update.bat images-only。脚本只写当前运行槽。升级包请写 secondary：S 0x0C200000，NS 0x0C258000。</p>
-<p class="p">串口：115200 8N1，USART1 PA9/PA10。复位第一行必须有 H5F4BL2（测试版常见 [INF] H5F4BL2）。</p>
+<p class="p">串口：115200 8N1，USART6 PC6/PC7。复位第一行必须有 H5F4BL2（测试版常见 [INF] H5F4BL2）。</p>
 <h2 id="s-50">8.10 常见踩坑（H573 习惯带到 H5F4）</h2>
 <p class="p">1. 烧错 NS 地址：仍往 0x0C088000 下 576 KB 镜像。H5F4 NS primary 是 0x0C090000 / 1200 KB。</p>
 <p class="p">2. 升级包写到 primary，或仍用 H573 升级地址 0x0C118000 / 0x0C168000。升级必须是 0x0C200000 / 0x0C258000。</p>

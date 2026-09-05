@@ -2,7 +2,7 @@
   ******************************************************************************
   * @file    board.h
   * @author  MCD Application Team
-  * @brief   board header file for stm32h5f4.
+  * @brief   board header file for stm32h5f4 (USART6 console on PC6/PC7).
   ******************************************************************************
   * @attention
   *
@@ -18,36 +18,21 @@
   */
 #ifndef __BOARD_H__
 #define __BOARD_H__
-/* config for usart */
+/* config for usart console: USART6 TX=PC6 RX=PC7 AF7, 115200 8N1 */
 
-#if 0
-#define COM_INSTANCE                           USART3
-#define COM_CLK_ENABLE()                       __HAL_RCC_USART3_CLK_ENABLE()
-#define COM_CLK_DISABLE()                      __HAL_RCC_USART3_CLK_DISABLE()
-#define COM_TX_GPIO_PORT                       GPIOD
-#define COM_TX_GPIO_CLK_ENABLE()               __HAL_RCC_GPIOD_CLK_ENABLE()
-#define COM_TX_PIN                             GPIO_PIN_8
-#define COM_TX_AF                              GPIO_AF7_USART3
+#define COM_INSTANCE                           USART6
+#define COM_CLK_ENABLE()                       __HAL_RCC_USART6_CLK_ENABLE()
+#define COM_CLK_DISABLE()                      __HAL_RCC_USART6_CLK_DISABLE()
+#define COM_TX_GPIO_PORT                       GPIOC
+#define COM_TX_GPIO_CLK_ENABLE()               __HAL_RCC_GPIOC_CLK_ENABLE()
+#define COM_TX_PIN                             GPIO_PIN_6
+#define COM_TX_AF                              GPIO_AF7_USART6
 
-#define COM_RX_GPIO_PORT                       GPIOD
-#define COM_RX_GPIO_CLK_ENABLE()               __HAL_RCC_GPIOD_CLK_ENABLE()
-#define COM_RX_PIN                             GPIO_PIN_9
-#define COM_RX_AF                              GPIO_AF7_USART3
-#else
-#define COM_INSTANCE                           USART1
-#define COM_CLK_ENABLE()                       __HAL_RCC_USART1_CLK_ENABLE()
-#define COM_CLK_DISABLE()                      __HAL_RCC_USART1_CLK_DISABLE()
-#define COM_TX_GPIO_PORT                       GPIOA
-#define COM_TX_GPIO_CLK_ENABLE()               __HAL_RCC_GPIOA_CLK_ENABLE()
-#define COM_TX_PIN                             GPIO_PIN_9
-#define COM_TX_AF                              GPIO_AF7_USART1
+#define COM_RX_GPIO_PORT                       GPIOC
+#define COM_RX_GPIO_CLK_ENABLE()               __HAL_RCC_GPIOC_CLK_ENABLE()
+#define COM_RX_PIN                             GPIO_PIN_7
+#define COM_RX_AF                              GPIO_AF7_USART6
 
-#define COM_RX_GPIO_PORT                       GPIOA
-#define COM_RX_GPIO_CLK_ENABLE()               __HAL_RCC_GPIOA_CLK_ENABLE()
-#define COM_RX_PIN                             GPIO_PIN_10
-#define COM_RX_AF                              GPIO_AF7_USART1
-
-#endif
 /* config for flash driver */
 #define FLASH0_SECTOR_SIZE	0x2000
 #define FLASH0_PAGE_SIZE 0x2000

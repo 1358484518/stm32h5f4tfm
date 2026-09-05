@@ -7,21 +7,22 @@
 | 分支 | 签名算法 | 说明 |
 |------|----------|------|
 | `stm32h5f4` | **RSA-3072** | 默认开发支线 |
-| `stm32h5f4p256`（及 `stm32h5f4-p256`） | **EC-P256** | 仅改 MCUboot 镜像签名算法与配套密钥 |
+| `stm32h5f4p256` | **EC-P256** | 仅改 MCUboot 镜像签名算法与配套密钥；控制台仍为 USART1 PA9/PA10 |
+| `stm32h5f4p256-usart6` | **EC-P256** | 基于 `stm32h5f4p256`；控制台改为 **USART6 PC6/PC7** |
 
-本文档所在分支为 **`stm32h5f4p256`**。
+本文档所在分支为 **`stm32h5f4p256-usart6`**。
 
-### 相对 `stm32h5f4` 改了什么
+### 相对 `stm32h5f4p256` 改了什么
 
-本支线相对 `stm32h5f4` **只围绕签名换成 EC-P256**，Flash 布局 / 槽位地址 / NS 工程逻辑不变。主要包括：
+本支线在 `stm32h5f4p256`（EC-P256）基础上，把 TF-M / tf-m-tests / CubeIDE / makefile 控制台串口从 **USART1 PA9/PA10** 改为 **USART6 PC6/PC7**（仍 115200 8N1）。Flash 布局、槽位地址、签名算法不变。
 
-1. `trusted-firmware-m/platform/ext/target/stm/stm32h5f4/config.cmake`：`MCUBOOT_SIGNATURE_TYPE=EC-P256`
-2. makefile / CubeIDE / `sign_kit` 下的 S、NS 公私钥：换成 TF-M 自带 dummy **EC-P256**（不再用 RSA-3072）
-3. `buildtfm.sh`：算法写入 stamp（RSA↔EC 会强制清 `build_s`）；正确解析 `SIG_TYPE`；内层 cmake `-UMCUBOOT_KEY_S/NS`
-4. 按 EC-P256 重编后刷新跟踪的 `build_s/bin/bl2.hex`（及 veneers）
-5. 文档与说明文字改为 EC-P256；并修复损坏的 MCUBoot `0002` mailbox patch（否则 SPE 编不过）
+主要改动：
 
-从 `stm32h5f4` 切到本支线后，必须 **整片重烧 BL2 + S + NS**，并只用本支线的 `sign_kit/keys`。不要把 RSA 密钥 / BL2 与 P256 混用。
+1. `trusted-firmware-m/platform/ext/target/stm/stm32h5f4/include/board.h`：`COM_*` → USART6 / GPIOC PIN6·7 / AF7
+2. `tfmcubeideproject` / `tfmmakeproject` 中同步的 `board.h` 与说明文字
+3. （若启用 EXT_LOADER）`low_level_security.c` 中把控制台外设/引脚授权改为 USART6 PC6/PC7
+
+从 `stm32h5f4p256` 切到本支线后，必须 **整片重烧 BL2 + S + NS**，串口改接到 **USART6 PC6(TX)/PC7(RX)**。
 
 ### 更换密钥（量产 / 自用）
 
@@ -119,7 +120,7 @@ SPE / BL2 / 官方 NS 测试固件只使用仓库根目录的 `./buildtfm.sh` �
 - ARM GNU 工具链（`arm-none-eabi-gcc`）在 `PATH` 里
 - 烧录：`STM32_Programmer_CLI`（STM32CubeProgrammer）
 - Windows 烧录：把镜像放到 `windows-tfm-tools` 后双击 `tfm_update.bat`。只有 hex、没有 bin 时才需要 Python 3（hex→bin）。已经是 bin 可以不装 Python。
-- 串口：USART1 PA9/PA10，**115200**
+- 串口：USART6 PC6/PC7，**115200**
 
 脚本会在仓库根目录自动创建 `.venv`。如果签名步骤报 `mcuboot_imagesign_wrapper: not found`，删掉 `.venv` 再编一次。
 
@@ -260,7 +261,7 @@ NS 大缓冲可放到 `.ram2` / `.bss.ram2`，或使用 `__ns_ram2_start__` / `_
 - 主控：STM32H5F4（Cortex-M33 + TrustZone，4 MB Flash / 1536 KB SRAM）
 - 调试器：ST-Link
 - 平台名：`stm/stm32h5f4`（`./buildtfm.sh` 已指向该平台）
-- 控制台：USART1 PA9/PA10，115200
+- 控制台：USART6 PC6/PC7，115200
 
 ## 代码提交 
 

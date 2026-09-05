@@ -395,8 +395,8 @@ static const uint32_t ProductStatePrioList[] = {
 /* GPIO configuration
   =================== */
 /*----------------------|  USART  |-------------------------------------*/
-/* USART: USART1 + USART2 + USART 3*/
-/* USART1 (RX = PA10, TX = PA9), USART2 (RX = PA3, TX = PA2)  */
+/* USART: USART6 (console) + USART2 + USART3 */
+/* USART6 (RX = PC7, TX = PC6), USART2 (RX = PA3, TX = PA2)  */
 /* USART3 (RX = PD9, TX = PD8) */
 
 /*----------------------|  SPI  |-------------------------------------*/
@@ -421,17 +421,18 @@ static const uint32_t ProductStatePrioList[] = {
 /*FDCAN2 */
 /*CAN (_RX = PB5, _TX = PB13 ) */
 
-#define GPIOA_MASK_SECCFG    (GPIO_PIN_10 | GPIO_PIN_9  | GPIO_PIN_3  | GPIO_PIN_2  | GPIO_PIN_7  | GPIO_PIN_6 | GPIO_PIN_5 | GPIO_PIN_4 | \
+#define GPIOA_MASK_SECCFG    (GPIO_PIN_3  | GPIO_PIN_2  | GPIO_PIN_7  | GPIO_PIN_6 | GPIO_PIN_5 | GPIO_PIN_4 | \
                               GPIO_PIN_15 | GPIO_PIN_8  | GPIO_PIN_11 | GPIO_PIN_12)
 #define GPIOB_MASK_SECCFG    (GPIO_PIN_14 |\
                               GPIO_PIN_10 | GPIO_PIN_12 | GPIO_PIN_6  | GPIO_PIN_7  | GPIO_PIN_5 | GPIO_PIN_13)
-#define GPIOC_MASK_SECCFG    (GPIO_PIN_1  | GPIO_PIN_12 | GPIO_PIN_11 | GPIO_PIN_10 | GPIO_PIN_9)
+#define GPIOC_MASK_SECCFG    (GPIO_PIN_1  | GPIO_PIN_12 | GPIO_PIN_11 | GPIO_PIN_10 | GPIO_PIN_9 | \
+                              GPIO_PIN_6  | GPIO_PIN_7)
 #define GPIOD_MASK_SECCFG    (GPIO_PIN_9  | GPIO_PIN_8  | GPIO_PIN_12 | GPIO_PIN_13)
 
 /* Peripherals configuration
    ========================= */
 /*----------------------|  USART  |-------------------------------------*/
-/* USART: USART1 + USART2 + USART3 */
+/* USART: USART6 + USART2 + USART3 */
 
 /*----------------------|  SPI  |-------------------------------------*/
 /* SPI: SPI1 + SPI2 + SPI3 */
@@ -455,10 +456,10 @@ static const uint32_t ProductStatePrioList[] = {
 /*----------------------|  IWDG |------------------------------------*/
 /* IWDG */
 
-#define TZSC_MASK_R1  (GTZC_CFGR1_USART2_Msk | GTZC_CFGR1_USART3_Msk | GTZC_CFGR1_SPI3_Msk  | GTZC_CFGR1_SPI2_Msk | \
+#define TZSC_MASK_R1  (GTZC_CFGR1_USART2_Msk | GTZC_CFGR1_USART3_Msk | GTZC_CFGR1_USART6_Msk | GTZC_CFGR1_SPI3_Msk  | GTZC_CFGR1_SPI2_Msk | \
                        GTZC_CFGR1_I3C1_Msk   | GTZC_CFGR1_IWDG_Msk)
 
-#define TZSC_MASK_R2  (GTZC_CFGR2_USART1_Msk | GTZC_CFGR2_SPI1_Msk   | GTZC_CFGR2_I2C3_Msk  | GTZC_CFGR2_I2C4_Msk  | \
+#define TZSC_MASK_R2  (GTZC_CFGR2_SPI1_Msk   | GTZC_CFGR2_I2C3_Msk  | GTZC_CFGR2_I2C4_Msk  | \
                        GTZC_CFGR2_USB_Msk  | GTZC_CFGR2_FDCAN2_Msk  | GTZC_CFGR2_FDCAN1_Msk | GTZC_CFGR2_UCPD1_Msk)
 #define TZSC_MASK_R3  (GTZC_CFGR3_ICACHE_REG_Msk | GTZC_CFGR3_CRC_Msk)
 

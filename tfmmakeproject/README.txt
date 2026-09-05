@@ -3,7 +3,7 @@ STM32H5F4 非安全侧 makefile 工程。
 编译
   在本目录执行 make，生成 out/tfm_ns.bin，并由 sign_kit 签出 out/tfm_ns_signed.bin。
   MCU：STM32H5F4xx，BL2_TRAILER_SIZE=0x3000。
-  USART1 PA9/PA10，115200。
+  USART6 PC6/PC7，115200。
 
 签名（sign_kit，与 CubeIDE 工程同类，槽位按 H5F4）
   make 已自动签名。只签已有的未签名 bin：

@@ -12,7 +12,7 @@
  * All other C files come from TF-M or tf-m-tests (or the SPE api_ns export).
  *
  * Requires the matching flashed tfm_s.bin (s_veneers.o addresses must match).
- * USART1 PA9/PA10: 115200 8N1.
+ * USART6 PC6/PC7: 115200 8N1.
  *
  * If SPE was built with TEST_S=ON, colored "PASSED" / "*** End of Secure
  * test suites ***" prints first. This app then prints NS-SMOKE.

@@ -183,7 +183,7 @@ echo.
 
 echo ============================================================
 echo  ALL STEPS OK  ^(%FLASHED% file(s) downloaded^)
-echo  UART 115200 USART1 PA9/PA10 must show H5F4BL2
+echo  UART 115200 USART6 PC6/PC7 must show H5F4BL2
 echo  If you only see Starting bootloader without H5F4BL2:
 echo    run tfm_update.bat again ^(not images-only^) to mass-erase HDP
 echo ============================================================
