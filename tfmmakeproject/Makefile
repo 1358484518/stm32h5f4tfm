@@ -21,6 +21,9 @@
 # Flash the signed image with windows-tfm-tools or ./flash_stm32h5f4.sh.
 # Signing uses sign_kit/ (H5F4 slot sizes, local venv). Standalone:
 #   ./sign_kit/sign.sh out/tfm_ns.bin
+#
+# NS-SMOKE includes a PSA FWU write test (start/write/cancel/clean).
+# Skip it: make CPPFLAGS+=-DNS_SMOKE_TEST_FWU_WRITE=0
 
 NS_APP      := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 ROOT        := $(abspath $(NS_APP)/..)

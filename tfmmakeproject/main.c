@@ -16,6 +16,9 @@
  *
  * If SPE was built with TEST_S=ON, colored "PASSED" / "*** End of Secure
  * test suites ***" prints first. This app then prints NS-SMOKE.
+ *
+ * NS-SMOKE also exercises PSA FWU write (start/write/cancel/clean, no
+ * install). start/clean erase the NS upgrade slot, not the running image.
  */
 
 #include <string.h>
@@ -210,6 +213,212 @@ static void test_fwu_query(void)
                                  FWU_COMPONENT_ID_NONSECURE);
 }
 
+#ifndef NS_SMOKE_TEST_FWU_WRITE
+#define NS_SMOKE_TEST_FWU_WRITE 1
+#endif
+
+#ifndef NS_SMOKE_FWU_WRITE_COMPONENT
+#define NS_SMOKE_FWU_WRITE_COMPONENT FWU_COMPONENT_ID_NONSECURE
+#endif
+
+#define FWU_WRITE_TEST_BLOCKS  4u
+
+static const char *fwu_comp_str(psa_fwu_component_t id)
+{
+    if (id == FWU_COMPONENT_ID_SECURE) {
+        return "S";
+    }
+    if (id == FWU_COMPONENT_ID_NONSECURE) {
+        return "NS";
+    }
+    return "?";
+}
+
+static void expect_fwu_state(psa_fwu_component_t id, uint8_t want,
+                             const char *when)
+{
+    psa_fwu_component_info_t info;
+    psa_status_t status;
+
+    memset(&info, 0, sizeof(info));
+    status = psa_fwu_query(id, &info);
+    if (status != PSA_SUCCESS) {
+        LOG_MSG("  [FAIL] psa_fwu_query after %s status=%d\r\n",
+                when, (int)status);
+        g_fail++;
+        return;
+    }
+
+    if (info.state != want) {
+        LOG_MSG("  [FAIL] state after %s got=%u (%s) want=%u (%s)\r\n",
+                when,
+                (unsigned)info.state, fwu_state_str(info.state),
+                (unsigned)want, fwu_state_str(want));
+        g_fail++;
+    } else {
+        LOG_MSG("  [PASS] state after %s = %s\r\n",
+                when, fwu_state_str(want));
+    }
+}
+
+/*
+ * Best-effort: abandon a leftover WRITING/CANDIDATE/FAILED session so the
+ * write test can start from READY. Does not touch STAGED/TRIAL.
+ */
+static void fwu_recover_ready(psa_fwu_component_t id)
+{
+    psa_fwu_component_info_t info;
+    psa_status_t status;
+
+    memset(&info, 0, sizeof(info));
+    status = psa_fwu_query(id, &info);
+    if (status != PSA_SUCCESS) {
+        return;
+    }
+    if (info.state == PSA_FWU_READY) {
+        return;
+    }
+
+    LOG_MSG("  leftover state=%u (%s), trying cancel/clean\r\n",
+            (unsigned)info.state, fwu_state_str(info.state));
+
+    if ((info.state == PSA_FWU_WRITING) || (info.state == PSA_FWU_CANDIDATE)) {
+        (void)psa_fwu_cancel(id);
+        memset(&info, 0, sizeof(info));
+        (void)psa_fwu_query(id, &info);
+    }
+    if ((info.state == PSA_FWU_FAILED) || (info.state == PSA_FWU_UPDATED)) {
+        (void)psa_fwu_clean(id);
+    }
+}
+
+/*
+ * Exercise psa_fwu_write on the NS (or S) secondary slot.
+ *
+ * Does NOT call finish/install/reboot: dummy data must not become a
+ * candidate image. start() erases the upgrade slot (not the running
+ * image); cancel+clean erase it again and return to READY.
+ *
+ * Disable with -DNS_SMOKE_TEST_FWU_WRITE=0. Target S instead with
+ * -DNS_SMOKE_FWU_WRITE_COMPONENT=FWU_COMPONENT_ID_SECURE.
+ */
+#if NS_SMOKE_TEST_FWU_WRITE
+static void test_fwu_write(void)
+{
+    static uint8_t block[PSA_FWU_MAX_WRITE_SIZE];
+    static uint8_t too_big[PSA_FWU_MAX_WRITE_SIZE + 4u];
+    static const uint8_t hdr[28] = {
+        0x3d, 0xb8, 0xf3, 0x96, /* IMAGE_MAGIC, same as tf-m-tests */
+        0x00, 0x00, 0x00, 0x00,
+        0x00, 0x04, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00
+    };
+    const psa_fwu_component_t id = NS_SMOKE_FWU_WRITE_COMPONENT;
+    const char *tag = fwu_comp_str(id);
+    psa_fwu_component_info_t info;
+    psa_status_t status;
+    size_t i;
+    size_t off;
+    int started = 0;
+
+    LOG_MSG("PSA FWU write (%s secondary, no install)\r\n", tag);
+    LOG_MSG("  PSA_FWU_MAX_WRITE_SIZE=%u\r\n",
+            (unsigned)PSA_FWU_MAX_WRITE_SIZE);
+
+    fwu_recover_ready(id);
+
+    memset(&info, 0, sizeof(info));
+    status = psa_fwu_query(id, &info);
+    check("psa_fwu_query before write", status);
+    if (status != PSA_SUCCESS) {
+        return;
+    }
+    LOG_MSG("  %s state=%u (%s) max_size=%u\r\n",
+            tag,
+            (unsigned)info.state,
+            fwu_state_str(info.state),
+            (unsigned)info.max_size);
+    if (info.state != PSA_FWU_READY) {
+        LOG_MSG("  [FAIL] %s not READY, skip write test\r\n", tag);
+        g_fail++;
+        return;
+    }
+
+    memset(block, 0xa5, sizeof(block));
+    status = psa_fwu_write(id, 0, block, sizeof(block));
+    if (status == PSA_ERROR_BAD_STATE) {
+        LOG_MSG("  [PASS] psa_fwu_write before start -> BAD_STATE\r\n");
+    } else {
+        LOG_MSG("  [FAIL] write before start status=%d\r\n", (int)status);
+        g_fail++;
+        return;
+    }
+
+    LOG_MSG("  psa_fwu_start erases the %s upgrade slot (not running image)\r\n",
+            tag);
+    status = psa_fwu_start(id, NULL, 0);
+    check("psa_fwu_start", status);
+    if (status != PSA_SUCCESS) {
+        return;
+    }
+    started = 1;
+    expect_fwu_state(id, PSA_FWU_WRITING, "start");
+
+    status = psa_fwu_write(id, 0, hdr, sizeof(hdr));
+    check("psa_fwu_write header 28B @0", status);
+    if (status != PSA_SUCCESS) {
+        goto teardown;
+    }
+
+    for (i = 0; i < FWU_WRITE_TEST_BLOCKS; i++) {
+        off = sizeof(block) * (i + 1u);
+        memset(block, (uint8_t)(0xc0u + i), sizeof(block));
+        block[0] = (uint8_t)(off & 0xffu);
+        block[1] = (uint8_t)((off >> 8) & 0xffu);
+        block[2] = (uint8_t)((off >> 16) & 0xffu);
+        block[3] = (uint8_t)((off >> 24) & 0xffu);
+
+        status = psa_fwu_write(id, off, block, sizeof(block));
+        if (status == PSA_SUCCESS) {
+            LOG_MSG("  [PASS] psa_fwu_write off=%u len=%u\r\n",
+                    (unsigned)off, (unsigned)sizeof(block));
+        } else {
+            LOG_MSG("  [FAIL] psa_fwu_write off=%u status=%d\r\n",
+                    (unsigned)off, (int)status);
+            g_fail++;
+            goto teardown;
+        }
+    }
+
+    memset(too_big, 0x11, sizeof(too_big));
+    status = psa_fwu_write(id, 0, too_big, sizeof(too_big));
+    if (status == PSA_ERROR_INVALID_ARGUMENT) {
+        LOG_MSG("  [PASS] psa_fwu_write oversized -> INVALID_ARGUMENT\r\n");
+    } else {
+        LOG_MSG("  [FAIL] oversized write status=%d\r\n", (int)status);
+        g_fail++;
+    }
+
+    expect_fwu_state(id, PSA_FWU_WRITING, "writes");
+
+teardown:
+    if (started == 0) {
+        return;
+    }
+
+    status = psa_fwu_cancel(id);
+    check("psa_fwu_cancel", status);
+    expect_fwu_state(id, PSA_FWU_FAILED, "cancel");
+
+    status = psa_fwu_clean(id);
+    check("psa_fwu_clean", status);
+    expect_fwu_state(id, PSA_FWU_READY, "clean");
+}
+#endif /* NS_SMOKE_TEST_FWU_WRITE */
+
 int main(void)
 {
     if (tfm_ns_platform_init() != ARM_DRIVER_OK) {
@@ -235,6 +444,9 @@ int main(void)
     test_crypto();
     test_its();
     test_fwu_query();
+#if NS_SMOKE_TEST_FWU_WRITE
+    test_fwu_write();
+#endif
 
     if (g_fail == 0) {
         LOG_MSG("ALL PASSED\r\n");
