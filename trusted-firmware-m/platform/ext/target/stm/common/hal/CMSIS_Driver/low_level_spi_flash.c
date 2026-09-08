@@ -44,7 +44,8 @@ static const ARM_DRIVER_VERSION DriverVersion = {
 static const ARM_FLASH_CAPABILITIES DriverCapabilities = {
     0, /* event_ready */
     0, /* data_width 8-bit */
-    1  /* erase_chip */
+    0, /* erase_chip not supported */
+    0  /* reserved */
 };
 
 static ARM_FLASH_INFO SPI_FLASH0_DEV_DATA = {
