@@ -544,6 +544,9 @@ void gtzc_init_cfg(void)
     /* Configure Secure peripherals */
     HAL_GTZC_TZSC_ConfigPeriphAttributes(GTZC_PERIPH_RNG, GTZC_TZSC_PERIPH_SEC | GTZC_TZSC_PERIPH_PRIV);
     HAL_GTZC_TZIC_EnableIT(GTZC_PERIPH_RNG);
+    /* SPI1 + W25Q32 download flash stays NS so the NSPE can program slots. */
+    HAL_GTZC_TZSC_ConfigPeriphAttributes(GTZC_PERIPH_SPI1,
+                                         GTZC_TZSC_PERIPH_NSEC | GTZC_TZSC_PERIPH_NPRIV);
 
 #if (defined (MBEDTLS_SHA256_C) && defined (MBEDTLS_SHA256_ALT)) \
  || (defined (MBEDTLS_SHA1_C) && defined (MBEDTLS_SHA1_ALT)) \

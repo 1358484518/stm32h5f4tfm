@@ -166,8 +166,14 @@
 #define NS_PARTITION_SIZE                   (NS_CODE_SIZE)
 
 /* Secondary partition for new images/ in case of firmware upgrade */
+#if defined(EXTERNAL_FLASH)
+/* Download slots live on SPI NOR; leftover internal flash after NS primary. */
+#define SECONDARY_PARTITION_START           (NS_ROM_ALIAS(FLASH_AREA_1_OFFSET + FLASH_AREA_1_SIZE))
+#define SECONDARY_PARTITION_SIZE            (FLASH_TOTAL_SIZE - (FLASH_AREA_1_OFFSET + FLASH_AREA_1_SIZE))
+#else
 #define SECONDARY_PARTITION_START           (NS_ROM_ALIAS(S_IMAGE_SECONDARY_PARTITION_OFFSET))
 #define SECONDARY_PARTITION_SIZE            (FLASH_AREA_2_SIZE)
+#endif
 
 #ifdef BL2
 #define PERSO_START                         (S_ROM_ALIAS(FLASH_AREA_PERSO_OFFSET))

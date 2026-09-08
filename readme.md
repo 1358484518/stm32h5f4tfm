@@ -8,12 +8,27 @@
 |------|----------|------|
 | `master` | **RSA-3072** | 默认主线 |
 | `stm32h573p256` | **EC-P256** | 仅改 MCUboot 镜像签名算法与配套密钥 |
+| `cursor/h573-spi-ns-1mb-0fd6` | **EC-P256** | 基于 `stm32h573p256`：NS 执行槽 1 MB，升级槽改到外部 W25Q32 |
 
-本文档所在分支为 **`stm32h573p256`**。
+本文档所在分支为 **`cursor/h573-spi-ns-1mb-0fd6`**（基于 `stm32h573p256`）。
 
-### 相对 `master` 改了什么
+### 相对 `stm32h573p256` 改了什么（本分支）
 
-本支线相对 `master` **只围绕签名换成 EC-P256**，Flash 布局 / 槽位等不变。主要包括：
+内部 Flash 仍 2 MB，S 执行槽仍 320 KB @ `0x38000`。NS 执行槽扩到 **1 MB** @ `0x88000`（`0x08088000`）。升级策略改为 **overwrite-only**。S/NS **下载槽**放到 SPI1 外接 **W25Q32**（4 MB，非 XIP）：
+
+| 内容 | 位置 |
+|------|------|
+| S secondary | W25Q32 `0x100000`，320 KB |
+| NS secondary | W25Q32 `0x150000`，1 MB |
+| 引脚 | SCK=PA5, MISO=PA6, MOSI=PA7, CS=PB2 |
+
+请求的 `0x100000-0x180000` 只有 512 KB，放不下 320 KB+1 MB，因此实际窗口是 **`0x100000-0x250000`**。片上 `0x188000` 之后剩约 480 KB 未用。BL2 地址 / HDP / WRP 不变（scratch 48 KB 仍占位但不参与升级）。
+
+NS 用 `w25q32_init/read/write/erase_4k` 直接写 NOR；不要再按旧内部 secondary 地址调用 `psa_fwu_write`。CubeProgrammer / `./flash_stm32h573.sh` 仍只烧内部 primary（BL2/S/NS）。
+
+### 相对 `master` 改了什么（签名，继承自 `stm32h573p256`）
+
+本支线相对 `master` **签名换成 EC-P256**。主要包括：
 
 1. **TF-M BL2**：`stm32h573i_dk/config.cmake` 设 `MCUBOOT_SIGNATURE_TYPE=EC-P256`（公钥编进 BL2）
 2. **TF-M SPE 签名**：默认密钥改为 `root-EC-P256.pem` / `root-EC-P256_1.pem`；`buildtfm.sh` 带 `SIG=` stamp 并 `-UMCUBOOT_KEY_S/NS`
