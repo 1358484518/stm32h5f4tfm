@@ -9,7 +9,7 @@ rem  *
 rem  * Prefer .bin:
 rem  *   tfm_s_signed.bin       0x08038000
 rem  *   tfm_s_ns_signed.bin    0x08038000  (S+NS, skip extra NS)
-rem  *   tfm_ns_signed.bin      0x08088000
+rem  *   tfm_ns_signed.bin      0x080B8000
 rem  *   bl2.bin                0x0800E000
 rem  *
 rem  * SPDX-License-Identifier: BSD-3-Clause
@@ -33,7 +33,7 @@ if defined SN_ARG set "sn_option=sn=%SN_ARG%"
 rem NS flash alias (J-Link). Secure alias is NS + 0x04000000.
 set "ADDR_BL2=0x0800E000"
 set "ADDR_S=0x08038000"
-set "ADDR_NS=0x08088000"
+set "ADDR_NS=0x080B8000"
 
 echo.
 echo ============================================================
@@ -337,7 +337,7 @@ exit /b %ERRORLEVEL%
 
 :check_download
 type "%TEMP%\tfm_jlink_dl.txt"
-findstr /c:"0x0C038000" /c:"0x0C00E000" /c:"0x0C088000" "%TEMP%\tfm_jlink_dl.txt" >nul
+findstr /c:"0x0C038000" /c:"0x0C00E000" /c:"0x0C0B8000" "%TEMP%\tfm_jlink_dl.txt" >nul
 if not errorlevel 1 (
     echo.
     echo [FAIL] CubeProgrammer still used 0x0C alias. This is the old hex path.

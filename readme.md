@@ -14,15 +14,17 @@
 
 ### 相对 `stm32h573p256` 改了什么（本分支）
 
-内部 Flash 仍 2 MB，S 执行槽仍 320 KB @ `0x38000`。NS 执行槽扩到 **1 MB** @ `0x88000`（`0x08088000`）。升级策略改为 **overwrite-only**。S/NS **下载槽**放到 SPI1 外接 **W25Q32**（4 MB，非 XIP）：
+内部 Flash 仍 2 MB。升级策略 **overwrite-only**。S/NS **下载槽**在 SPI1 外接 **W25Q32**（4 MB，非 XIP），从 `0x100000` 起：S 下载 **512 KB**，NS 下载 **1 MB**。MCUboot 要求同一镜像的主槽和下载槽等大，因此内部 S 执行槽也是 512 KB（镜像填充；BL2 地址不变）。
 
 | 内容 | 位置 |
 |------|------|
-| S secondary | W25Q32 `0x100000`，320 KB |
-| NS secondary | W25Q32 `0x150000`，1 MB |
+| S 执行 | 内部 `0x0C038000`，512 KB |
+| NS 执行 | 内部 `0x0C0B8000`，1 MB |
+| S 下载 | W25Q32 `0x100000`，512 KB |
+| NS 下载 | W25Q32 `0x180000`，1 MB |
 | 引脚 | SCK=PA5, MISO=PA6, MOSI=PA7, CS=PB2 |
 
-请求的 `0x100000-0x180000` 只有 512 KB，放不下 320 KB+1 MB，因此实际窗口是 **`0x100000-0x250000`**。片上 `0x188000` 之后剩约 480 KB 未用。BL2 地址 / HDP / WRP 不变（scratch 48 KB 仍占位但不参与升级）。
+外部窗口 **`0x100000-0x280000`**。片上 `0x1B8000` 之后剩约 288 KB。BL2 / HDP / WRP 不变（scratch 48 KB 仍占位但不参与升级）。
 
 NS 用 `w25q32_init/read/write/erase_4k` 直接写 NOR；不要再按旧内部 secondary 地址调用 `psa_fwu_write`。CubeProgrammer / `./flash_stm32h573.sh` 仍只烧内部 primary（BL2/S/NS）。
 
@@ -213,7 +215,7 @@ git checkout stm32h573p256
 |------|------|----------|
 | BL2（含 OTP 区） | `0x0C00E000`（`bl2.hex` 另含 `0x0C028000` OTP） | `…/api_ns/bin/bl2.hex`（优先）或 `bl2.bin` |
 | S | `0x0C038000` | `…/api_ns/bin/tfm_s_signed.bin` |
-| NS | `0x0C088000` | `trusted-firmware-m/build_ns/bin/tfm_ns_signed.bin` |
+| NS | `0x0C0B8000` | `trusted-firmware-m/build_ns/bin/tfm_ns_signed.bin` |
 
 可用环境变量 `TFM_NS_BIN=` 指定其它已签名 NS。`BOOT_UBE=0xB4`（OEM-iRoT）。串口 **115200**。
 

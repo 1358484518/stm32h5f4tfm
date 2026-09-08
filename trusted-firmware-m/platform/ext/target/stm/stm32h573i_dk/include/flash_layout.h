@@ -25,11 +25,12 @@
  */
 /* External W25Q32 (4 MB) on SPI1: download slots only (not XIP).
  *
- * Requested window 0x100000-0x180000 is 512 KB and cannot hold S(320 KB) +
- * NS(1 MB). Slots therefore occupy 0x100000-0x250000; 0x000000-0x0FFFFF is
- * left for other data. NS programs the NOR directly (w25q32_*); CubeProgrammer
- * still burns BL2/S/NS primary in internal flash. PSA FWU also targets these
- * SPI secondary slots once TFM_Driver_SPI_FLASH0 is linked.
+ * Firmware window starts at 0x100000: S download 512 KB then NS download 1 MB
+ * (0x100000-0x280000). 0x000000-0x0FFFFF is left for other data.
+ * MCUboot requires primary and secondary slots of an image to be the same
+ * size, so the internal S execute slot is also 512 KB (image is padded).
+ * NS programs the NOR directly (w25q32_*); CubeProgrammer still burns
+ * BL2/S/NS primary in internal flash.
  */
 #define EXTERNAL_FLASH
 #define SPI_FLASH_TOTAL_SIZE            (0x400000)   /* W25Q32 4 MBytes */
@@ -47,13 +48,13 @@
  * 0x0002_C000 NV counters area (16 KB)
  * 0x0003_0000 Secure Storage Area (16 KB)
  * 0x0003_4000 Internal Trusted Storage Area (16 KB)
- * 0x0003_8000 Secure image     primary slot (320 KB)
- * 0x0008_8000 Non-secure image primary slot (1024 KB)
- * 0x0018_8000 leftover internal flash (480 KB)
+ * 0x0003_8000 Secure image     primary slot (512 KB)
+ * 0x000B_8000 Non-secure image primary slot (1024 KB)
+ * 0x001B_8000 leftover internal flash (288 KB)
  *
- * External W25Q32:
- * 0x0010_0000 Secure image     secondary slot (320 KB)
- * 0x0015_0000 Non-secure image secondary slot (1024 KB)
+ * External W25Q32 (starts at 0x100000):
+ * 0x0010_0000 Secure image     secondary slot (512 KB)
+ * 0x0018_0000 Non-secure image secondary slot (1024 KB)
  *
  * Bl2 binary is written at 0x1_0000:
  * it contains bl2_counter init value, OTP write protect, NV counters area init.
@@ -156,7 +157,7 @@
 #error "FLASH_ITS_AREA_OFFSET not aligned on FLASH_AREA_IMAGE_SECTOR_SIZE"
 #endif /*  (FLASH_ITS_AREA_OFFSET % FLASH_AREA_IMAGE_SECTOR_SIZE) != 0 */
 
-#define FLASH_S_PARTITION_SIZE          (0x50000) /* 320 KB for S partition */
+#define FLASH_S_PARTITION_SIZE          (0x80000) /* 512 KB for S partition */
 #define FLASH_NS_PARTITION_SIZE         (0x100000) /* 1024 KB for NS partition */
 
 #define FLASH_PARTITION_SIZE            (FLASH_S_PARTITION_SIZE+FLASH_NS_PARTITION_SIZE)
@@ -225,6 +226,9 @@
 #endif
 #if ((FLASH_AREA_3_OFFSET + FLASH_NS_PARTITION_SIZE) > SPI_FLASH_TOTAL_SIZE)
 #error "NS secondary slot overflows W25Q32"
+#endif
+#if ((FLASH_AREA_2_OFFSET + FLASH_AREA_2_SIZE + FLASH_AREA_3_SIZE) > SPI_FLASH_TOTAL_SIZE)
+#error "S+NS secondary slots overflow W25Q32"
 #endif
 #endif
 /*Control Non-secure image secondary slot */

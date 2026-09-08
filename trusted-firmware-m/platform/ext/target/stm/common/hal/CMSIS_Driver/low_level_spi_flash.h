@@ -17,7 +17,7 @@ extern ARM_DRIVER_FLASH TFM_Driver_SPI_FLASH0;
 
 /*
  * NS download helpers (same backend as BL2/MCUboot).
- * Offsets: SPI_FLASH_S_UPDATE_OFFSET (320 KB), SPI_FLASH_NS_UPDATE_OFFSET (1 MB)
+ * Offsets: SPI_FLASH_S_UPDATE_OFFSET (512 KB), SPI_FLASH_NS_UPDATE_OFFSET (1 MB)
  * in flash_layout.h. Pins: SPI1 PA5/PA6/PA7, CS PB2.
  */
 int32_t w25q32_init(void);
