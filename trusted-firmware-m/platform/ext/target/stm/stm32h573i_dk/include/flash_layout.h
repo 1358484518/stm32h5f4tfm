@@ -29,8 +29,9 @@
  * (0x100000-0x280000). 0x000000-0x0FFFFF is left for other data.
  * MCUboot requires primary and secondary slots of an image to be the same
  * size, so the internal S execute slot is also 512 KB (image is padded).
- * NS programs the NOR directly (w25q32_*); CubeProgrammer still burns
- * BL2/S/NS primary in internal flash.
+ * Internal NS execute is the whole of Bank2 (0x100000, 1 MB) so it does not
+ * cross the dual-bank boundary. NS programs the NOR directly (w25q32_*);
+ * CubeProgrammer still burns BL2/S/NS primary in internal flash.
  */
 #define EXTERNAL_FLASH
 #define SPI_FLASH_TOTAL_SIZE            (0x400000)   /* W25Q32 4 MBytes */
@@ -48,11 +49,17 @@
  * 0x0002_C000 NV counters area (16 KB)
  * 0x0003_0000 Secure Storage Area (16 KB)
  * 0x0003_4000 Internal Trusted Storage Area (16 KB)
- * 0x0003_8000 Secure image     primary slot (512 KB)
- * 0x000B_8000 Non-secure image primary slot (1024 KB)
- * 0x001B_8000 leftover internal flash (288 KB)
+ * 0x0003_8000 Secure image     primary slot (512 KB)  [Bank1]
+ * 0x000B_8000 unused Bank1 gap (288 KB, SECWM1 keeps it Secure)
+ * 0x0010_0000 Non-secure image primary slot (1024 KB) [entire Bank2]
  *
- * External W25Q32 (starts at 0x100000):
+ * NS execute is Bank2-only so it does not cross the 1 MB flash bank at 0x100000.
+ * Internal S/NS split is FLASH SECWM (not GTZC-MPCWM):
+ *   Bank1 SECWM STRT=0 END=127  (fully Secure)
+ *   Bank2 SECWM STRT=127 END=0  (fully NS)
+ * SAU NS flash follows FLASH_AREA_1: 0x08100000 .. 0x081FFFFF
+ *
+ * External W25Q32 (command-mode offsets, not CPU flash):
  * 0x0010_0000 Secure image     secondary slot (512 KB)
  * 0x0018_0000 Non-secure image secondary slot (1024 KB)
  *
@@ -180,15 +187,24 @@
 #endif /*  (FLASH_AREA_0_OFFSET  % FLASH_AREA_IMAGE_SECTOR_SIZE) != 0 */
 #define FLASH_AREA_0_SIZE               (FLASH_S_PARTITION_SIZE)
 
-/* Non-secure image primary slot */
+/* Non-secure image primary slot: start of Bank2 (do not follow S into Bank1). */
 #define FLASH_AREA_1_ID                 (FLASH_AREA_0_ID + 1)
 #define FLASH_AREA_1_DEVICE_ID          (FLASH_AREA_0_DEVICE_ID)
-#define FLASH_AREA_1_OFFSET             (FLASH_AREA_0_OFFSET + FLASH_AREA_0_SIZE)
+#define FLASH_AREA_1_OFFSET             (FLASH_B_SIZE)
 /* Control Non-secure image primary slot */
 #if (FLASH_AREA_1_OFFSET  % FLASH_AREA_IMAGE_SECTOR_SIZE) != 0
 #error "FLASH_AREA_1_OFFSET  not aligned on FLASH_AREA_IMAGE_SECTOR_SIZE"
 #endif /* (FLASH_AREA_1_OFFSET  % FLASH_AREA_IMAGE_SECTOR_SIZE) != 0  */
 #define FLASH_AREA_1_SIZE               (FLASH_NS_PARTITION_SIZE)
+#if (FLASH_AREA_0_OFFSET + FLASH_AREA_0_SIZE) > FLASH_B_SIZE
+#error "S primary slot crosses Bank1/Bank2"
+#endif
+#if (FLASH_AREA_1_OFFSET / FLASH_B_SIZE) != ((FLASH_AREA_1_OFFSET + FLASH_AREA_1_SIZE - 1) / FLASH_B_SIZE)
+#error "NS primary slot crosses Bank1/Bank2"
+#endif
+#if (FLASH_AREA_1_OFFSET + FLASH_AREA_1_SIZE) > FLASH_TOTAL_SIZE
+#error "NS primary slot overflows internal flash"
+#endif
 
 /* Secure image secondary slot (external W25Q32) */
 #define FLASH_AREA_2_ID                 (FLASH_AREA_1_ID + 1)

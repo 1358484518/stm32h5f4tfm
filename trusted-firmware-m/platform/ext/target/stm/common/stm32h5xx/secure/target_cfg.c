@@ -58,6 +58,7 @@ REGION_DECLARE(Load$$LR$$, LR_VENEER, $$Limit);
 REGION_DECLARE(Load$$LR$$, LR_SECONDARY_PARTITION, $$Base);
 REGION_DECLARE(Image$$, TFM_UNPRIV_CODE_START, $$RO$$Base);
 REGION_DECLARE(Image$$, TFM_APP_RW_STACK_END, $$Base);
+/* NS flash SAU range follows flash_layout.h (Bank2 NS primary on H573). */
 #define NON_SECURE_BASE (uint32_t) &REGION_NAME(Load$$LR$$, LR_NS_PARTITION, $$Base)
 #define NON_SECURE_LIMIT (uint32_t)(FLASH_BASE_NS + FLASH_AREA_END_OFFSET - 1)
 #define VENEER_BASE (uint32_t) &REGION_NAME(Load$$LR$$, LR_VENEER, $$Base)

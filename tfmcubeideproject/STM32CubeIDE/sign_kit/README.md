@@ -54,8 +54,8 @@ py -3 -m pip install -r requirements.txt
 
 | 镜像 | 地址 | 签完大小 |
 |---|---|---|
-| `*_s_signed.bin` | `0x0C038000` | 320 KB |
-| `*_ns_signed.bin` | `0x0C088000` | 576 KB |
+| `*_s_signed.bin` | `0x0C038000` | 512 KB |
+| `*_ns_signed.bin` | `0x0C100000` | 1024 KB |
 
 本目录的密钥是 TF-M 开发用 dummy **EC-P256**（本分支 `stm32h573p256`），和当前 SPE/BL2 配套。`master` 仍是 RSA-3072。
 

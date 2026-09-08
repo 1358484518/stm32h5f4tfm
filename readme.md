@@ -14,17 +14,29 @@
 
 ### 相对 `stm32h573p256` 改了什么（本分支）
 
-内部 Flash 仍 2 MB。升级策略 **overwrite-only**。S/NS **下载槽**在 SPI1 外接 **W25Q32**（4 MB，非 XIP），从 `0x100000` 起：S 下载 **512 KB**，NS 下载 **1 MB**。MCUboot 要求同一镜像的主槽和下载槽等大，因此内部 S 执行槽也是 512 KB（镜像填充；BL2 地址不变）。
+内部 Flash 仍 2 MB（Bank1 `0x00000–0xFFFFF`，Bank2 `0x100000–0x1FFFFF`）。升级策略 **overwrite-only**。S/NS **下载槽**在 SPI1 外接 **W25Q32**（4 MB，非 XIP），从 `0x100000` 起：S 下载 **512 KB**，NS 下载 **1 MB**。MCUboot 要求同一镜像的主槽和下载槽等大，因此内部 S 执行槽也是 512 KB（镜像填充；BL2 地址不变）。**NS 执行槽放在整个 Bank2**，不再跨 1 MB 银行边界。
 
 | 内容 | 位置 |
 |------|------|
-| S 执行 | 内部 `0x0C038000`，512 KB |
-| NS 执行 | 内部 `0x0C0B8000`，1 MB |
-| S 下载 | W25Q32 `0x100000`，512 KB |
+| S 执行 | 内部 Bank1 `0x0C038000`，512 KB |
+| NS 执行 | 内部 Bank2 `0x0C100000` / `0x08100000`，1 MB |
+| Bank1 空隙 | `0x0C0B8000–0x0C0FFFFF`（288 KB，SECWM1 保持 Secure） |
+| S 下载 | W25Q32 `0x100000`，512 KB（命令偏移，不是片上 Bank2） |
 | NS 下载 | W25Q32 `0x180000`，1 MB |
 | 引脚 | SCK=PA5, MISO=PA6, MOSI=PA7, CS=PB2 |
 
-外部窗口 **`0x100000-0x280000`**。片上 `0x1B8000` 之后剩约 288 KB。BL2 / HDP / WRP 不变（scratch 48 KB 仍占位但不参与升级）。
+TrustZone 片上 Flash 的 S/NS 分界用 **FLASH SECWM**（H5 没有 GTZC-MPCWM 管内部 Flash）：
+
+| 项 | 值 |
+|----|----|
+| SECWM1（Bank1） | STRT=0 END=127（整 bank Secure，含 S 后 288 KB） |
+| SECWM2（Bank2） | STRT=127 END=0（整 bank NS） |
+| SAU NS Flash | `0x08100000` … `0x081FFFFF`（随 `FLASH_AREA_1` / `FLASH_AREA_END_OFFSET`） |
+| GTZC TZSC | SPI1 = NSEC+NPRIV；SRAM1 NS / SRAM2 S 不变 |
+
+回归脚本会先把两 bank 写成全 Secure；DEV 模式下 BL2（`TFM_ENABLE_SET_OB`）按上面把 Bank2 改成全 NS。改布局后必须 **回归 + 重烧**。
+
+外部窗口 **`0x100000-0x280000`**。BL2 / HDP / WRP 不变（scratch 48 KB 仍占位但不参与升级）。
 
 NS 用 `w25q32_init/read/write/erase_4k` 直接写 NOR；不要再按旧内部 secondary 地址调用 `psa_fwu_write`。CubeProgrammer / `./flash_stm32h573.sh` 仍只烧内部 primary（BL2/S/NS）。
 
@@ -215,7 +227,7 @@ git checkout stm32h573p256
 |------|------|----------|
 | BL2（含 OTP 区） | `0x0C00E000`（`bl2.hex` 另含 `0x0C028000` OTP） | `…/api_ns/bin/bl2.hex`（优先）或 `bl2.bin` |
 | S | `0x0C038000` | `…/api_ns/bin/tfm_s_signed.bin` |
-| NS | `0x0C0B8000` | `trusted-firmware-m/build_ns/bin/tfm_ns_signed.bin` |
+| NS | `0x0C100000` | `trusted-firmware-m/build_ns/bin/tfm_ns_signed.bin` |
 
 可用环境变量 `TFM_NS_BIN=` 指定其它已签名 NS。`BOOT_UBE=0xB4`（OEM-iRoT）。串口 **115200**。
 

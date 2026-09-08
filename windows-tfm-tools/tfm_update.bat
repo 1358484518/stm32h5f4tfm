@@ -7,7 +7,7 @@ rem  * 2) If present in current dir (or this script's dir), download:
 rem  *      bl2.hex                 Intel HEX, address inside the file
 rem  *                              (BL2 bin at 0x0C00E000 / hex often 0x0800E000)
 rem  *      tfm_s_ns_signed.hex     Intel HEX, S+NS concatenated (S slot)
-rem  *      tfm_ns_signed.bin       binary at 0x0C0B8000 (NS primary)
+rem  *      tfm_ns_signed.bin       binary at 0x0C100000 (NS primary, Bank2)
 rem  *
 rem  * Usage:
 rem  *   tfm_update.bat
@@ -30,7 +30,7 @@ if not "%~1"=="" (
 rem H573 flash map (secure alias 0x0C00_0000)
 set "ADDR_BL2=0x0C00E000"
 set "ADDR_S=0x0C038000"
-set "ADDR_NS=0x0C0B8000"
+set "ADDR_NS=0x0C100000"
 
 echo.
 echo ============================================================
