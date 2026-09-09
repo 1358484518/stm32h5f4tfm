@@ -94,32 +94,26 @@ static ARM_FLASH_INFO SPI_FLASH0_DEV_DATA = {
 static ARM_FLASH_STATUS SPI_FLASH0_STATUS = {0, 0, 0};
 static uint8_t spi_inited;
 
-static void spi_delay(void)
+/* Chip tRES1/tRST only. Bit-bang SCK has no extra delay: GPIO BSRR/IDR
+ * already exceeds W25Q32 tCLQV / tCSS at ~250 MHz.
+ */
+static void spi_spin(uint32_t n)
 {
-    volatile uint32_t n = 32U;
+    volatile uint32_t i = n;
 
-    while (n > 0U) {
-        n--;
-    }
-}
-
-static void spi_delay_long(uint32_t loops)
-{
-    while (loops-- != 0U) {
-        spi_delay();
+    while (i > 0U) {
+        i--;
     }
 }
 
 static void cs_low(void)
 {
     W25_GPIO_CS->BSRR = ((uint32_t)SPI1_FLASH_CS_PIN << 16);
-    spi_delay();
 }
 
 static void cs_high(void)
 {
     W25_GPIO_CS->BSRR = SPI1_FLASH_CS_PIN;
-    spi_delay();
 }
 
 static uint8_t spi_byte(uint8_t out)
@@ -134,9 +128,7 @@ static uint8_t spi_byte(uint8_t out)
             W25_GPIO_MOSI->BSRR = ((uint32_t)SPI1_FLASH_MOSI_PIN << 16);
         }
         out = (uint8_t)(out << 1);
-        spi_delay();
         W25_GPIO_SCK->BSRR = SPI1_FLASH_SCK_PIN;
-        spi_delay();
         in = (uint8_t)(in << 1);
         if ((W25_GPIO_MISO->IDR & SPI1_FLASH_MISO_PIN) != 0U) {
             in |= 1U;
@@ -295,13 +287,13 @@ static void w25_wakeup_reset(void)
 
     cmd = W25_CMD_RELEASE_DPD;
     (void)w25_cmd(&cmd, 1U, NULL, 0U, NULL, 0U);
-    spi_delay_long(200U);
+    spi_spin(8000U);
 
     cmd = W25_CMD_ENABLE_RESET;
     (void)w25_cmd(&cmd, 1U, NULL, 0U, NULL, 0U);
     cmd = W25_CMD_RESET;
     (void)w25_cmd(&cmd, 1U, NULL, 0U, NULL, 0U);
-    spi_delay_long(800U);
+    spi_spin(40000U);
 }
 
 static int w25_stream_read(uint32_t addr, uint8_t *data, uint32_t len)
