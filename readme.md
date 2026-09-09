@@ -57,30 +57,14 @@ if (st == PSA_SUCCESS) {
 
 ### 从旧 CubeIDE 工程迁过来
 
-旧：S 320 KB，NS 576 KB，NS 紧挨 S（大约 `0x0C088000`）。  
-新：S 仍 `0x0C038000`，改成 512 KB；NS 放到整个 Bank2（`0x0C100000` / `0x08100000`，1 MB）。
-
-**.cproject 不用改。不要只换 `s_veneers.o`。**
-
-推荐做法：本分支编完 SPE 后，把导出目录整份盖过去（路径相对 `tfmcubeideproject/STM32CubeIDE/`）：
+把本分支编出来的 SPE 导出 **整份覆盖** 过去就行，`.cproject`、应用代码、链接脚本模板都不用改：
 
 ```text
-trusted-firmware-m/build_s/api_ns/  →  spe/api_ns/
+trusted-firmware-m/build_s/api_ns/  →  tfmcubeideproject/STM32CubeIDE/spe/api_ns/
+makefile 工程同理 →  tfmmakeproject/api_ns/
 ```
 
-再用 `spe/api_ns/platform/linker_scripts/appli_ns.ld` 重新预处理出 `spe/out/appli_ns.pp.ld`。  
-makefile 工程同理覆盖 `tfmmakeproject/api_ns/`。工具链用 **GCC 14.3.1**。
-
-编完只看这三项：
-
-| 看哪里 | 对了是 |
-|--------|--------|
-| `spe/out/appli_ns.pp.ld` 的 FLASH ORIGIN | `0x08100400` |
-| 签完的 NS 大小、烧录地址 | **1 MB**，`0x0C100000` |
-| `spe/api_ns/interface/lib/s_veneers.o` | 必须和板上 `tfm_s` **同一轮** SPE（只换 NS 会 NSC 跑飞） |
-
-`sign_kit` 跟仓库即可：`OVERWRITE_ONLY`，S pad 512 KB，NS pad 1 MB。  
-查 S 版本用 `psa_fwu_query(0)`；写升级包用 `w25q32_*`，不要 `psa_fwu_start/write`。
+覆盖后重新编译。`s_veneers.o` 在 `api_ns` 里，必须和板上那份 `tfm_s` 同一轮 SPE 编出来的。
 
 ### 相对 `master` 改了什么（签名，继承自 `stm32h573p256`）
 
