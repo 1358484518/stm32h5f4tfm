@@ -182,6 +182,12 @@ if(BL2)
             ${COMPILER_CMSE_FLAG}
     )
 
+    # Distinguish this translation unit from platform_s, which also sees -DBL2.
+    target_compile_definitions(platform_bl2
+        PRIVATE
+            TFM_SPI_FLASH_IN_BL2
+    )
+
     # GNU ld and IAR does not deal well with strong functions in static libraries
     # overriding weak functions in object files. For this reason, files with strong
     # functions are linked as an object file. This issue does not affect armclang,

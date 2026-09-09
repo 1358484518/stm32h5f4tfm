@@ -701,9 +701,9 @@ int32_t boot_platform_init(void)
         uint8_t jedec[3] = {0, 0, 0};
 
         (void)w25q32_read_jedec_id(jedec);
-        BOOT_LOG_ERR("Error while initializing SPI Flash Interface (JEDEC %02x:%02x:%02x)",
+        BOOT_LOG_ERR("SPI NOR init failed (JEDEC %02x:%02x:%02x); continue with internal primary",
                      jedec[0], jedec[1], jedec[2]);
-        Error_Handler();
+        /* Primary slots are internal; do not halt BL2 if W25Q32 is missing. */
     }
 #endif /* FLASH_DEV_NAME_2 */
 #if defined(FLASH_DEV_NAME_3) && !defined(FLASH_DEV_NAME_2)

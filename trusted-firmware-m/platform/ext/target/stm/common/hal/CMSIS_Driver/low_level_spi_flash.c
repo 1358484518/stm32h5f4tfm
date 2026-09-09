@@ -27,36 +27,47 @@
 #define W25_JEDEC_TYPE              0x40U
 #define W25_JEDEC_CAP               0x16U
 
-#define SPI_XFER_TIMEOUT            200000U
 #define SPI_WIP_TIMEOUT             2000000U
+#define W25_CMD_RELEASE_DPD         0xABU
+#define W25_CMD_ENABLE_RESET        0x66U
+#define W25_CMD_RESET               0x99U
 
 /*
- * BL2 is Secure: keep SPI1 + pins Secure and use the S alias.
- * Marking them NS here made CS (GPIOB_S write to an NS pin) a no-op, so JEDEC
- * failed and BL2 printed "Error while initializing Flash Interface".
- * SPE later sets SPI1 NS (target_cfg) so NSPE can program the NOR.
+ * Bit-bang SPI (mode 0) on PA5/PA6/PA7 + CS PB2.
+ * STM32H573 SPI1 kernel clock is PLL1Q only; a register-level master xfer
+ * timed out (JEDEC 00:00:00) and stopped BL2. GPIO does not need SPI1.
+ *
+ * Do not key this on BL2 / MCUBOOT: those macros are also defined when SPE
+ * compiles this file into platform_s. TFM_SPI_FLASH_IN_BL2 is PRIVATE on
+ * platform_bl2 only.
  */
-#if defined(BL2)
-#define W25_SPI              SPI1_S
+#if defined(TFM_SPI_FLASH_IN_BL2)
 #define W25_GPIO_SCK         GPIOA_S
 #define W25_GPIO_MISO        GPIOA_S
 #define W25_GPIO_MOSI        GPIOA_S
 #define W25_GPIO_CS          GPIOB_S
 #define W25_MARK_PINS_NS     0
 #elif defined(__ARM_FEATURE_CMSE) && (__ARM_FEATURE_CMSE == 3U)
-#define W25_SPI              SPI1_NS
 #define W25_GPIO_SCK         GPIOA_NS
 #define W25_GPIO_MISO        GPIOA_NS
 #define W25_GPIO_MOSI        GPIOA_NS
 #define W25_GPIO_CS          GPIOB_NS
 #define W25_MARK_PINS_NS     1
 #else
-#define W25_SPI              SPI1
 #define W25_GPIO_SCK         SPI1_FLASH_SCK_PORT
 #define W25_GPIO_MISO        SPI1_FLASH_MISO_PORT
 #define W25_GPIO_MOSI        SPI1_FLASH_MOSI_PORT
 #define W25_GPIO_CS          SPI1_FLASH_CS_PORT
 #define W25_MARK_PINS_NS     0
+#endif
+
+#ifdef TFM_SPI_FLASH_IN_BL2
+#include "bootutil/bootutil_log.h"
+#define SPI_FLASH_LOG_INF(...) BOOT_LOG_INF(__VA_ARGS__)
+#define SPI_FLASH_LOG_ERR(...) BOOT_LOG_ERR(__VA_ARGS__)
+#else
+#define SPI_FLASH_LOG_INF(...)
+#define SPI_FLASH_LOG_ERR(...)
 #endif
 
 static const ARM_DRIVER_VERSION DriverVersion = {
@@ -83,130 +94,132 @@ static ARM_FLASH_INFO SPI_FLASH0_DEV_DATA = {
 static ARM_FLASH_STATUS SPI_FLASH0_STATUS = {0, 0, 0};
 static uint8_t spi_inited;
 
+static void spi_delay(void)
+{
+    volatile uint32_t n = 32U;
+
+    while (n > 0U) {
+        n--;
+    }
+}
+
+static void spi_delay_long(uint32_t loops)
+{
+    while (loops-- != 0U) {
+        spi_delay();
+    }
+}
+
 static void cs_low(void)
 {
-    HAL_GPIO_WritePin(W25_GPIO_CS, SPI1_FLASH_CS_PIN, GPIO_PIN_RESET);
+    W25_GPIO_CS->BSRR = ((uint32_t)SPI1_FLASH_CS_PIN << 16);
+    spi_delay();
 }
 
 static void cs_high(void)
 {
-    HAL_GPIO_WritePin(W25_GPIO_CS, SPI1_FLASH_CS_PIN, GPIO_PIN_SET);
+    W25_GPIO_CS->BSRR = SPI1_FLASH_CS_PIN;
+    spi_delay();
+}
+
+static uint8_t spi_byte(uint8_t out)
+{
+    uint8_t in = 0U;
+    uint32_t bit;
+
+    for (bit = 0U; bit < 8U; bit++) {
+        if ((out & 0x80U) != 0U) {
+            W25_GPIO_MOSI->BSRR = SPI1_FLASH_MOSI_PIN;
+        } else {
+            W25_GPIO_MOSI->BSRR = ((uint32_t)SPI1_FLASH_MOSI_PIN << 16);
+        }
+        out = (uint8_t)(out << 1);
+        spi_delay();
+        W25_GPIO_SCK->BSRR = SPI1_FLASH_SCK_PIN;
+        spi_delay();
+        in = (uint8_t)(in << 1);
+        if ((W25_GPIO_MISO->IDR & SPI1_FLASH_MISO_PIN) != 0U) {
+            in |= 1U;
+        }
+        W25_GPIO_SCK->BSRR = ((uint32_t)SPI1_FLASH_SCK_PIN << 16);
+    }
+
+    return in;
 }
 
 static int spi_hw_init(void)
 {
     GPIO_InitTypeDef gpio = {0};
-    SPI_TypeDef *spi = W25_SPI;
 #if W25_MARK_PINS_NS
-    GPIO_TypeDef *gpio_sck_cfg = GPIOA_S;
-    GPIO_TypeDef *gpio_cs_cfg = GPIOB_S;
+    GPIO_TypeDef *gpio_a_cfg = GPIOA_S;
+    GPIO_TypeDef *gpio_b_cfg = GPIOB_S;
 #else
-    GPIO_TypeDef *gpio_sck_cfg = W25_GPIO_SCK;
-    GPIO_TypeDef *gpio_cs_cfg = W25_GPIO_CS;
+    GPIO_TypeDef *gpio_a_cfg = W25_GPIO_SCK;
+    GPIO_TypeDef *gpio_b_cfg = W25_GPIO_CS;
 #endif
 
     __HAL_RCC_GPIOA_CLK_ENABLE();
     __HAL_RCC_GPIOB_CLK_ENABLE();
-    __HAL_RCC_SPI1_CLK_ENABLE();
-    /* H573 SPI1 kernel clock defaults to PLL1Q (enabled in SetSysClock). */
-    __HAL_RCC_SPI1_CONFIG(RCC_SPI1CLKSOURCE_PLL1Q);
 
-    gpio.Mode = GPIO_MODE_AF_PP;
+#if defined(TFM_SPI_FLASH_IN_BL2)
+    /* Secure writes to an NSEC-attributed pin are ignored on H5. */
+    HAL_GPIO_ConfigPinAttributes(GPIOA_S,
+                                 SPI1_FLASH_SCK_PIN | SPI1_FLASH_MISO_PIN |
+                                 SPI1_FLASH_MOSI_PIN,
+                                 GPIO_PIN_SEC);
+    HAL_GPIO_ConfigPinAttributes(GPIOB_S, SPI1_FLASH_CS_PIN, GPIO_PIN_SEC);
+#endif
+
+    gpio.Mode = GPIO_MODE_OUTPUT_PP;
     gpio.Pull = GPIO_NOPULL;
-    gpio.Speed = GPIO_SPEED_FREQ_HIGH;
-    gpio.Alternate = SPI1_FLASH_SCK_AF;
+    gpio.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+    gpio.Alternate = 0;
     gpio.Pin = SPI1_FLASH_SCK_PIN;
-    HAL_GPIO_Init(gpio_sck_cfg, &gpio);
+    HAL_GPIO_Init(gpio_a_cfg, &gpio);
+    HAL_GPIO_WritePin(gpio_a_cfg, SPI1_FLASH_SCK_PIN, GPIO_PIN_RESET);
 
-    gpio.Alternate = SPI1_FLASH_MISO_AF;
-    gpio.Pin = SPI1_FLASH_MISO_PIN;
-    gpio.Pull = GPIO_PULLUP;
-    HAL_GPIO_Init(gpio_sck_cfg, &gpio);
-
-    gpio.Alternate = SPI1_FLASH_MOSI_AF;
     gpio.Pin = SPI1_FLASH_MOSI_PIN;
-    gpio.Pull = GPIO_NOPULL;
-    HAL_GPIO_Init(gpio_sck_cfg, &gpio);
+    HAL_GPIO_Init(gpio_a_cfg, &gpio);
+    HAL_GPIO_WritePin(gpio_a_cfg, SPI1_FLASH_MOSI_PIN, GPIO_PIN_RESET);
+
+    gpio.Mode = GPIO_MODE_INPUT;
+    gpio.Pull = GPIO_PULLUP;
+    gpio.Pin = SPI1_FLASH_MISO_PIN;
+    HAL_GPIO_Init(gpio_a_cfg, &gpio);
 
     gpio.Mode = GPIO_MODE_OUTPUT_PP;
     gpio.Pull = GPIO_PULLUP;
-    gpio.Speed = GPIO_SPEED_FREQ_HIGH;
-    gpio.Alternate = 0;
     gpio.Pin = SPI1_FLASH_CS_PIN;
-    HAL_GPIO_Init(gpio_cs_cfg, &gpio);
-    /* Drive CS on the same GPIO instance used for Init (S in BL2/SPE). */
-    HAL_GPIO_WritePin(gpio_cs_cfg, SPI1_FLASH_CS_PIN, GPIO_PIN_SET);
+    HAL_GPIO_Init(gpio_b_cfg, &gpio);
+    HAL_GPIO_WritePin(gpio_b_cfg, SPI1_FLASH_CS_PIN, GPIO_PIN_SET);
 
 #if W25_MARK_PINS_NS
-    /* SPE only: NSPE programs NOR. AF was set on the Secure GPIO instance. */
     HAL_GPIO_ConfigPinAttributes(GPIOA_S, SPI1_FLASH_SCK_PIN, GPIO_PIN_NSEC);
     HAL_GPIO_ConfigPinAttributes(GPIOA_S, SPI1_FLASH_MISO_PIN, GPIO_PIN_NSEC);
     HAL_GPIO_ConfigPinAttributes(GPIOA_S, SPI1_FLASH_MOSI_PIN, GPIO_PIN_NSEC);
     HAL_GPIO_ConfigPinAttributes(GPIOB_S, SPI1_FLASH_CS_PIN, GPIO_PIN_NSEC);
-    HAL_GTZC_TZSC_ConfigPeriphAttributes(GTZC_PERIPH_SPI1,
-                                         GTZC_TZSC_PERIPH_NSEC | GTZC_TZSC_PERIPH_NPRIV);
 #endif
-
-    spi->CR1 = 0U;
-    /* 8-bit frames, baud /32, software NSS, keep MOSI idle level */
-    spi->CFG1 = (7U << SPI_CFG1_DSIZE_Pos) | SPI_CFG1_MBR_2;
-    spi->CFG2 = SPI_CFG2_MASTER | SPI_CFG2_SSM | SPI_CFG2_AFCNTR;
-    spi->CR1 = SPI_CR1_SSI;
-    spi->IFCR = 0xFFFFFFFFU;
 
     return 0;
 }
 
 static int spi_xfer(const uint8_t *tx, uint8_t *rx, uint32_t len)
 {
-    SPI_TypeDef *spi = W25_SPI;
     uint32_t i;
-    uint32_t timeout;
 
-    if ((len == 0U) || (len > 0xFFFFU)) {
+    if (len == 0U) {
         return -1;
     }
 
-    spi->CR1 &= ~SPI_CR1_SPE;
-    spi->CR2 = len;
-    spi->IFCR = 0xFFFFFFFFU;
-    spi->CR1 |= SPI_CR1_SPE;
-    spi->CR1 |= SPI_CR1_CSTART;
-
     for (i = 0U; i < len; i++) {
-        timeout = SPI_XFER_TIMEOUT;
-        while (((spi->SR & SPI_SR_TXP) == 0U) && (timeout != 0U)) {
-            timeout--;
-        }
-        if (timeout == 0U) {
-            spi->CR1 &= ~SPI_CR1_SPE;
-            return -1;
-        }
-        *((volatile uint8_t *)&spi->TXDR) = (tx != NULL) ? tx[i] : 0xFFU;
+        uint8_t b = spi_byte((tx != NULL) ? tx[i] : 0xFFU);
 
-        timeout = SPI_XFER_TIMEOUT;
-        while (((spi->SR & SPI_SR_RXP) == 0U) && (timeout != 0U)) {
-            timeout--;
-        }
-        if (timeout == 0U) {
-            spi->CR1 &= ~SPI_CR1_SPE;
-            return -1;
-        }
-        {
-            uint8_t b = *((volatile uint8_t *)&spi->RXDR);
-            if (rx != NULL) {
-                rx[i] = b;
-            }
+        if (rx != NULL) {
+            rx[i] = b;
         }
     }
 
-    timeout = SPI_XFER_TIMEOUT;
-    while (((spi->SR & SPI_SR_EOT) == 0U) && (timeout != 0U)) {
-        timeout--;
-    }
-    spi->IFCR = SPI_IFCR_EOTC | SPI_IFCR_TXTFC;
-    spi->CR1 &= ~SPI_CR1_SPE;
-    return (timeout == 0U) ? -1 : 0;
+    return 0;
 }
 
 static int w25_cmd(const uint8_t *cmd, uint32_t cmd_len,
@@ -268,6 +281,27 @@ static int w25_write_enable(void)
     uint8_t cmd = W25_CMD_WRITE_ENABLE;
 
     return w25_cmd(&cmd, 1U, NULL, 0U, NULL, 0U);
+}
+
+static void w25_wakeup_reset(void)
+{
+    uint8_t cmd;
+    uint32_t i;
+
+    /* Idle clocks with CS high in case the NOR was left mid-command. */
+    for (i = 0U; i < 16U; i++) {
+        (void)spi_byte(0xFFU);
+    }
+
+    cmd = W25_CMD_RELEASE_DPD;
+    (void)w25_cmd(&cmd, 1U, NULL, 0U, NULL, 0U);
+    spi_delay_long(200U);
+
+    cmd = W25_CMD_ENABLE_RESET;
+    (void)w25_cmd(&cmd, 1U, NULL, 0U, NULL, 0U);
+    cmd = W25_CMD_RESET;
+    (void)w25_cmd(&cmd, 1U, NULL, 0U, NULL, 0U);
+    spi_delay_long(800U);
 }
 
 static int w25_stream_read(uint32_t addr, uint8_t *data, uint32_t len)
@@ -377,18 +411,25 @@ static int32_t Flash_Initialize(ARM_Flash_SignalEvent_t cb_event)
         return ARM_DRIVER_ERROR;
     }
 
+    w25_wakeup_reset();
+
     if (w25q32_read_jedec_id(id) != 0) {
         SPI_FLASH0_STATUS.error = 1;
+        SPI_FLASH_LOG_ERR("W25Q32 JEDEC read failed");
         return ARM_DRIVER_ERROR;
     }
 
     if ((id[0] != W25_JEDEC_MANU) || (id[1] != W25_JEDEC_TYPE) ||
         (id[2] != W25_JEDEC_CAP)) {
         SPI_FLASH0_STATUS.error = 1;
+        SPI_FLASH_LOG_ERR("W25Q32 JEDEC %02x:%02x:%02x (expected ef:40:16)",
+                          id[0], id[1], id[2]);
         return ARM_DRIVER_ERROR;
     }
 
     spi_inited = 1U;
+    SPI_FLASH_LOG_INF("SPI Flash Interface initialized (W25Q32 JEDEC %02x:%02x:%02x)",
+                      id[0], id[1], id[2]);
     return ARM_DRIVER_OK;
 }
 
