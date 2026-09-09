@@ -179,6 +179,7 @@ $(OUT)/tfm_ns_signed.bin: $(OUT)/tfm_ns.bin $(OUT)/tfm_ns.hex
 		-s 1 \
 		-L 128 \
 		-d "(0, 0.0.0+0)" \
+		--overwrite-only \
 		--measured-boot-record \
 		$(OUT)/tfm_ns.bin \
 		$(OUT)/tfm_ns_signed.bin
