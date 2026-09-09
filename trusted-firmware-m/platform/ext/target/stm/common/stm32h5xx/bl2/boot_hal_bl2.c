@@ -52,6 +52,7 @@
 #include "region_defs.h"
 #ifdef EXTERNAL_FLASH
 #include "flash_map/flash_map.h"
+#include "low_level_spi_flash.h"
 #endif
 #include "low_level_rng.h"
 #ifdef MCUBOOT_EXT_LOADER
@@ -697,17 +698,21 @@ int32_t boot_platform_init(void)
 #ifdef FLASH_DEV_NAME_2
     if (FLASH_DEV_NAME_2.Initialize(NULL) != ARM_DRIVER_OK)
     {
-        BOOT_LOG_ERR("Error while initializing Flash Interface");
+        uint8_t jedec[3] = {0, 0, 0};
+
+        (void)w25q32_read_jedec_id(jedec);
+        BOOT_LOG_ERR("Error while initializing SPI Flash Interface (JEDEC %02x:%02x:%02x)",
+                     jedec[0], jedec[1], jedec[2]);
         Error_Handler();
     }
 #endif /* FLASH_DEV_NAME_2 */
-#ifdef FLASH_DEV_NAME_3
+#if defined(FLASH_DEV_NAME_3) && !defined(FLASH_DEV_NAME_2)
     if (FLASH_DEV_NAME_3.Initialize(NULL) != ARM_DRIVER_OK)
     {
-        BOOT_LOG_ERR("Error while initializing Flash Interface");
+        BOOT_LOG_ERR("Error while initializing SPI Flash Interface");
         Error_Handler();
     }
-#endif /* FLASH_DEV_NAME_3 */
+#endif /* FLASH_DEV_NAME_3 && !FLASH_DEV_NAME_2 */
 #ifdef FLASH_DEV_NAME_SCRATCH
     if (FLASH_DEV_NAME_SCRATCH.Initialize(NULL) != ARM_DRIVER_OK)
     {
