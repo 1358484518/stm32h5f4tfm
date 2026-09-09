@@ -17,17 +17,13 @@ rem  *   tfm_update.bat <ST-LINK SN>
 rem  *
 rem  * SPDX-License-Identifier: BSD-3-Clause
 rem  ****************************************************************************
-setlocal EnableExtensions
+setlocal EnableExtensions EnableDelayedExpansion
 
 set "EXIT_CODE=0"
 set "FAILED_STEP="
 set "FLASHED=0"
-set "sn_option="
 set "SN_ARG="
-if not "%~1"=="" (
-    set "sn_option=sn=%~1"
-    set "SN_ARG=%~1"
-)
+if not "%~1"=="" set "SN_ARG=%~1"
 
 rem H573 flash map (secure alias 0x0C00_0000)
 set "ADDR_BL2=0x0C00E000"
@@ -86,45 +82,21 @@ if errorlevel 1 (
 echo [ok]   STM32_Programmer_CLI ready
 echo.
 
-set "connect=-c port=SWD ap=1 %sn_option% mode=UR"
+rem Keep Under Reset for connect+download (same as previous tfm_update.bat).
+set "CONNECT_UR=-c port=SWD ap=1 mode=UR"
+set "CONNECT_HP=-c port=SWD ap=1 mode=UR"
+if defined SN_ARG (
+    set "CONNECT_UR=-c port=SWD ap=1 sn=%SN_ARG% mode=UR"
+    set "CONNECT_HP=-c port=SWD ap=1 sn=%SN_ARG% mode=UR"
+)
 
 echo [3] Scan images in current directory
 set "FOUND_ANY=0"
-call :find_file bl2.hex
-if not errorlevel 1 (
-    echo        FOUND  bl2.hex                 -^> BL2  %ADDR_BL2%  ^(hex uses file addresses^)
-    set "FOUND_ANY=1"
-) else (
-    echo        skip   bl2.hex                 not found
-)
-call :find_file tfm_s_signed.hex
-if not errorlevel 1 (
-    echo        FOUND  tfm_s_signed.hex        -^> S    %ADDR_S%    ^(hex uses file addresses^)
-    set "FOUND_ANY=1"
-) else (
-    echo        skip   tfm_s_signed.hex        not found
-)
-call :find_file tfm_s_signed.bin
-if not errorlevel 1 (
-    echo        FOUND  tfm_s_signed.bin        -^> S    %ADDR_S%
-    set "FOUND_ANY=1"
-) else (
-    echo        skip   tfm_s_signed.bin        not found
-)
-call :find_file tfm_ns_signed.bin
-if not errorlevel 1 (
-    echo        FOUND  tfm_ns_signed.bin       -^> NS   %ADDR_NS%
-    set "FOUND_ANY=1"
-) else (
-    echo        skip   tfm_ns_signed.bin       not found
-)
-call :find_file tfm_s_ns_signed.hex
-if not errorlevel 1 (
-    echo        FOUND  tfm_s_ns_signed.hex     -^> fallback S+NS, NS offset is wrong
-    set "FOUND_ANY=1"
-) else (
-    echo        skip   tfm_s_ns_signed.hex     not found
-)
+call :note_file bl2.hex            "BL2  %ADDR_BL2%  (hex uses file addresses)"
+call :note_file tfm_s_signed.hex   "S    %ADDR_S%    (hex uses file addresses)"
+call :note_file tfm_s_signed.bin   "S    %ADDR_S%"
+call :note_file tfm_ns_signed.bin  "NS   %ADDR_NS%"
+call :note_file tfm_s_ns_signed.hex "fallback S+NS, NS offset is wrong"
 echo.
 
 if "%FOUND_ANY%"=="0" (
@@ -140,55 +112,67 @@ echo [4] Download images that exist
 echo.
 
 call :find_file tfm_s_signed.hex
-if not errorlevel 1 (
-    call :flash_hex tfm_s_signed.hex "%FILE%" "S signed"
-    if errorlevel 1 goto :finish
-    goto :after_s
-)
-call :find_file tfm_s_signed.bin
-if not errorlevel 1 (
-    call :flash_bin tfm_s_signed.bin "%FILE%" %ADDR_S% "S signed"
-    if errorlevel 1 goto :finish
-    goto :after_s
-)
-call :find_file tfm_s_ns_signed.hex
-if not errorlevel 1 (
-    echo [warn] tfm_s_ns_signed.hex has no Bank1 gap; NS in this file is not at %ADDR_NS%
-    call :flash_hex tfm_s_ns_signed.hex "%FILE%" "S+NS signed (fallback)"
-    if errorlevel 1 goto :finish
-)
-:after_s
+if errorlevel 1 goto :s_bin
+call :flash_hex "!FILE!" S-signed
+if errorlevel 1 goto :finish
+goto :after_s
 
+:s_bin
+call :find_file tfm_s_signed.bin
+if errorlevel 1 goto :s_fallback
+call :flash_bin "!FILE!" %ADDR_S% S-signed
+if errorlevel 1 goto :finish
+goto :after_s
+
+:s_fallback
+call :find_file tfm_s_ns_signed.hex
+if errorlevel 1 goto :after_s
+echo [warn] tfm_s_ns_signed.hex has no Bank1 gap; NS in this file is not at %ADDR_NS%
+call :flash_hex "!FILE!" S-NS-signed-fallback
+if errorlevel 1 goto :finish
+
+:after_s
 call :find_file tfm_ns_signed.bin
-if not errorlevel 1 (
-    call :flash_bin tfm_ns_signed.bin "%FILE%" %ADDR_NS% "NS signed"
-    if errorlevel 1 goto :finish
-)
+if errorlevel 1 goto :after_ns
+call :flash_bin "!FILE!" %ADDR_NS% NS-signed
+if errorlevel 1 goto :finish
+:after_ns
 
 call :find_file bl2.hex
-if not errorlevel 1 (
-    call :flash_hex bl2.hex "%FILE%" "BL2"
-    if errorlevel 1 goto :finish
-)
+if errorlevel 1 goto :after_bl2
+call :flash_hex "!FILE!" BL2
+if errorlevel 1 goto :finish
+:after_bl2
 
 echo [5] Reset MCU
 echo ------------------------------------------------------------
-echo CMD: STM32_Programmer_CLI %connect% -hardRst
+echo CMD: STM32_Programmer_CLI %CONNECT_UR% -hardRst
 echo ------------------------------------------------------------
-STM32_Programmer_CLI %connect% -hardRst
-if errorlevel 1 (
-    echo [FAIL] reset failed
-    set "FAILED_STEP=hardRst"
-    set "EXIT_CODE=1"
-    goto :finish
-)
+STM32_Programmer_CLI %CONNECT_UR% -hardRst
+if errorlevel 1 goto :rst_fail
 echo [ok]   reset done
 echo.
 
 echo ============================================================
-echo  ALL STEPS OK  ^(%FLASHED% file(s) downloaded^)
+echo  ALL STEPS OK  ^(%FLASHED% file^(s^) downloaded^)
 echo ============================================================
 goto :finish
+
+:rst_fail
+echo [FAIL] reset failed
+set "FAILED_STEP=hardRst"
+set "EXIT_CODE=1"
+goto :finish
+
+:note_file
+call :find_file %~1
+if errorlevel 1 (
+    echo        skip   %~1
+    exit /b 0
+)
+echo        FOUND  %~1                 -^> %~2
+set "FOUND_ANY=1"
+exit /b 0
 
 :find_file
 set "FILE="
@@ -202,17 +186,35 @@ if exist "%~dp0%~1" (
 )
 exit /b 1
 
+rem CubeProgrammer on Windows treats -d "file.bin" as extension .bin" (invalid).
+rem cd into the folder and pass only the filename, unquoted.
 :flash_hex
-set "STEP_NAME=%~1"
-set "STEP_PATH=%~2"
-set "STEP_DESC=%~3"
+set "STEP_PATH=%~1"
+set "STEP_DESC=%~2"
+set "STEP_NAME=%~nx1"
+if not exist "%STEP_PATH%" (
+    echo [FAIL] missing %STEP_PATH%
+    set "FAILED_STEP=missing %STEP_NAME%"
+    set "EXIT_CODE=1"
+    exit /b 1
+)
 echo ------------------------------------------------------------
 echo DOWNLOAD  %STEP_DESC%  [%STEP_NAME%]
 echo FILE: %STEP_PATH%
-echo CMD:  STM32_Programmer_CLI %connect% -d "%STEP_PATH%" -v
+echo CMD:  STM32_Programmer_CLI %CONNECT_HP% -d %STEP_NAME% -v
+echo        cwd %~dp1
 echo ------------------------------------------------------------
-STM32_Programmer_CLI %connect% -d "%STEP_PATH%" -v
+pushd "%~dp1"
 if errorlevel 1 (
+    echo [FAIL] cannot cd to %~dp1
+    set "FAILED_STEP=cd %STEP_NAME%"
+    set "EXIT_CODE=1"
+    exit /b 1
+)
+STM32_Programmer_CLI %CONNECT_HP% -d %STEP_NAME% -v
+set "DLRC=!ERRORLEVEL!"
+popd
+if not "!DLRC!"=="0" (
     echo [FAIL] download %STEP_NAME%
     set "FAILED_STEP=download %STEP_NAME%"
     set "EXIT_CODE=1"
@@ -224,18 +226,34 @@ set /a FLASHED+=1
 exit /b 0
 
 :flash_bin
-set "STEP_NAME=%~1"
-set "STEP_PATH=%~2"
-set "STEP_ADDR=%~3"
-set "STEP_DESC=%~4"
+set "STEP_PATH=%~1"
+set "STEP_ADDR=%~2"
+set "STEP_DESC=%~3"
+set "STEP_NAME=%~nx1"
+if not exist "%STEP_PATH%" (
+    echo [FAIL] missing %STEP_PATH%
+    set "FAILED_STEP=missing %STEP_NAME%"
+    set "EXIT_CODE=1"
+    exit /b 1
+)
 echo ------------------------------------------------------------
 echo DOWNLOAD  %STEP_DESC%  [%STEP_NAME%]
 echo FILE: %STEP_PATH%
 echo ADDR: %STEP_ADDR%
-echo CMD:  STM32_Programmer_CLI %connect% -d "%STEP_PATH%" %STEP_ADDR% -v
+echo CMD:  STM32_Programmer_CLI %CONNECT_HP% -d %STEP_NAME% %STEP_ADDR% -v
+echo        cwd %~dp1
 echo ------------------------------------------------------------
-STM32_Programmer_CLI %connect% -d "%STEP_PATH%" %STEP_ADDR% -v
+pushd "%~dp1"
 if errorlevel 1 (
+    echo [FAIL] cannot cd to %~dp1
+    set "FAILED_STEP=cd %STEP_NAME%"
+    set "EXIT_CODE=1"
+    exit /b 1
+)
+STM32_Programmer_CLI %CONNECT_HP% -d %STEP_NAME% %STEP_ADDR% -v
+set "DLRC=!ERRORLEVEL!"
+popd
+if not "!DLRC!"=="0" (
     echo [FAIL] download %STEP_NAME%
     set "FAILED_STEP=download %STEP_NAME%"
     set "EXIT_CODE=1"

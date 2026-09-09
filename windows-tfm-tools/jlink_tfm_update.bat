@@ -140,47 +140,46 @@ echo [4] Download
 echo.
 
 call :find_file tfm_s_signed.bin
-if not errorlevel 1 (
-    call :flash_bin tfm_s_signed.bin "%FILE%" %ADDR_S% "S signed"
-    if errorlevel 1 goto :finish
-    goto :after_s
-)
+if errorlevel 1 goto :j_s_ns_bin
+call :flash_bin "!FILE!" %ADDR_S% S-signed
+if errorlevel 1 goto :finish
+goto :after_s
 
+:j_s_ns_bin
 call :find_file tfm_s_ns_signed.bin
-if not errorlevel 1 (
-    echo [warn] tfm_s_ns_signed.bin has no Bank1 gap; still flash tfm_ns_signed.bin if present
-    call :flash_bin tfm_s_ns_signed.bin "%FILE%" %ADDR_S% "S+NS signed (fallback)"
-    if errorlevel 1 goto :finish
-    goto :after_s
-)
+if errorlevel 1 goto :j_s_ns_hex
+echo [warn] tfm_s_ns_signed.bin has no Bank1 gap; still flash tfm_ns_signed.bin if present
+call :flash_bin "!FILE!" %ADDR_S% S-NS-signed-fallback
+if errorlevel 1 goto :finish
+goto :after_s
 
+:j_s_ns_hex
 call :find_file tfm_s_ns_signed.hex
-if not errorlevel 1 (
-    echo [warn] tfm_s_ns_signed.hex has no Bank1 gap; still flash tfm_ns_signed.bin if present
-    call :flash_hex tfm_s_ns_signed.hex "%FILE%" "S+NS signed (fallback)"
-    if errorlevel 1 goto :finish
-    goto :after_s
-)
+if errorlevel 1 goto :j_no_s
+echo [warn] tfm_s_ns_signed.hex has no Bank1 gap; still flash tfm_ns_signed.bin if present
+call :flash_hex "!FILE!" S-NS-signed-fallback
+if errorlevel 1 goto :finish
+goto :after_s
+:j_no_s
 echo [info] no S / S+NS image
 :after_s
 
 call :find_file tfm_ns_signed.bin
-if not errorlevel 1 (
-    call :flash_bin tfm_ns_signed.bin "%FILE%" %ADDR_NS% "NS signed"
-    if errorlevel 1 goto :finish
-)
+if errorlevel 1 goto :j_after_ns
+call :flash_bin "!FILE!" %ADDR_NS% NS-signed
+if errorlevel 1 goto :finish
+:j_after_ns
 
 call :find_file bl2.bin
-if not errorlevel 1 (
-    call :flash_bin bl2.bin "%FILE%" %ADDR_BL2% "BL2"
-    if errorlevel 1 goto :finish
-    goto :after_bl2
-)
+if errorlevel 1 goto :j_bl2_hex
+call :flash_bin "!FILE!" %ADDR_BL2% BL2
+if errorlevel 1 goto :finish
+goto :after_bl2
+:j_bl2_hex
 call :find_file bl2.hex
-if not errorlevel 1 (
-    call :flash_hex bl2.hex "%FILE%" "BL2"
-    if errorlevel 1 goto :finish
-)
+if errorlevel 1 goto :after_bl2
+call :flash_hex "!FILE!" BL2
+if errorlevel 1 goto :finish
 :after_bl2
 
 if "%FLASHED%"=="0" (
@@ -298,35 +297,53 @@ if not errorlevel 1 (
 exit /b 0
 
 :flash_hex
-set "STEP_NAME=%~1"
-set "STEP_PATH=%~2"
-set "STEP_DESC=%~3"
+set "STEP_PATH=%~1"
+set "STEP_DESC=%~2"
+set "STEP_NAME=%~nx1"
 call :remap_hex "%STEP_NAME%" "%STEP_PATH%"
 if errorlevel 1 exit /b 1
+for %%I in ("%HEX_BIN%") do set "HEX_NAME=%%~nxI"
 echo ------------------------------------------------------------
 echo DOWNLOAD  %STEP_DESC%  [%STEP_NAME%]
 echo FILE: %HEX_BIN%
 echo ADDR: %HEX_LOAD%   ^(must be 0x08..., never 0x0C...^)
-echo CMD:  STM32_Programmer_CLI %connect% -d "%HEX_BIN%" %HEX_LOAD%
+echo CMD:  STM32_Programmer_CLI %connect% -d !HEX_NAME! %HEX_LOAD%
 echo ------------------------------------------------------------
-STM32_Programmer_CLI %connect% -d "%HEX_BIN%" %HEX_LOAD% > "%TEMP%\tfm_jlink_dl.txt" 2>&1
-set "DLRC=%ERRORLEVEL%"
+pushd "%TEMP%"
+STM32_Programmer_CLI %connect% -d !HEX_NAME! %HEX_LOAD% > "%TEMP%\tfm_jlink_dl.txt" 2>&1
+set "DLRC=!ERRORLEVEL!"
+popd
 call :check_download
 exit /b %ERRORLEVEL%
 
 :flash_bin
-set "STEP_NAME=%~1"
-set "STEP_PATH=%~2"
-set "STEP_ADDR=%~3"
-set "STEP_DESC=%~4"
+set "STEP_PATH=%~1"
+set "STEP_ADDR=%~2"
+set "STEP_DESC=%~3"
+set "STEP_NAME=%~nx1"
+if not exist "%STEP_PATH%" (
+    echo [FAIL] missing %STEP_PATH%
+    set "FAILED_STEP=missing %STEP_NAME%"
+    set "EXIT_CODE=1"
+    exit /b 1
+)
 echo ------------------------------------------------------------
 echo DOWNLOAD  %STEP_DESC%  [%STEP_NAME%]
 echo FILE: %STEP_PATH%
 echo ADDR: %STEP_ADDR%
-echo CMD:  STM32_Programmer_CLI %connect% -d "%STEP_PATH%" %STEP_ADDR%
+echo CMD:  STM32_Programmer_CLI %connect% -d %STEP_NAME% %STEP_ADDR%
+echo        cwd %~dp1
 echo ------------------------------------------------------------
-STM32_Programmer_CLI %connect% -d "%STEP_PATH%" %STEP_ADDR% > "%TEMP%\tfm_jlink_dl.txt" 2>&1
-set "DLRC=%ERRORLEVEL%"
+pushd "%~dp1"
+if errorlevel 1 (
+    echo [FAIL] cannot cd to %~dp1
+    set "FAILED_STEP=cd %STEP_NAME%"
+    set "EXIT_CODE=1"
+    exit /b 1
+)
+STM32_Programmer_CLI %connect% -d %STEP_NAME% %STEP_ADDR% > "%TEMP%\tfm_jlink_dl.txt" 2>&1
+set "DLRC=!ERRORLEVEL!"
+popd
 call :check_download
 exit /b %ERRORLEVEL%
 
