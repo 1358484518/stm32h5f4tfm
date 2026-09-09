@@ -42,8 +42,10 @@ TrustZone 片上 Flash 的 S/NS 分界用 **FLASH SECWM**（H5 没有 GTZC-MPCWM
 
 1. NS 用 `w25q32_init` / `erase_4k` / `write` 把已签名的 `tfm_s_signed.bin`、`tfm_ns_signed.bin` 写到 W25Q32 `0x100000` / `0x180000`（先擦后写）。
 2. 调用 `psa_fwu_request_reboot()` 或复位。BL2 **只读** NOR（不擦、不写外部 Flash）。
-3. 签名正确 **且** 映像哈希与当前内部主槽不同 → BL2 覆盖内部执行槽。
-4. 签名错误，或哈希与当前运行映像相同 → 不升级，继续从内部主槽启动。
+3. 签名正确、**版本不低于**当前内部主槽（`major.minor.revision`，不含 build），且哈希不同 → BL2 覆盖内部执行槽。
+4. 签名错误、版本更低、或哈希与当前运行映像相同 → 不升级，继续从内部主槽启动。
+
+签名时请抬版本（NS 默认 `0.0.0`，一直不改则版本相等，哈希不同仍会覆盖）。security counter 也不能比片上的小。
 
 **PSA 查询 S 固件版本保留。** NS 用 `psa_fwu_query(FWU_COMPONENT_ID_SECURE)`（component `0`）读当前运行的 S 版本（BL2 写入共享区，不是去读 NOR）。NS 版本用 component `1`。`psa_fwu_start` / `write` / `install` 返回 `PSA_ERROR_NOT_SUPPORTED`。CubeProgrammer / `./flash_stm32h573.sh` 仍只烧内部 primary（BL2/S/NS）。
 

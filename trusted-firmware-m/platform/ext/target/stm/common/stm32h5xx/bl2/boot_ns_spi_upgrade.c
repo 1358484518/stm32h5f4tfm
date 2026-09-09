@@ -4,7 +4,8 @@
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * NS writes signed images to W25Q32. BL2 only reads NOR. Upgrade when the
- * secondary signature is valid and the image hash differs from primary.
+ * secondary signature is valid, version is not lower than primary, and the
+ * image hash differs from primary.
  */
 
 #include <string.h>

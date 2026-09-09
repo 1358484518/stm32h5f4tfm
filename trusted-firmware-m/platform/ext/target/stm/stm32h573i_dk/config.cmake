@@ -32,6 +32,8 @@ set(MCUBOOT_FIH_PROFILE                    LOW         CACHE STRING    "Fault in
 set(TFM_SPM_LOG_LEVEL             LOG_LEVEL_INFO       CACHE STRING    "Set default SPM log level as INFO level")
 set(TFM_PARTITION_LOG_LEVEL       LOG_LEVEL_INFO       CACHE STRING    "Set default Secure Partition log level as INFO level")
 set(MCUBOOT_HW_ROLLBACK_PROT            ON          CACHE BOOL      "Enable security counter validation against non-volatile HW counters")
+# Overwrite-only: secondary version must be >= primary (major.minor.revision).
+set(MCUBOOT_DOWNGRADE_PREVENTION        ON          CACHE BOOL      "Reject secondary images whose version is lower than the primary")
 ################################## Platform-specific configurations ####################################
 set(CONFIG_TFM_USE_TRUSTZONE               ON           CACHE BOOL      "Use TrustZone")
 set(TFM_PARTITION_PROTECTED_STORAGE        ON           CACHE BOOL      "Disable Protected Storage partition")

@@ -36,6 +36,7 @@ set_property(CACHE MCUBOOT_UPGRADE_STRATEGY PROPERTY STRINGS "OVERWRITE_ONLY;SWA
 set_property(CACHE MCUBOOT_ALIGN_VAL PROPERTY STRINGS "1;2;4;8;16;32")
 
 set(MCUBOOT_HW_ROLLBACK_PROT            ON          CACHE BOOL      "Enable security counter validation against non-volatile HW counters")
+set(MCUBOOT_DOWNGRADE_PREVENTION        OFF         CACHE BOOL      "Reject secondary images whose version is lower than the primary")
 set(MCUBOOT_ENC_IMAGES                  OFF         CACHE BOOL      "Enable encrypted image upgrade support")
 set(MCUBOOT_BOOTSTRAP                   OFF         CACHE BOOL      "Support initial state with empty primary slot and images installed from secondary slots")
 set(MCUBOOT_ENCRYPT_RSA                 OFF         CACHE BOOL      "Use RSA for encrypted image upgrade support")
