@@ -1,189 +1,222 @@
-使用环境 ubuntu22.04
+本仓库编译笔记（分支 stm32H573P256-SPIFLASH）
+平台：STM32H573 + TrustZone + MCUboot（MCUBOOT_IMAGE_NUMBER=2，签名 EC-P256）
+推荐环境：Ubuntu 22.04，ARM GNU Toolchain 14.3.1
+
+本仓库已经包含 trusted-firmware-m 与 tf-m-tests，不要再从 git.trustedfirmware.org 另克隆一份当主工程。
+仓库根目录其它工程各自也有一份 编译笔记.txt：
+	trusted-firmware-m/编译笔记.txt
+	tf-m-tests/编译笔记.txt
+	tfmmakeproject/编译笔记.txt
+	tfmcubeideproject/编译笔记.txt
+
+内部 Flash 2 MB（Bank1 0x00000–0xFFFFF，Bank2 0x100000–0x1FFFFF），页 8 KB。
+升级策略 OVERWRITE_ONLY。下载槽在 SPI1 外接 W25Q32（4 MB，非 XIP），引脚 SCK=PA5 MISO=PA6 MOSI=PA7 CS=PB2。
+
+	内容		位置
+	S 执行		内部 Bank1 0x0C038000，512 KB
+	NS 执行		内部 Bank2 0x0C100000 / 0x08100000，1 MB
+	Bank1 空隙	0x0C0B8000–0x0C0FFFFF（288 KB，SECWM1 保持 Secure）
+	S 下载		W25Q32 命令偏移 0x100000，512 KB（不是片上 Bank2）
+	NS 下载		W25Q32 命令偏移 0x180000，1 MB
+
+FLASH_AREA_END_OFFSET 停在内部 NS 主槽末尾 0x200000，不是 SPI 偏移。
+SPI 0x100000 ≠ CPU NS 执行地址 0x0C100000。
+拼接的 tfm_s_ns_signed 没有 Bank1 空隙，NS 会落到错误偏移，不要当完整镜像一次烧。
+
 1.安装依赖
 	sudo apt-get update
 	sudo apt-get install -y git curl wget cmake ninja-build build-essential \
-		libssl-dev python3 python3-venv python3-pip
+		libssl-dev python3 python3-venv python3-pip rsync
 
-2. 安装官方 ARM GNU 工具链 使用版本14.3.1
+2.安装官方 ARM GNU 工具链 使用版本 14.3.1
 	下载地址：
 	https://developer.arm.com/downloads/-/arm-gnu-toolchain-downloads
+	包名示例：arm-gnu-toolchain-14.3.rel1-x86_64-arm-none-eabi.tar.xz
 
-3.安装编译器设定编译器路径
-	export PATH=/home/lubancat/test/tfm/arm-gnu-toolchain-14.3.rel1-x86_64-arm-none-eabi/bin:$PATH
-	
-4.下载tfm固件
-	git clone https://git.trustedfirmware.org/TF-M/trusted-firmware-m.git
-	cd trusted-firmware-m/
-	git fetch --tags
-	git checkout TF-Mv2.3.0
-	git describe --tags
-	
-5.下载tfm-test固件
-	cd ..
-	git clone https://git.trustedfirmware.org/TF-M/tf-m-tests.git
-	cd tf-m-tests/
-	git fetch --tags
-	git checkout TF-Mv2.3.0
-	git describe --tags
-	cd ..
+3.设定编译器路径（按本机安装位置改）
+	export PATH=/opt/arm-gnu-toolchain-14.3.rel1-x86_64-arm-none-eabi/bin:$PATH
+	arm-none-eabi-gcc -dumpversion
+	应看到 14.3.1
 
-6. 安装 Python 依赖
+4.进入本仓库根目录（含 buildtfm.sh、trusted-firmware-m、tf-m-tests）
+	git checkout stm32H573P256-SPIFLASH
+
+5.安装 Python 依赖
+	不需要在 trusted-firmware-m 里单独建 .venv。
+	./buildtfm.sh 会在仓库根目录创建 .venv，并 pip install -e trusted-firmware-m。
+	编译失败时可删根目录 .venv 后重来。
+
+6.一键编译（推荐）
+	./buildtfm.sh test
+		测试版：TEST_S + TEST_NS，INFO 日志
+	./buildtfm.sh prod
+		正式版：SPE 不带 S 测试分区，NS 测试程序仍可烧可跑，ERROR 日志
+	增量：
+	./buildtfm.sh test --no-clean
+
+	默认会先跑 scripts/clean_tfm_build.sh：只清编译产物，依赖缓存在
+	trusted-firmware-m/.deps-cache/，不要手动 rm -rf trusted-firmware-m/build_s。
+
+	密钥：根目录 keys/ 放四份固定文件名 pem，编译时覆盖全库并同步 OTP ROTPK。
+	版本：根目录 versions/config，编译时写入签名镜像并同步各 sign_kit/config。
+
+	产物：
+	trusted-firmware-m/build_s/bin/          # S + BL2
+		bl2.hex / bl2.bin
+		tfm_s_signed.hex / tfm_s_signed.bin     # 512 KB
+	trusted-firmware-m/build_s/api_ns/       # NS 开发接口（CubeIDE / makefile 要整份覆盖）
+		interface/include/                      # PSA 头文件
+		interface/lib/s_veneers.o               # 必须与板上 tfm_s 同一轮 SPE
+		platform/linker_scripts/
+		image_signing/                          # NS 签名密钥与 layout
+		bin/                                    # 烧录用 bl2 / tfm_s_signed
+	trusted-firmware-m/build_ns/bin/         # NS 测试镜像
+		tfm_ns_signed.hex / tfm_ns_signed.bin   # 1 MB
+
+7.手工 cmake（仅学习用；日常请用 ./buildtfm.sh）
+	注意：保持在 trusted-firmware-m 目录，并先 source 仓库根目录 .venv。
+
+	7.1 编 SPE
 	cd trusted-firmware-m
-	python3 -m venv .venv
-	source .venv/bin/activate
-	pip install --upgrade pip setuptools wheel	
-	pip install -e .
-	
-	source .venv/bin/activate
-	
-	rm -rf build_s
-	
+	source ../.venv/bin/activate
 	cmake -S ../tf-m-tests/tests_reg/spe \
-	-B build_s \
-	-GNinja \
-	-DTFM_PLATFORM=stm/stm32h573i_dk \
-	-DTFM_TOOLCHAIN_FILE=$PWD/toolchain_GNUARM.cmake \
-	-DCONFIG_TFM_SOURCE_PATH=$PWD \
-	-DTFM_PSA_API=ON \
-	-DTFM_ISOLATION_LEVEL=1 \
-	-DTEST_S=ON \
-	-DTEST_NS=ON
-
-	git config --global user.email "1358484518@qq.com"
-	git config --global user.name "klp"
-		
+		-B build_s \
+		-GNinja \
+		-DTFM_PLATFORM=stm/stm32h573i_dk \
+		-DTFM_TOOLCHAIN_FILE=$PWD/toolchain_GNUARM.cmake \
+		-DCONFIG_TFM_SOURCE_PATH=$PWD \
+		-DTFM_PSA_API=ON \
+		-DTFM_ISOLATION_LEVEL=1 \
+		-DCONFIG_TFM_ENABLE_FP=ON \
+		-DCONFIG_TFM_FP_ARCH=fpv5-sp-d16 \
+		-DCONFIG_TFM_FLOAT_ABI=hard \
+		-DTEST_S=ON \
+		-DTEST_NS=ON
 	ninja -C build_s install -j$(nproc)
 
-7.非安全侧编译
-	注意：保持命令行窗口在 trusted-firmware-m 目录
-	
-7.1	清理旧构建（可选）
-	rm -rf build_ns
-	
-7.2 配置
+	7.2 编 NS
 	cmake -S ../tf-m-tests/tests_reg \
-	-B build_ns \
-	-GNinja \
-	-DCONFIG_SPE_PATH=$PWD/build_s/api_ns \
-	-DTFM_TOOLCHAIN_FILE=$PWD/build_s/api_ns/cmake/toolchain_ns_GNUARM.cmake
-	
-7.3 编译
+		-B build_ns \
+		-GNinja \
+		-DCONFIG_SPE_PATH=$PWD/build_s/api_ns \
+		-DTFM_TOOLCHAIN_FILE=$PWD/build_s/api_ns/cmake/toolchain_ns_GNUARM.cmake
 	ninja -C build_ns -j$(nproc)
 
-8.学习TFM
+8.烧录（只烧内部 primary：BL2 / S / NS）
+	Linux 推荐仓库根目录：
+	./flash_stm32h573.sh                 # 回归（改 OB + 全片擦除）后烧 BL2/S/NS
+	./flash_stm32h573.sh download        # 只烧，不擦片
+	./flash_stm32h573.sh regression      # 只回归
 
-trusted-firmware-m/
-├── build_s/bin/              # S 端 + BL2 烧录文件
-│   ├── bl2.hex
-│   └── tfm_s_signed.hex
-├── build_ns/bin/             # NS 端烧录文件
-│   ├── tfm_ns_signed.hex
-│   └── tfm_s_ns_signed.hex
-└── build_s/api_ns/           # NS 开发接口（以后 CubeIDE 要用）
-    ├── interface/include/    # PSA 头文件
-    ├── platform/linker_scripts/
-    └── image_signing/        # NS 签名密钥
+	地址（安全别名）：
+	BL2    0x0C00E000（bl2.hex 另含 0x0C028000 OTP）
+	S      0x0C038000
+	NS     0x0C100000
+	BOOT_UBE=0xB4（OEM-iRoT），串口 115200。
+	NS 可用环境变量 TFM_NS_BIN= 指定其它已签名镜像（makefile / CubeIDE 产物）。
 
-9.烧录步骤
-	参考文档：
-	https://trustedfirmware-m.readthedocs.io/en/latest/platform/stm/stm32h573i_dk/readme.html
-	https://github.com/TrustedFirmware-M/trusted-firmware-m/tree/main/docs/platform/stm/stm32h573i_dk
-	
-	在构建文件夹/home/klp/test/tfmwork/trusted-firmware-m/platform/ext/target/stm/common/scripts中：
-	postbuild.sh根据 flash_layout.h 更新 regression.sh 和 TFM_UPDATE.sh 脚本
-	regression.sh设置平台选项字节配置并擦除平台
-	TFM_UPDATE.sh将 bl2、安全和非安全镜像写入目标磁盘
-	将开发板连接到 USB 接口，并按以下顺序执行 3 个脚本以更新平台：postbuild.sh、regression.sh、TFM_UPDATE.sh
-	
-	注意1：烧录最好不要使用 STM32CubeProgrammer ，如果要使用STM32CubeProgrammer需要使用命令行启动
-	/STMicroelectronics/STM32Cube/STM32CubeProgrammer/bin$ ./STM32CubeProgrammer
-	一定要在 .bashrc 设置好编程软件的路径：export PATH="$PATH:/home/klp/STMicroelectronics/STM32Cube/STM32CubeProgrammer/bin"
+	Windows：windows-tfm-tools\tfm_update.bat（会调 regression.bat）。
+	预置镜像是 S 512 KB + NS 1 MB，脚本优先烧 tfm_s_signed 和 tfm_ns_signed。
 
-	注意2：烧录前的py环境必须要在命令行设置：
-		cd /home/klp/test/tfmwork/trusted-firmware-m
-		python3 --version
-		Python 3.10.12
-		python3 -m venv .venv
-		source .venv/bin/activate
-		例如我这里的环境：(.venv) klp@klp-virtual-machine:~/test/tfmwork/trusted-firmware-m/build_s/api_ns$
-		
-	注意3：
-	项目						说明
-	postbuild.sh		必须在 build_s/api_ns 里跑，不是 common/scripts
-	TFM_UPDATE.sh		必须在 postbuild 成功之后 再跑
-	pip install -e .	在 trusted-firmware-m 根目录，编 S 前要有
-	regression.sh		会擦 Flash、改 OB，不要每次烧录都跑
-	
-实际操作步骤：
-
-	可以使用一键编译脚本:
-	./buildtfm.sh
-
-然后再烧录按照以下命令执行：	
-
-	cd ~/test/tfmwork/trusted-firmware-m
-	source .venv/bin/activate
+	手工跑 api_ns 脚本时：
+	cd trusted-firmware-m
+	source ../.venv/bin/activate
 	cd build_s/api_ns
-	./regression.sh
-	./TFM_UPDATE.sh
-	最后注意：在stm32cubeprogrammer中把BOOT_UBE 改为 B4
+	./regression.sh          # 会擦 Flash、改 OB，不要每次烧录都跑
+	./TFM_UPDATE.sh          # 必须在 postbuild 成功之后；仍只烧内部槽
+	最后在 STM32CubeProgrammer 把 BOOT_UBE 改为 B4。
 
-10.代码入门指南（入门原则（先记住 3 条））
+	注意1：GUI STM32CubeProgrammer 容易踩路径；命令行更稳。
+	export PATH="$PATH:$HOME/STMicroelectronics/STM32Cube/STM32CubeProgrammer/bin"
+	SWD 用 AP=1。
 
+	注意2：regression.sh / regression.bat 会先把两 bank 写成全 Secure，方便烧片。
+	DEV 模式下 BL2（TFM_ENABLE_SET_OB）再按布局把 Bank2 改成全 NS。
+	改布局后必须回归 + 重烧 BL2 + S + NS。
+
+	注意3：
+	项目				说明
+	postbuild.sh		必须在 build_s/api_ns 里跑，不是 common/scripts
+	TFM_UPDATE.sh		必须在 postbuild 成功之后再跑；只烧内部 primary
+	pip install -e .	由 ./buildtfm.sh 完成；手工编 S 前根目录 .venv 要有
+	regression.sh		会擦 Flash、改 OB，不要每次烧录都跑
+	TFM_UPDATE.sh slot	slot0=0xc038000，slot1=0xc100000
+	s_veneers.o			必须和板上 tfm_s 同一轮 SPE，只换 NS 会 NSC 跑飞
+
+9.覆盖 NS 工程用的 api_ns
+	SPE 编完后把导出整份覆盖过去，.cproject / 应用代码 / 链接脚本模板都不用改：
+	trusted-firmware-m/build_s/api_ns/  →  tfmcubeideproject/STM32CubeIDE/spe/api_ns/
+	trusted-firmware-m/build_s/api_ns/  →  tfmmakeproject/api_ns/
+	覆盖后重新编译 NS。核对：
+	看哪里					对了是
+	flash_layout.h			FLASH_S_PARTITION_SIZE=0x80000，FLASH_NS_PARTITION_SIZE=0x100000
+	appli_ns.pp.ld ORIGIN	0x08100400
+	签完的 NS 大小、烧录地址	1 MB，0x0C100000（旧值 0x0C088000 是错的）
+	s_veneers.o				与板上 tfm_s 同一轮 SPE
+	TFM_UPDATE.sh			slot0=0xc038000，slot1=0xc100000
+
+10.外部 W25Q32 升级（不是 CubeProgrammer 烧下载槽）
+	NS 用 w25q32_init / erase_4k / write 把已签名镜像写到 NOR（先擦后写）：
+	S 下载：tfm_s_signed.bin → W25Q32 0x100000（512 KB）
+	NS 下载：tfm_ns_signed.bin → W25Q32 0x180000（1 MB）
+	然后 psa_fwu_request_reboot() 或复位。BL2 只读 NOR（不擦、不写外部 Flash）。
+	psa_fwu_query 仍可查 S/NS 版本；psa_fwu_start / write / install 返回 PSA_ERROR_NOT_SUPPORTED。
+
+	BL2 升级条件（同时满足才覆盖内部主槽）：
+	1. 签名有效（EC-P256 dummy 密钥，与 BL2 ROTPK 配套）
+	2. 版本 major.minor.revision ≥ 当前主槽（MCUBOOT_DOWNGRADE_PREVENTION=ON）
+	3. SHA256 TLV 与主槽不同（相同哈希不升级）
+	拒绝：签名坏、版本更低（串口 Insufficient version in secondary slot）、哈希相同。
+	同版本但哈希不同仍会覆盖（例如同版本重编）。NS 默认版本 0.0.0，要靠版本拦回退请改
+	MCUBOOT_IMAGE_VERSION_NS（versions/config）。security counter 也不能比片上 NV 更小（默认 -s 1）。
+
+11.代码入门（先记住 3 条）
 	从 NS 往 S 读，不要先看 secure_fw/spm/
 	一次只跟一条 API（建议从 psa_crypto_init / psa_hash_compute 开始）
 	每读一个文件就记：它在 Flash 哪、跑在 S 还是 NS
-
-	第 1 步：先建立「地图」（半天）
-	在你本机打开工程，按顺序看：
 
 	顺序	文件	看什么
 	1	platform/ext/target/stm/stm32h573i_dk/include/flash_layout.h	BL2 / S / NS 在 Flash 哪
 	2	platform/ext/target/stm/stm32h573i_dk/include/region_defs.h	S/NS 各占多少 RAM
 	3	build_s/api_ns/interface/include/psa/	NS 能调哪些 API
-	4	tf-m-tests/tests_reg/test_app.c	NS 程序入口
-	产出： 自己画一张表（地址 + 三个 bin 对应关系）。
-	这一步不用懂实现，只要知道「东西在哪」。
+	4	tf-m-tests/tests_reg/test_app.c	NS 测试入口
+	产出：自己画一张表（地址 + 三个 bin 对应关系）。
 
-	/home/klp/test/tfmwork/
-	├── trusted-firmware-m/          ← TF-M 主仓库（S 侧源码、平台移植）
+仓库结构（相对仓库根目录）：
+	./
+	├── buildtfm.sh / flash_stm32h573.sh / keys/ / versions/
+	├── trusted-firmware-m/          ← TF-M 主树（S 侧源码、平台移植）
 	│   ├── build_s/                 ← S 侧构建输出 + api_ns
-	│   │   ├── bin/                 ← bl2.hex, tfm_s_signed.hex
-	│   │   └── api_ns/              ← NS 应用要用的接口
-	│   ├── build_ns/                ← NS 侧构建输出
-	│   │   └── bin/                 ← tfm_ns_signed.hex, tfm_ns.axf
+	│   ├── build_ns/                ← NS 测试构建输出
 	│   └── platform/ext/target/stm/stm32h573i_dk/
-	└── tf-m-tests/                  ← 测试代码（与 trusted-firmware-m 平级）
-		├── tests_reg/               ← 你用的回归测试
-		├── tests_psa_arch/        ← PSA Arch 测试（未参与你的构建）
-		└── app_broker/main_ns.c
-
+	├── tf-m-tests/                  ← 测试代码（与 trusted-firmware-m 平级）
+	├── tfmmakeproject/              ← makefile NS 工程
+	├── tfmcubeideproject/           ← CubeIDE NS 工程
+	└── windows-tfm-tools/           ← Windows 回归/烧录
 
 内容				路径
-NS main()		/home/klp/test/tfmwork/tf-m-tests/app_broker/main_ns.c
-NS 测试入口		/home/klp/test/tfmwork/tf-m-tests/tests_reg/test_app.c
-测试套件注册		/home/klp/test/tfmwork/tf-m-tests/tests_reg/test/ns_regression/non_secure_suites.c
-Crypto NS 测试	/home/klp/test/tfmwork/tf-m-tests/tests_reg/test/secure_fw/suites/crypto/non_secure/crypto_ns_interface_testsuite.c
-Flash 布局		/home/klp/test/tfmwork/trusted-firmware-m/platform/ext/target/stm/stm32h573i_dk/include/flash_layout.h
-内存区域			/home/klp/test/tfmwork/trusted-firmware-m/platform/ext/target/stm/stm32h573i_dk/partition/region_defs.h
-NS PSA 接口（编译产物）	/home/klp/test/tfmwork/trusted-firmware-m/build_s/api_ns/interface/src/tfm_crypto_api.c
-PSA 头文件		/home/klp/test/tfmwork/trusted-firmware-m/build_s/api_ns/interface/include/psa/
-烧录脚本			/home/klp/test/tfmwork/trusted-firmware-m/platform/ext/target/stm/stm32h573i_dk/regression.sh
-
+NS main()（测试）		tf-m-tests/app_broker/main_ns.c
+NS 测试入口			tf-m-tests/tests_reg/test_app.c
+测试套件注册			tf-m-tests/tests_reg/test/ns_regression/non_secure_suites.c
+Flash 布局			trusted-firmware-m/platform/ext/target/stm/stm32h573i_dk/include/flash_layout.h
+内存区域			trusted-firmware-m/platform/ext/target/stm/stm32h573i_dk/include/region_defs.h
+NS PSA 接口（产物）	trusted-firmware-m/build_s/api_ns/interface/src/tfm_crypto_api.c
+PSA 头文件			trusted-firmware-m/build_s/api_ns/interface/include/psa/
+烧录脚本源			trusted-firmware-m/platform/ext/target/stm/stm32h573i_dk/regression.sh
+makefile NS			tfmmakeproject/main.c
+CubeIDE NS			tfmcubeideproject/STM32CubeIDE/ns_app/
 
 # 查看启用了哪些测试
 grep '^TEST_NS_\|^TEST_S_' \
-  /home/klp/test/tfmwork/trusted-firmware-m/build_s/build-spe/CMakeCache.txt \
+  trusted-firmware-m/build_s/build-spe/CMakeCache.txt \
   | grep ':BOOL=ON'
 
 # 看 NS 固件里的测试符号
-nm /home/klp/test/tfmwork/trusted-firmware-m/build_ns/bin/tfm_ns.axf \
+nm trusted-firmware-m/build_ns/bin/tfm_ns.axf \
   | grep -E 'ns_reg_test_start|crypto_test'
 
-# 在 tfmwork 下搜源码（不含 build 目录）
+# 在仓库根目录搜源码（不含 build 目录）
 grep -rnw ns_reg_test_start \
-  /home/klp/test/tfmwork/tf-m-tests \
-  /home/klp/test/tfmwork/trusted-firmware-m \
-  --exclude-dir=build_s --exclude-dir=build_ns
-  
-  
+  tf-m-tests \
+  trusted-firmware-m \
+  --exclude-dir=build_s --exclude-dir=build_ns --exclude-dir=.deps-cache

@@ -1,0 +1,26 @@
+tf-m-tests 编译笔记（分支 stm32H573P256-SPIFLASH）
+
+本目录是 TF-M 回归测试仓，与仓库根目录 trusted-firmware-m 平级。
+NS 测试镜像必须链接同一轮 SPE 导出的 api_ns（含 s_veneers.o 与签名密钥）。
+完整说明见仓库根目录 tfm编译笔记.txt。
+
+1.推荐
+	在仓库根目录执行 ./buildtfm.sh test（或 prod）。
+	脚本会先编 SPE，再以 -DCONFIG_SPE_PATH=trusted-firmware-m/build_s/api_ns 编本仓 tests_reg。
+
+2.单独编 NS（SPE 已存在时）
+	cd trusted-firmware-m
+	source ../.venv/bin/activate
+	cmake -S ../tf-m-tests/tests_reg -B build_ns -GNinja \
+		-DCONFIG_SPE_PATH=$PWD/build_s/api_ns \
+		-DTFM_TOOLCHAIN_FILE=$PWD/build_s/api_ns/cmake/toolchain_ns_GNUARM.cmake
+	ninja -C build_ns -j$(nproc)
+
+3.产物
+	trusted-firmware-m/build_ns/bin/tfm_ns_signed.bin
+	签完必须是 1 MB，烧内部 Bank2 0x0C100000（旧地址 0x0C088000 已作废）。
+	NS 入口：tests_reg/test_app.c ；NS main：app_broker/main_ns.c
+
+4.烧录
+	仓库根目录 ./flash_stm32h573.sh
+	只换 NS 时也必须与板上 tfm_s 使用同一轮 s_veneers.o，否则 NSC 跑飞。

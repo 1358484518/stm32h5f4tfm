@@ -251,7 +251,7 @@ imgtool verify trusted-firmware-m/build_ns/bin/tfm_ns_signed.bin
 仓库根目录 `./flash_stm32h573.sh`：先写 option bytes（含全片擦除），再烧 **BL2 + S + NS**。需已安装 `STM32_Programmer_CLI`，板子用 ST-Link。
 
 ```bash
-git checkout stm32h573p256
+git checkout stm32H573P256-SPIFLASH
 ./buildtfm.sh test          # 或 prod
 ./flash_stm32h573.sh        # 一键：回归 + 烧录
 # ./flash_stm32h573.sh download     # 只烧，不擦片
@@ -276,8 +276,13 @@ Windows 一键：`windows-tfm-tools\tfm_update.bat`（会调 `regression.bat`）
 ## 文档
 
 
-- [TF-M 编译笔记](./tfmwork/tfm编译笔记.txt) — 编译环境搭建、编译命令与踩坑记录
-- 注意：如果编译不通过可以删除 .venv 重新创建py环境。
+- [编译笔记索引](./编译笔记.txt) — 各工程笔记入口
+- [TF-M 编译笔记](./tfm编译笔记.txt) — 编译环境、一键脚本、Flash 布局、烧录与 SPI 升级
+- [SPE / BL2](./trusted-firmware-m/编译笔记.txt)
+- [NS 回归测试](./tf-m-tests/编译笔记.txt)
+- [makefile NS](./tfmmakeproject/编译笔记.txt)
+- [CubeIDE NS](./tfmcubeideproject/编译笔记.txt)
+- 注意：如果编译不通过可以删除仓库根目录 `.venv` 后重新 `./buildtfm.sh`。
 
 ## 硬件平台
 

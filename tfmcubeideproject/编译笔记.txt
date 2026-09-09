@@ -1,0 +1,51 @@
+tfmcubeideproject 编译笔记（分支 stm32H573P256-SPIFLASH）
+
+本目录是 STM32CubeIDE 非安全工程（工程名 tfmminiproject），由 makefile 工程移植。
+签名 EC-P256，NS 执行槽 1 MB @ 0x0C100000。完整说明见仓库根目录 tfm编译笔记.txt。
+
+从旧工程迁过来：把本分支 SPE 导出整份覆盖过去就行，
+.cproject、应用代码、链接脚本模板都不用改。
+
+1.覆盖 api_ns
+	trusted-firmware-m/build_s/api_ns/  →  STM32CubeIDE/spe/api_ns/
+	覆盖后重新编译。核对：
+
+	看哪里					对了是
+	flash_layout.h			FLASH_S_PARTITION_SIZE=0x80000，FLASH_NS_PARTITION_SIZE=0x100000
+	spe/out/appli_ns.pp.ld 的 FLASH ORIGIN	0x08100400
+	签完的 NS 大小、烧录地址	1 MB，0x0C100000（旧值 0x0C088000 是错的）
+	spe/api_ns/interface/lib/s_veneers.o	必须和板上 tfm_s 同一轮 SPE
+	TFM_UPDATE.sh / TFM_BIN2HEX.sh		slot0=0xc038000，slot1=0xc100000
+
+	只换 NS、不换同一轮 s_veneers.o，NSC 会跑飞。
+
+2.CubeIDE 编译
+	用 STM32CubeIDE 打开 STM32CubeIDE/.project（tfmminiproject）。
+	工具链用 ARM GNU 14.3.1，CPU：cortex-m33，硬件浮点 fpv5-sp-d16。
+	Debug / Release 都会在 post-build 调：
+	sign_kit\sign.bat  ${ProjDirPath}\Debug\tfm_ns.bin
+	（Release 则签 Release\tfm_ns.bin）
+	Linux 下若 post-build 失败，可在 STM32CubeIDE/sign_kit 里：
+	python3 -m pip install -r requirements.txt
+	./sign.sh ../Debug/tfm_ns.bin
+
+3.产物
+	STM32CubeIDE/Debug/tfm_ns.bin           未签名
+	STM32CubeIDE/sign_kit/tfm_ns_signed.bin 已签名，1 MB
+	烧内部 Bank2：0x0C100000（NS 别名 0x08100000，镜像头后代码在 0x08100400）
+
+	sign_kit/config 须与板上 SPE 一致：
+	MCUBOOT_UPGRADE_STRATEGY=OVERWRITE_ONLY
+	MCUBOOT_IMAGE_VERSION_NS 等由仓库根目录 versions/ 在 ./buildtfm.sh 时同步。
+	layout/signing_layout_ns.o 决定 --pad 后槽大小，必须是 1 MB。
+
+4.烧录
+	BL2 + S 仍烧 SPE 产物（0x0C00E000 / 0x0C038000）。
+	NS 烧本工程签完的 bin 到 0x0C100000。
+	Linux：TFM_NS_BIN=指向本工程 tfm_ns_signed.bin ./flash_stm32h573.sh download
+	Windows：拷进 windows-tfm-tools 后双击 tfm_update.bat，或只烧 NS。
+	不要只烧拼接的 tfm_s_ns_signed（没有 Bank1 空隙）。
+
+5.外部升级
+	把 tfm_ns_signed.bin 写到 W25Q32 0x180000，复位；BL2 只读 NOR。
+	版本低于内部主槽会被拒绝。
