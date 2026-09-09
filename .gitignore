@@ -6,6 +6,9 @@
 *.ko
 *.obj
 *.elf
+# SPE NSC veneers: NS CubeIDE / makefile projects must link the exported object.
+!tfmmakeproject/api_ns/interface/lib/s_veneers.o
+!tfmcubeideproject/STM32CubeIDE/spe/api_ns/interface/lib/s_veneers.o
 
 # Linker output
 *.ilk
