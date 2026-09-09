@@ -36,12 +36,17 @@ set(MCUBOOT_HW_ROLLBACK_PROT            ON          CACHE BOOL      "Enable secu
 set(CONFIG_TFM_USE_TRUSTZONE               ON           CACHE BOOL      "Use TrustZone")
 set(TFM_PARTITION_PROTECTED_STORAGE        ON           CACHE BOOL      "Disable Protected Storage partition")
 set(TFM_PARTITION_INITIAL_ATTESTATION      ON           CACHE BOOL      "Disable Initial Attestation partition")
+# Keep FWU partition so psa_fwu_query() can read S/NS versions from BL2 shared data.
+# Download/install is not used: NS writes W25Q32, BL2 only reads NOR.
 set(PLATFORM_HAS_FIRMWARE_UPDATE_SUPPORT   ON           CACHE BOOL      "Wheter the platform has firmware update support")
-################################## FIRMWARE_UPDATE #############################################################
 set(TFM_PARTITION_FIRMWARE_UPDATE          ON           CACHE BOOL      "Enable firmware update partition")
+set(TFM_FWU_QUERY_ONLY                     ON           CACHE BOOL      "Keep psa_fwu_query; reject PSA start/write/install")
 set(TFM_FWU_BOOTLOADER_LIB                 "mcuboot"    CACHE STRING    "Bootloader configure file for Firmware Update partition")
 set(TFM_CONFIG_FWU_MAX_WRITE_SIZE          1024         CACHE STRING    "The maximum permitted size for block in psa_fwu_write, in bytes.")
 set(TFM_CONFIG_FWU_MAX_MANIFEST_SIZE       0            CACHE STRING    "The maximum permitted size for manifest in psa_fwu_start(), in bytes.")
 set(FWU_DEVICE_CONFIG_FILE                 ""           CACHE STRING    "The device configuration file for Firmware Update partition")
-set(DMCUBOOT_UPGRADE_STRATEGY              SWAP_USING_MOVE)
+set(TEST_NS_FWU                            OFF          CACHE BOOL      "Whether to build NS regression FWU tests")
+set(TEST_S_FWU                             OFF          CACHE BOOL      "Whether to build S regression FWU tests")
+# Let BL2 treat a signed image in the NOR slot as a candidate even without trailer MAGIC.
+set(MCUBOOT_IMAGE_ACCESS_HOOKS             ON           CACHE BOOL      "Enable MCUboot image access hooks")
 set(DEFAULT_MCUBOOT_FLASH_MAP             ON            CACHE BOOL     "Whether to use the default flash map defined by TF-M project")

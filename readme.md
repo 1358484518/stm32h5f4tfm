@@ -38,7 +38,14 @@ TrustZone 片上 Flash 的 S/NS 分界用 **FLASH SECWM**（H5 没有 GTZC-MPCWM
 
 外部窗口 **`0x100000-0x280000`**。BL2 / HDP / WRP 不变（scratch 48 KB 仍占位但不参与升级）。
 
-NS 用 `w25q32_init/read/write/erase_4k` 直接写 NOR；不要再按旧内部 secondary 地址调用 `psa_fwu_write`。CubeProgrammer / `./flash_stm32h573.sh` 仍只烧内部 primary（BL2/S/NS）。
+升级路径：
+
+1. NS 用 `w25q32_init` / `erase_4k` / `write` 把已签名的 `tfm_s_signed.bin`、`tfm_ns_signed.bin` 写到 W25Q32 `0x100000` / `0x180000`（先擦后写）。
+2. 调用 `psa_fwu_request_reboot()` 或复位。BL2 **只读** NOR（不擦、不写外部 Flash）。
+3. 签名正确 **且** 映像哈希与当前内部主槽不同 → BL2 覆盖内部执行槽。
+4. 签名错误，或哈希与当前运行映像相同 → 不升级，继续从内部主槽启动。
+
+`psa_fwu_query(0)` 查询 **S** 版本，`psa_fwu_query(1)` 查询 NS 版本（来自 BL2 写入的共享区）。`psa_fwu_start` / `write` / `install` 返回 `PSA_ERROR_NOT_SUPPORTED`。CubeProgrammer / `./flash_stm32h573.sh` 仍只烧内部 primary（BL2/S/NS）。
 
 ### 相对 `master` 改了什么（签名，继承自 `stm32h573p256`）
 

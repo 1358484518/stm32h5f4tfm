@@ -63,6 +63,8 @@
 
 #ifdef TFM_SPI_FLASH_IN_BL2
 #include "bootutil/bootutil_log.h"
+#include "bootutil/image.h"
+#include "mcuboot_config/mcuboot_config.h"
 #define SPI_FLASH_LOG_INF(...) BOOT_LOG_INF(__VA_ARGS__)
 #define SPI_FLASH_LOG_ERR(...) BOOT_LOG_ERR(__VA_ARGS__)
 #else
@@ -251,6 +253,7 @@ static int w25_cmd(const uint8_t *cmd, uint32_t cmd_len,
     return rc;
 }
 
+#ifndef TFM_SPI_FLASH_IN_BL2
 static int w25_wait_ready(void)
 {
     uint8_t cmd = W25_CMD_READ_STATUS;
@@ -274,6 +277,7 @@ static int w25_write_enable(void)
 
     return w25_cmd(&cmd, 1U, NULL, 0U, NULL, 0U);
 }
+#endif /* !TFM_SPI_FLASH_IN_BL2 */
 
 static void w25_wakeup_reset(void)
 {
@@ -326,6 +330,85 @@ static int w25_stream_read(uint32_t addr, uint8_t *data, uint32_t len)
     return 0;
 }
 
+#if defined(TFM_SPI_FLASH_IN_BL2)
+/*
+ * NS writes signed.bin without MCUboot trailer MAGIC. Present MAGIC to BL2
+ * when the slot starts with IMAGE_MAGIC so overwrite-only can consider it.
+ * Matches boot_img_magic for MCUBOOT_BOOT_MAX_ALIGN != 8 (this platform: 16).
+ */
+#ifndef MCUBOOT_BOOT_MAX_ALIGN
+#define MCUBOOT_BOOT_MAX_ALIGN 16
+#endif
+#if MCUBOOT_BOOT_MAX_ALIGN == 8
+static const uint8_t k_mcuboot_magic[16] = {
+    0x77, 0xc2, 0x95, 0xf3, 0x60, 0xd2, 0xef, 0x7f,
+    0x35, 0x52, 0x50, 0x0f, 0x2c, 0xb6, 0x79, 0x80
+};
+#else
+static const uint8_t k_mcuboot_magic[16] = {
+    (uint8_t)MCUBOOT_BOOT_MAX_ALIGN,
+    (uint8_t)(MCUBOOT_BOOT_MAX_ALIGN >> 8),
+    0x2d, 0xe1, 0x5d, 0x29, 0x41, 0x0b,
+    0x8d, 0x77, 0x67, 0x9c, 0x11, 0x0f, 0x1f, 0x8a
+};
+#endif
+
+static int slot_starts_with_image_magic(uint32_t slot_off)
+{
+    uint8_t b[4];
+    uint32_t magic;
+
+    if (w25_stream_read(slot_off, b, 4U) != 0) {
+        return 0;
+    }
+    magic = (uint32_t)b[0] | ((uint32_t)b[1] << 8) |
+            ((uint32_t)b[2] << 16) | ((uint32_t)b[3] << 24);
+    return magic == IMAGE_MAGIC;
+}
+
+static void overlay_pending_magic(uint32_t addr, uint8_t *data, uint32_t cnt)
+{
+    const uint32_t slots[2][2] = {
+        { FLASH_AREA_2_OFFSET, FLASH_AREA_2_SIZE },
+        { FLASH_AREA_3_OFFSET, FLASH_AREA_3_SIZE },
+    };
+    uint32_t i;
+    uint32_t magic_addr;
+    uint32_t rd_end;
+    uint32_t mag_end;
+    uint32_t from;
+    uint32_t to;
+    uint32_t off;
+
+    if ((data == NULL) || (cnt == 0U)) {
+        return;
+    }
+    if (addr > (0xFFFFFFFFU - (cnt - 1U))) {
+        return;
+    }
+    rd_end = addr + cnt;
+    for (i = 0U; i < 2U; i++) {
+        if (slots[i][1] < 16U) {
+            continue;
+        }
+        magic_addr = slots[i][0] + slots[i][1] - 16U;
+        mag_end = magic_addr + 16U;
+        if ((rd_end <= magic_addr) || (addr >= mag_end)) {
+            continue;
+        }
+        if (!slot_starts_with_image_magic(slots[i][0])) {
+            continue;
+        }
+        from = (addr > magic_addr) ? addr : magic_addr;
+        to = (rd_end < mag_end) ? rd_end : mag_end;
+        for (off = from; off < to; off++) {
+            data[off - addr] = k_mcuboot_magic[off - magic_addr];
+        }
+    }
+}
+#endif /* TFM_SPI_FLASH_IN_BL2 */
+
+#ifndef TFM_SPI_FLASH_IN_BL2
 static int w25_page_program(uint32_t addr, const uint8_t *data, uint32_t len)
 {
     uint8_t buf[4 + 256];
@@ -376,6 +459,7 @@ static int is_slot_range(uint32_t addr, uint32_t len)
     }
     return 1;
 }
+#endif /* !TFM_SPI_FLASH_IN_BL2 */
 
 static ARM_DRIVER_VERSION Flash_GetVersion(void)
 {
@@ -451,10 +535,31 @@ static int32_t Flash_ReadData(uint32_t addr, void *data, uint32_t cnt)
         SPI_FLASH0_STATUS.error = 1;
         return ARM_DRIVER_ERROR;
     }
+#if defined(TFM_SPI_FLASH_IN_BL2)
+    overlay_pending_magic(addr, data, cnt);
+#endif
     SPI_FLASH0_STATUS.busy = 0;
     return (int32_t)cnt;
 }
 
+#if defined(TFM_SPI_FLASH_IN_BL2)
+static int32_t Flash_ProgramData(uint32_t addr, const void *data, uint32_t cnt)
+{
+    /* BL2 never programs W25Q32. Return success so MCUboot trailer writes
+     * and post-upgrade secondary erase are ignored.
+     */
+    ARG_UNUSED(addr);
+    ARG_UNUSED(data);
+    ARG_UNUSED(cnt);
+    return ARM_DRIVER_OK;
+}
+
+static int32_t Flash_EraseSector(uint32_t addr)
+{
+    ARG_UNUSED(addr);
+    return ARM_DRIVER_OK;
+}
+#else
 static int32_t Flash_ProgramData(uint32_t addr, const void *data, uint32_t cnt)
 {
     const uint8_t *src = data;
@@ -523,6 +628,7 @@ static int32_t Flash_EraseSector(uint32_t addr)
     SPI_FLASH0_STATUS.busy = 0;
     return ARM_DRIVER_OK;
 }
+#endif /* TFM_SPI_FLASH_IN_BL2 */
 
 static int32_t Flash_EraseChip(void)
 {

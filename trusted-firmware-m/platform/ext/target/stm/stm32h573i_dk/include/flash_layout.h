@@ -30,8 +30,10 @@
  * MCUboot requires primary and secondary slots of an image to be the same
  * size, so the internal S execute slot is also 512 KB (image is padded).
  * Internal NS execute is the whole of Bank2 (0x100000, 1 MB) so it does not
- * cross the dual-bank boundary. NS programs the NOR directly (w25q32_*);
- * CubeProgrammer still burns BL2/S/NS primary in internal flash.
+ * cross the dual-bank boundary. NS programs the NOR directly (w25q32_*).
+ * BL2 only reads the NOR (no erase/program). CubeProgrammer still burns
+ * BL2/S/NS primary in internal flash. psa_fwu_query() still reports S/NS
+ * versions; PSA start/write/install is disabled.
  */
 #define EXTERNAL_FLASH
 #define SPI_FLASH_TOTAL_SIZE            (0x400000)   /* W25Q32 4 MBytes */

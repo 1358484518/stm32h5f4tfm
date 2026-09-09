@@ -34,6 +34,7 @@ if(BL2)
             ${STM_COMMON_DIR}/hal/provision/otp_provision.c
             ${STM_COMMON_DIR}/hal/provision/nvm_init.c
             ${STM_COMMON_DIR}/hal/provision/nvmcnt_init.c
+            ${STM_COMMON_DIR}/stm32h5xx/bl2/boot_ns_spi_upgrade.c
     )
 endif()
 

@@ -16,8 +16,10 @@ extern "C" {
 extern ARM_DRIVER_FLASH TFM_Driver_SPI_FLASH0;
 
 /*
- * NS download helpers (same backend as BL2/MCUboot).
- * Pins: GPIO bit-bang on SPI1 pads PA5/PA6/PA7, CS PB2 (not the SPI1 peripheral).
+ * W25Q32 helpers. Pins: GPIO bit-bang on SPI1 pads PA5/PA6/PA7, CS PB2.
+ * BL2 only uses init/read/JEDEC (program/erase are no-ops).
+ * NS erases and writes signed tfm_s_signed.bin / tfm_ns_signed.bin into
+ * SPI_FLASH_S_UPDATE_OFFSET / SPI_FLASH_NS_UPDATE_OFFSET.
  */
 int32_t w25q32_init(void);
 int32_t w25q32_read(uint32_t addr, void *buf, uint32_t len);

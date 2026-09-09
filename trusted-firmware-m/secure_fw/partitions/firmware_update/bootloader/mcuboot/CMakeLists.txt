@@ -18,6 +18,14 @@ target_sources(tfm_fwu_mcuboot_util
         $<$<BOOL:${DEFAULT_MCUBOOT_FLASH_MAP}>:${CMAKE_SOURCE_DIR}/bl2/src/default_flash_map.c>
 )
 
+# stm32h573: SPE links bootutil_public.c with image-access hooks enabled.
+if(MCUBOOT_IMAGE_ACCESS_HOOKS AND TFM_PLATFORM STREQUAL "stm/stm32h573i_dk")
+    target_sources(tfm_fwu_mcuboot_util
+        INTERFACE
+            ${CMAKE_SOURCE_DIR}/platform/ext/target/stm/common/stm32h5xx/bl2/boot_hooks_spe_stub.c
+    )
+endif()
+
 target_include_directories(tfm_fwu_mcuboot_util
     INTERFACE
         ${CMAKE_BINARY_DIR}/bl2/ext/mcuboot
