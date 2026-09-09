@@ -413,23 +413,22 @@ static int32_t Flash_Initialize(ARM_Flash_SignalEvent_t cb_event)
 
     w25_wakeup_reset();
 
-    if (w25q32_read_jedec_id(id) != 0) {
-        SPI_FLASH0_STATUS.error = 1;
-        SPI_FLASH_LOG_ERR("W25Q32 JEDEC read failed");
-        return ARM_DRIVER_ERROR;
-    }
+    /* Always print ID first so a serial log shows whether the NOR answered.
+     * W25Q32 = ef:40:16; 00:00:00 = no clock/CS; ff:ff:ff = MISO idle high.
+     */
+    (void)w25q32_read_jedec_id(id);
+    SPI_FLASH_LOG_ERR("W25Q32 JEDEC ID %02x:%02x:%02x (expect ef:40:16)",
+                      id[0], id[1], id[2]);
 
     if ((id[0] != W25_JEDEC_MANU) || (id[1] != W25_JEDEC_TYPE) ||
         (id[2] != W25_JEDEC_CAP)) {
         SPI_FLASH0_STATUS.error = 1;
-        SPI_FLASH_LOG_ERR("W25Q32 JEDEC %02x:%02x:%02x (expected ef:40:16)",
-                          id[0], id[1], id[2]);
+        SPI_FLASH_LOG_ERR("W25Q32 JEDEC mismatch — SPI NOR not ready");
         return ARM_DRIVER_ERROR;
     }
 
     spi_inited = 1U;
-    SPI_FLASH_LOG_INF("SPI Flash Interface initialized (W25Q32 JEDEC %02x:%02x:%02x)",
-                      id[0], id[1], id[2]);
+    SPI_FLASH_LOG_INF("SPI Flash Interface initialized");
     return ARM_DRIVER_OK;
 }
 

@@ -696,14 +696,20 @@ int32_t boot_platform_init(void)
     }
 #endif /* FLASH_DEV_NAME */
 #ifdef FLASH_DEV_NAME_2
-    if (FLASH_DEV_NAME_2.Initialize(NULL) != ARM_DRIVER_OK)
     {
         uint8_t jedec[3] = {0, 0, 0};
+        int32_t spi_rc;
 
+        spi_rc = FLASH_DEV_NAME_2.Initialize(NULL);
+        /* Probe again after init so the ID is always on the BL2 console,
+         * including LOG_LEVEL_ERROR / prod builds (BOOT_LOG_ERR).
+         */
         (void)w25q32_read_jedec_id(jedec);
-        BOOT_LOG_ERR("SPI NOR init failed (JEDEC %02x:%02x:%02x); continue with internal primary",
+        BOOT_LOG_ERR("W25Q32 JEDEC ID %02x:%02x:%02x (expect ef:40:16)",
                      jedec[0], jedec[1], jedec[2]);
-        /* Primary slots are internal; do not halt BL2 if W25Q32 is missing. */
+        if (spi_rc != ARM_DRIVER_OK) {
+            BOOT_LOG_ERR("SPI NOR init failed; continue with internal primary");
+        }
     }
 #endif /* FLASH_DEV_NAME_2 */
 #if defined(FLASH_DEV_NAME_3) && !defined(FLASH_DEV_NAME_2)
