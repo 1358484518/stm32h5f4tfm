@@ -6,11 +6,11 @@ rem  * J-Link programs the 0x08000000 flash window. Hex files that use the
 rem  * secure alias 0x0Cxxxxxx are remapped (0x0C - 0x04000000 = 0x08).
 rem  * Hex files are converted with jlink_hex_ns_alias.py (Python).
 rem  *
-rem  * Prefer .bin:
+rem  * Prefer separate .bin (NS is entire Bank2, not packed after S):
 rem  *   tfm_s_signed.bin       0x08038000
-rem  *   tfm_s_ns_signed.bin    0x08038000  (S+NS, skip extra NS)
 rem  *   tfm_ns_signed.bin      0x08100000
 rem  *   bl2.bin                0x0800E000
+rem  *   tfm_s_ns_signed.bin    fallback only; concatenated NS has the wrong offset
 rem  *
 rem  * SPDX-License-Identifier: BSD-3-Clause
 rem  ****************************************************************************
@@ -19,7 +19,6 @@ setlocal EnableExtensions EnableDelayedExpansion
 set "EXIT_CODE=0"
 set "FAILED_STEP="
 set "FLASHED=0"
-set "SKIP_NS=0"
 set "SCRIPT_REV=cube-jlink-20260825f"
 set "SN_ARG="
 
@@ -149,30 +148,26 @@ if not errorlevel 1 (
 
 call :find_file tfm_s_ns_signed.bin
 if not errorlevel 1 (
-    call :flash_bin tfm_s_ns_signed.bin "%FILE%" %ADDR_S% "S+NS signed"
+    echo [warn] tfm_s_ns_signed.bin has no Bank1 gap; still flash tfm_ns_signed.bin if present
+    call :flash_bin tfm_s_ns_signed.bin "%FILE%" %ADDR_S% "S+NS signed (fallback)"
     if errorlevel 1 goto :finish
-    set "SKIP_NS=1"
     goto :after_s
 )
 
 call :find_file tfm_s_ns_signed.hex
 if not errorlevel 1 (
-    call :flash_hex tfm_s_ns_signed.hex "%FILE%" "S+NS signed"
+    echo [warn] tfm_s_ns_signed.hex has no Bank1 gap; still flash tfm_ns_signed.bin if present
+    call :flash_hex tfm_s_ns_signed.hex "%FILE%" "S+NS signed (fallback)"
     if errorlevel 1 goto :finish
-    set "SKIP_NS=1"
     goto :after_s
 )
 echo [info] no S / S+NS image
 :after_s
 
-if "%SKIP_NS%"=="1" (
-    echo [info] skip tfm_ns_signed.bin, already in concatenated S+NS
-) else (
-    call :find_file tfm_ns_signed.bin
-    if not errorlevel 1 (
-        call :flash_bin tfm_ns_signed.bin "%FILE%" %ADDR_NS% "NS signed"
-        if errorlevel 1 goto :finish
-    )
+call :find_file tfm_ns_signed.bin
+if not errorlevel 1 (
+    call :flash_bin tfm_ns_signed.bin "%FILE%" %ADDR_NS% "NS signed"
+    if errorlevel 1 goto :finish
 )
 
 call :find_file bl2.bin

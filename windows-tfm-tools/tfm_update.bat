@@ -6,8 +6,10 @@ rem  * 1) Run regression.bat (option bytes + erase + OEM-iRoT)
 rem  * 2) If present in current dir (or this script's dir), download:
 rem  *      bl2.hex                 Intel HEX, address inside the file
 rem  *                              (BL2 bin at 0x0C00E000 / hex often 0x0800E000)
-rem  *      tfm_s_ns_signed.hex     Intel HEX, S+NS concatenated (S slot)
-rem  *      tfm_ns_signed.bin       binary at 0x0C100000 (NS primary, Bank2)
+rem  *      tfm_s_signed.hex/.bin   S 512 KB @ 0x0C038000 (preferred)
+rem  *      tfm_ns_signed.bin       NS 1 MB  @ 0x0C100000 (Bank2)
+rem  *      tfm_s_ns_signed.hex     fallback only: S+NS concatenated with no
+rem  *                              Bank1 gap, so NS lands at the wrong offset.
 rem  *
 rem  * Usage:
 rem  *   tfm_update.bat
@@ -95,12 +97,19 @@ if not errorlevel 1 (
 ) else (
     echo        skip   bl2.hex                 not found
 )
-call :find_file tfm_s_ns_signed.hex
+call :find_file tfm_s_signed.hex
 if not errorlevel 1 (
-    echo        FOUND  tfm_s_ns_signed.hex     -^> S+NS %ADDR_S%    ^(hex uses file addresses^)
+    echo        FOUND  tfm_s_signed.hex        -^> S    %ADDR_S%    ^(hex uses file addresses^)
     set "FOUND_ANY=1"
 ) else (
-    echo        skip   tfm_s_ns_signed.hex     not found
+    echo        skip   tfm_s_signed.hex        not found
+)
+call :find_file tfm_s_signed.bin
+if not errorlevel 1 (
+    echo        FOUND  tfm_s_signed.bin        -^> S    %ADDR_S%
+    set "FOUND_ANY=1"
+) else (
+    echo        skip   tfm_s_signed.bin        not found
 )
 call :find_file tfm_ns_signed.bin
 if not errorlevel 1 (
@@ -109,10 +118,17 @@ if not errorlevel 1 (
 ) else (
     echo        skip   tfm_ns_signed.bin       not found
 )
+call :find_file tfm_s_ns_signed.hex
+if not errorlevel 1 (
+    echo        FOUND  tfm_s_ns_signed.hex     -^> fallback S+NS, NS offset is wrong
+    set "FOUND_ANY=1"
+) else (
+    echo        skip   tfm_s_ns_signed.hex     not found
+)
 echo.
 
 if "%FOUND_ANY%"=="0" (
-    echo [FAIL] no bl2.hex / tfm_s_ns_signed.hex / tfm_ns_signed.bin in:
+    echo [FAIL] no bl2.hex / tfm_s_signed / tfm_ns_signed.bin in:
     echo        %CD%
     echo        %~dp0
     set "FAILED_STEP=no image files"
@@ -123,11 +139,25 @@ if "%FOUND_ANY%"=="0" (
 echo [4] Download images that exist
 echo.
 
+call :find_file tfm_s_signed.hex
+if not errorlevel 1 (
+    call :flash_hex tfm_s_signed.hex "%FILE%" "S signed"
+    if errorlevel 1 goto :finish
+    goto :after_s
+)
+call :find_file tfm_s_signed.bin
+if not errorlevel 1 (
+    call :flash_bin tfm_s_signed.bin "%FILE%" %ADDR_S% "S signed"
+    if errorlevel 1 goto :finish
+    goto :after_s
+)
 call :find_file tfm_s_ns_signed.hex
 if not errorlevel 1 (
-    call :flash_hex tfm_s_ns_signed.hex "%FILE%" "S+NS signed"
+    echo [warn] tfm_s_ns_signed.hex has no Bank1 gap; NS in this file is not at %ADDR_NS%
+    call :flash_hex tfm_s_ns_signed.hex "%FILE%" "S+NS signed (fallback)"
     if errorlevel 1 goto :finish
 )
+:after_s
 
 call :find_file tfm_ns_signed.bin
 if not errorlevel 1 (

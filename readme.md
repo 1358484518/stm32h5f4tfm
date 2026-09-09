@@ -81,11 +81,11 @@ if (st == PSA_SUCCESS) {
 | 是 | `spe/api_ns/region_defs.h` 以及 `spe/api_ns/platform/include/region_defs.h` | `NS_IMAGE_PRIMARY_PARTITION_OFFSET` 改为 `FLASH_AREA_1_OFFSET`（不要再用 `FLASH_AREA_0 + S_SIZE`） |
 | 是 | `spe/out/appli_ns.pp.ld` | 用上面头文件重新预处理模板 `spe/api_ns/platform/linker_scripts/appli_ns.ld`；`LENGTH` 约为 `0x100000-0x400-0x2000` |
 | 是 | `spe/api_ns/TFM_UPDATE.sh` / `TFM_BIN2HEX.sh` | `slot0=0xc038000`，**`slot1=0xc100000`**（旧值 `0xc088000` 会烧错银行） |
-| 建议 | `sign_kit/config` 与 post-build 签名 | NS `--pad` 到 **1 MB**；烧录地址 `0x0C100000` |
+| 是 | `sign_kit/config`、`sign_kit/layout/signing_layout_{s,ns}.o` | 策略 `OVERWRITE_ONLY`；layout 里 `RE_SIGN_BIN_SIZE` 为 S `0x80000` / NS `0x100000`；烧录地址 `0x0C100000` |
 | 建议 | `ns_app` 应用代码 | 需要查 S 版本时用 `psa_fwu_query(0)`；写升级包用 `w25q32_*`，不要走 `psa_fwu_start/write` |
 
 不要只改 `appli_ns.pp.ld` 却不换 `flash_layout.h` / `region_defs.h`：CubeIDE 下次预处理会回到旧地址。  
-`s_veneers.o` 必须和板上的 `tfm_s` 同一轮编译；只换 NS 不换 S/veneer 会 NSC 跑飞。根目录 `.gitignore` 的 `*.o` 已对这两处 veneer 开了例外，不必再靠 `tfmcubeideproject.7z` 才能带上该文件。
+`s_veneers.o` 必须和板上的 `tfm_s` 同一轮编译；只换 NS 不换 S/veneer 会 NSC 跑飞。根目录 `.gitignore` 的 `*.o` 已对 veneer 和 `signing_layout_{s,ns}.o` 开了例外，不必再靠 `tfmcubeideproject.7z` 才能带上这些文件。
 
 ### 相对 `master` 改了什么（签名，继承自 `stm32h573p256`）
 
@@ -280,7 +280,7 @@ git checkout stm32h573p256
 
 若串口已是 `sig_type: EC-P256` 且 primary `magic=good`，仍报 `Image in the primary slot is not valid`：多半是 OTP 里 ROTPK 不对——请 `git pull` 后重新 `./buildtfm.sh test`（或使用已修补的 `bl2.hex`），再 `./flash_stm32h573.sh` 做一次回归+烧录。
 
-Windows 一键：`windows-tfm-tools\tfm_update.bat`（会调 `regression.bat`）。
+Windows 一键：`windows-tfm-tools\tfm_update.bat`（会调 `regression.bat`）。预置镜像是 **S 512 KB + NS 1 MB**，脚本优先烧 `tfm_s_signed` 和 `tfm_ns_signed`。拼接的 `tfm_s_ns_signed` 没有 Bank1 空隙，NS 会落到错误偏移，不能单独当完整镜像烧。
 
 
 

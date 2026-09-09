@@ -57,6 +57,8 @@ py -3 -m pip install -r requirements.txt
 | `*_s_signed.bin` | `0x0C038000` | 512 KB |
 | `*_ns_signed.bin` | `0x0C100000` | 1024 KB |
 
+`layout/signing_layout_{s,ns}.o` 决定 `--pad` 后的槽大小，必须和 SPE 的 `flash_layout.h` 一致。`config` 里 `MCUBOOT_UPGRADE_STRATEGY=OVERWRITE_ONLY`（与本分支 BL2 相同）。
+
 本目录的密钥是 TF-M 开发用 dummy **EC-P256**（本分支 `stm32h573p256`），和当前 SPE/BL2 配套。`master` 仍是 RSA-3072。
 
 `root-EC-P256.pem`（TF-M/BL2）与 `image_s_signing_private_key.pem`（本目录）是**同一把 S 私钥**；`root-EC-P256_1.pem` 与 `image_ns_signing_private_key.pem` 是同一把 NS 私钥。量产请成对替换并同步更新板上 ROTPK。

@@ -1,10 +1,14 @@
-预置镜像：./buildtfm.sh prod（正式版，ERROR 日志）。
+预置镜像与本分支内部布局一致：
+  BL2  0x0C00E000
+  S    512 KB @ 0x0C038000（安全别名）/ 0x08038000
+  NS   1 MB  @ 0x0C100000（Bank2）/ 0x08100000
+重新生成：./buildtfm.sh prod 后把 bl2、tfm_s_signed、tfm_ns_signed、tfm_s_ns_signed 的 .bin/.hex 拷进本目录。
 
 一.使用说明
 	双击 tfm_update.bat 即可。
 二.工具说明
 	1.regression.bat 是windows使用的回归脚本，用来配置TF-M的寄存器，对应linux下的 /trusted-firmware-m/trusted-firmware-m/build_s/api_ns/regression.sh ,regression.bat可以放在任意目录双击执行即可，注意需要插stlink和安装stm32cubeprogrammer。
 
-	2.tfm_update.bat 该工具是一键回归烧录工具，它会自动调用 regression.bat 烧写选项字节，然后烧录 bl2.hex tfm_s_ns_signed.hex tfm_ns_signed.bin 程序文件到相应位置。
+	2.tfm_update.bat 该工具是一键回归烧录工具，它会自动调用 regression.bat 烧写选项字节，然后烧录 bl2.hex、tfm_s_signed.hex（或 .bin）和 tfm_ns_signed.bin。S 与 NS 中间有 Bank1 空隙，不要只烧拼接的 tfm_s_ns_signed。
 
 注意：jlink开头的脚本文件的使用方法跟不带jlink的脚本使用方法一致，只是硬件需要换为jlink。
