@@ -423,7 +423,7 @@ static int32_t Flash_Initialize(ARM_Flash_SignalEvent_t cb_event)
     if ((id[0] != W25_JEDEC_MANU) || (id[1] != W25_JEDEC_TYPE) ||
         (id[2] != W25_JEDEC_CAP)) {
         SPI_FLASH0_STATUS.error = 1;
-        SPI_FLASH_LOG_ERR("W25Q32 JEDEC mismatch — SPI NOR not ready");
+        SPI_FLASH_LOG_ERR("W25Q32 JEDEC mismatch - SPI NOR not ready");
         return ARM_DRIVER_ERROR;
     }
 
