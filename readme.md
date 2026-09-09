@@ -55,6 +55,38 @@ if (st == PSA_SUCCESS) {
 }
 ```
 
+### 从旧 CubeIDE 工程需要改什么
+
+旧工程是 **S 320 KB + NS 576 KB、NS 紧挨 S**。本分支是 **S 512 KB + NS 1 MB（整个 Bank2）**。  
+**不是只换 `s_veneers.o` 和链接脚本。** `.cproject` 和模板 `appli_ns.ld` 不用改（链接脚本用宏）；真正定地址的是头文件和预处理结果。
+
+推荐：编完 SPE 后把 `trusted-firmware-m/build_s/api_ns/` **整份覆盖**到 `tfmcubeideproject/STM32CubeIDE/spe/api_ns/`（含 `interface/lib/s_veneers.o`），再重新预处理 `appli_ns.pp.ld`。makefile 工程同理覆盖 `tfmmakeproject/api_ns/`。
+
+工具链与本仓库这次导出一致：**GCC 14.3.1**（Arm GNU Toolchain 14.3.Rel1 / CubeIDE GNU Tools for STM32 14.3.rel1）。
+
+| 旧（`stm32h573p256` CubeIDE） | 新（本分支） |
+|-------------------------------|--------------|
+| S 执行 `0x0C038000`，320 KB | 仍 `0x0C038000`，**512 KB** |
+| NS 执行约 `0x0C088000`，576 KB | **`0x0C100000` / `0x08100000`，1 MB** |
+| NS 链接 ORIGIN 跟在 S `0x50000` 后面 | **`0x08100400`**（`0x08000000+0x100000+0x400`） |
+| 签完 NS 约 576 KB | 签完 NS **1 MB**（需 `--pad` 到槽大小） |
+| `s_veneers.o` 随 320 KB S | 必须换成这次 SPE 导出的 veneer（NSC 约在 `0x0C0B5xxx`） |
+
+自己改旧工程时，至少改这些（路径相对 `tfmcubeideproject/STM32CubeIDE/`）：
+
+| 必须 | 路径 | 改什么 |
+|------|------|--------|
+| 是 | `spe/api_ns/interface/lib/s_veneers.o` | 换成**同一次** SPE 编出来的文件；`.cproject` 已指向这里 |
+| 是 | `spe/api_ns/flash_layout.h` 以及 `spe/api_ns/platform/include/flash_layout.h` | `FLASH_S_PARTITION_SIZE=0x80000`，`FLASH_NS_PARTITION_SIZE=0x100000`，`FLASH_AREA_1_OFFSET=FLASH_B_SIZE`（Bank2） |
+| 是 | `spe/api_ns/region_defs.h` 以及 `spe/api_ns/platform/include/region_defs.h` | `NS_IMAGE_PRIMARY_PARTITION_OFFSET` 改为 `FLASH_AREA_1_OFFSET`（不要再用 `FLASH_AREA_0 + S_SIZE`） |
+| 是 | `spe/out/appli_ns.pp.ld` | 用上面头文件重新预处理模板 `spe/api_ns/platform/linker_scripts/appli_ns.ld`；`LENGTH` 约为 `0x100000-0x400-0x2000` |
+| 是 | `spe/api_ns/TFM_UPDATE.sh` / `TFM_BIN2HEX.sh` | `slot0=0xc038000`，**`slot1=0xc100000`**（旧值 `0xc088000` 会烧错银行） |
+| 建议 | `sign_kit/config` 与 post-build 签名 | NS `--pad` 到 **1 MB**；烧录地址 `0x0C100000` |
+| 建议 | `ns_app` 应用代码 | 需要查 S 版本时用 `psa_fwu_query(0)`；写升级包用 `w25q32_*`，不要走 `psa_fwu_start/write` |
+
+不要只改 `appli_ns.pp.ld` 却不换 `flash_layout.h` / `region_defs.h`：CubeIDE 下次预处理会回到旧地址。  
+`s_veneers.o` 必须和板上的 `tfm_s` 同一轮编译；只换 NS 不换 S/veneer 会 NSC 跑飞。根目录 `.gitignore` 的 `*.o` 已对这两处 veneer 开了例外，不必再靠 `tfmcubeideproject.7z` 才能带上该文件。
+
 ### 相对 `master` 改了什么（签名，继承自 `stm32h573p256`）
 
 本支线相对 `master` **签名换成 EC-P256**。主要包括：
@@ -276,7 +308,7 @@ Windows 一键：`windows-tfm-tools\tfm_update.bat`（会调 `regression.bat`）
 
 - 增加 tfmcubeideproject 非安全侧工程可以使用stm32cubeide开发，这是基于make工程 tfmmakeproject 移植而来。
 
-- 增加 tfmcubeideproject.7z 非安全侧工程可以使用stm32cubeide开发，包含.o链接，因为git会忽略链接文件，所以压缩上传。本分支（`stm32h573p256`）压缩包内 `sign_kit`/`spe` 密钥与样例签名镜像已改为 **EC-P256**（与树内工程一致）；`master` 上仍为 RSA-3072。
+- 增加 tfmcubeideproject.7z 非安全侧工程可以使用stm32cubeide开发。本分支 `s_veneers.o` 已纳入 `spe/api_ns/interface/lib/`（gitignore 例外）；压缩包仍可用于整包分发。本分支（`stm32h573p256` / 本 SPI-NS 支线）压缩包内 `sign_kit`/`spe` 密钥与样例签名镜像为 **EC-P256**；`master` 上仍为 RSA-3072。从旧 CubeIDE 迁到本布局见上文「从旧 CubeIDE 工程需要改什么」。
 
 - 增加 windows-tfm-tools 该工具是windows系统的使用的回归脚本和烧录工具。
 
