@@ -23,6 +23,7 @@ target_include_directories(platform_ns
     PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/include
         ${CMAKE_CURRENT_LIST_DIR}/Device/Include
+        ${CMAKE_CURRENT_LIST_DIR}/hal/CMSIS_Driver
         ${CMAKE_CURRENT_LIST_DIR}/ext/cmsis/Include
         ${CMAKE_CURRENT_LIST_DIR}/ext/cmsis/Include/m-profile
         ${CMAKE_CURRENT_LIST_DIR}/ext/common
@@ -34,6 +35,7 @@ target_sources(platform_ns
         ${CMAKE_CURRENT_SOURCE_DIR}/hal/Src/stm32h5xx_hal.c
         ${CMAKE_CURRENT_SOURCE_DIR}/Device/Source/system_stm32h5xx.c
         ${CMAKE_CURRENT_SOURCE_DIR}/hal/CMSIS_Driver/low_level_com.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/hal/CMSIS_Driver/low_level_spi_flash.c
         ${CMAKE_CURRENT_SOURCE_DIR}/hal/Src/stm32h5xx_hal_dma.c
         ${CMAKE_CURRENT_SOURCE_DIR}/hal/Src/stm32h5xx_hal_dma_ex.c
         ${CMAKE_CURRENT_SOURCE_DIR}/hal/Src/stm32h5xx_hal_pwr.c
