@@ -121,6 +121,19 @@ static void test_its(void)
     check("psa_its_remove", status);
 }
 
+static void log_fw_version(const char *label, const psa_fwu_component_info_t *info)
+{
+    /* imgtool version: major.minor.revision[+build] */
+    LOG_MSG("  %s version=%u.%u.%u+%u state=%u max_size=%u\r\n",
+            label,
+            (unsigned)info->version.major,
+            (unsigned)info->version.minor,
+            (unsigned)info->version.patch,
+            (unsigned)info->version.build,
+            (unsigned)info->state,
+            (unsigned)info->max_size);
+}
+
 static void test_fwu_query(void)
 {
     psa_fwu_component_info_t info;
@@ -128,20 +141,21 @@ static void test_fwu_query(void)
 
     LOG_MSG("PSA FWU query\r\n");
 
+    /* Component 0 = Secure. Kept on purpose: download/install is disabled,
+     * but NS still reads the running S image version from BL2 shared data.
+     */
     memset(&info, 0, sizeof(info));
     status = psa_fwu_query(FWU_COMPONENT_ID_SECURE, &info);
     check("psa_fwu_query(S)", status);
     if (status == PSA_SUCCESS) {
-        LOG_MSG("  S  state=%u max_size=%u\r\n",
-                (unsigned)info.state, (unsigned)info.max_size);
+        log_fw_version("S", &info);
     }
 
     memset(&info, 0, sizeof(info));
     status = psa_fwu_query(FWU_COMPONENT_ID_NONSECURE, &info);
     check("psa_fwu_query(NS)", status);
     if (status == PSA_SUCCESS) {
-        LOG_MSG("  NS state=%u max_size=%u\r\n",
-                (unsigned)info.state, (unsigned)info.max_size);
+        log_fw_version("NS", &info);
     }
 }
 

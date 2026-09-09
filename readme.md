@@ -45,7 +45,15 @@ TrustZone 片上 Flash 的 S/NS 分界用 **FLASH SECWM**（H5 没有 GTZC-MPCWM
 3. 签名正确 **且** 映像哈希与当前内部主槽不同 → BL2 覆盖内部执行槽。
 4. 签名错误，或哈希与当前运行映像相同 → 不升级，继续从内部主槽启动。
 
-`psa_fwu_query(0)` 查询 **S** 版本，`psa_fwu_query(1)` 查询 NS 版本（来自 BL2 写入的共享区）。`psa_fwu_start` / `write` / `install` 返回 `PSA_ERROR_NOT_SUPPORTED`。CubeProgrammer / `./flash_stm32h573.sh` 仍只烧内部 primary（BL2/S/NS）。
+**PSA 查询 S 固件版本保留。** NS 用 `psa_fwu_query(FWU_COMPONENT_ID_SECURE)`（component `0`）读当前运行的 S 版本（BL2 写入共享区，不是去读 NOR）。NS 版本用 component `1`。`psa_fwu_start` / `write` / `install` 返回 `PSA_ERROR_NOT_SUPPORTED`。CubeProgrammer / `./flash_stm32h573.sh` 仍只烧内部 primary（BL2/S/NS）。
+
+```c
+psa_fwu_component_info_t info;
+psa_status_t st = psa_fwu_query(FWU_COMPONENT_ID_SECURE, &info); /* 0 = S */
+if (st == PSA_SUCCESS) {
+    /* info.version = major.minor.patch[+build]，例如 2.3.0+0 */
+}
+```
 
 ### 相对 `master` 改了什么（签名，继承自 `stm32h573p256`）
 

@@ -36,8 +36,9 @@ set(MCUBOOT_HW_ROLLBACK_PROT            ON          CACHE BOOL      "Enable secu
 set(CONFIG_TFM_USE_TRUSTZONE               ON           CACHE BOOL      "Use TrustZone")
 set(TFM_PARTITION_PROTECTED_STORAGE        ON           CACHE BOOL      "Disable Protected Storage partition")
 set(TFM_PARTITION_INITIAL_ATTESTATION      ON           CACHE BOOL      "Disable Initial Attestation partition")
-# Keep FWU partition so psa_fwu_query() can read S/NS versions from BL2 shared data.
-# Download/install is not used: NS writes W25Q32, BL2 only reads NOR.
+# Keep FWU partition so NS can psa_fwu_query(0) the running S firmware version
+# (and query(1) for NS) from BL2 shared data. Download/install is not used:
+# NS writes W25Q32, BL2 only reads NOR.
 set(PLATFORM_HAS_FIRMWARE_UPDATE_SUPPORT   ON           CACHE BOOL      "Wheter the platform has firmware update support")
 set(TFM_PARTITION_FIRMWARE_UPDATE          ON           CACHE BOOL      "Enable firmware update partition")
 set(TFM_FWU_QUERY_ONLY                     ON           CACHE BOOL      "Keep psa_fwu_query; reject PSA start/write/install")
