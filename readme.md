@@ -64,7 +64,15 @@ trusted-firmware-m/build_s/api_ns/  →  tfmcubeideproject/STM32CubeIDE/spe/api_
 makefile 工程同理 →  tfmmakeproject/api_ns/
 ```
 
-覆盖后重新编译。`s_veneers.o` 在 `api_ns` 里，必须和板上那份 `tfm_s` 同一轮 SPE 编出来的。
+覆盖后重新编译。用下面几项确认这份 `api_ns` 是对的：
+
+| 看哪里 | 对了是 |
+|--------|--------|
+| `flash_layout.h` | `FLASH_S_PARTITION_SIZE=0x80000`，`FLASH_NS_PARTITION_SIZE=0x100000` |
+| `spe/out/appli_ns.pp.ld` 的 FLASH ORIGIN | `0x08100400` |
+| 签完的 NS 大小、烧录地址 | **1 MB**，`0x0C100000`（旧值 `0x0C088000` 是错的） |
+| `spe/api_ns/interface/lib/s_veneers.o` | 必须和板上 `tfm_s` **同一轮** SPE（只换 NS 会 NSC 跑飞） |
+| `TFM_UPDATE.sh` / `TFM_BIN2HEX.sh` | `slot0=0xc038000`，`slot1=0xc100000` |
 
 ### 相对 `master` 改了什么（签名，继承自 `stm32h573p256`）
 
