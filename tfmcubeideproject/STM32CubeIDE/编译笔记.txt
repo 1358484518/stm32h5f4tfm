@@ -1,0 +1,2 @@
+CubeIDE 工程在本目录打开（.project 工程名 tfmminiproject）。
+编译步骤见上一级 编译笔记.txt，完整 TF-M 说明见仓库根目录 tfm编译笔记.txt。

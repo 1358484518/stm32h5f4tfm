@@ -516,6 +516,21 @@ static psa_status_t tfm_fwu_clean(const psa_msg_t *msg)
 psa_status_t tfm_firmware_update_service_sfn(const psa_msg_t *msg)
 {
     switch (msg->type) {
+#ifdef TFM_FWU_QUERY_ONLY
+    case TFM_FWU_START:
+    case TFM_FWU_WRITE:
+    case TFM_FWU_FINISH:
+    case TFM_FWU_INSTALL:
+    case TFM_FWU_CANCEL:
+    case TFM_FWU_CLEAN:
+    case TFM_FWU_ACCEPT:
+    case TFM_FWU_REJECT:
+        return PSA_ERROR_NOT_SUPPORTED;
+    case TFM_FWU_QUERY:
+        return tfm_fwu_query(msg);
+    case TFM_FWU_REQUEST_REBOOT:
+        return tfm_fwu_request_reboot();
+#else
     case TFM_FWU_START:
         return tfm_fwu_start(msg);
     case TFM_FWU_WRITE:
@@ -536,6 +551,7 @@ psa_status_t tfm_firmware_update_service_sfn(const psa_msg_t *msg)
         return tfm_fwu_accept();
     case TFM_FWU_REJECT:
         return tfm_fwu_reject(msg);
+#endif
     default:
         return PSA_ERROR_NOT_SUPPORTED;
     }

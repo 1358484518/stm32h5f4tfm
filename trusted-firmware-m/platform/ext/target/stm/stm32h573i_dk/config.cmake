@@ -11,7 +11,7 @@ set(MCUBOOT_IMAGE_NUMBER                   2           CACHE STRING    "Whether 
 set(BL2_HEADER_SIZE                        0x400       CACHE STRING    "Header size")
 set(BL2_TRAILER_SIZE                       0x2000      CACHE STRING    "Trailer size")
 set(MCUBOOT_ALIGN_VAL                      16          CACHE STRING    "Align option to build image with imgtool")
-set(MCUBOOT_UPGRADE_STRATEGY        "SWAP_USING_SCRATCH"      CACHE STRING    "Upgrade strategy for images")
+set(MCUBOOT_UPGRADE_STRATEGY        "OVERWRITE_ONLY"      CACHE STRING    "Upgrade strategy for images")
 set(MCUBOOT_USE_PSA_CRYPTO                 ON          CACHE BOOL      "Enable the cryptographic abstraction layer to use PSA Crypto APIs")
 set(TFM_PARTITION_PLATFORM                 ON          CACHE BOOL      "Enable platform partition")
 set(MCUBOOT_DATA_SHARING                   ON          CACHE BOOL      "Enable Data Sharing")
@@ -32,16 +32,25 @@ set(MCUBOOT_FIH_PROFILE                    LOW         CACHE STRING    "Fault in
 set(TFM_SPM_LOG_LEVEL             LOG_LEVEL_INFO       CACHE STRING    "Set default SPM log level as INFO level")
 set(TFM_PARTITION_LOG_LEVEL       LOG_LEVEL_INFO       CACHE STRING    "Set default Secure Partition log level as INFO level")
 set(MCUBOOT_HW_ROLLBACK_PROT            ON          CACHE BOOL      "Enable security counter validation against non-volatile HW counters")
+# Overwrite-only: secondary version must be >= primary (major.minor.revision).
+set(MCUBOOT_DOWNGRADE_PREVENTION        ON          CACHE BOOL      "Reject secondary images whose version is lower than the primary")
 ################################## Platform-specific configurations ####################################
 set(CONFIG_TFM_USE_TRUSTZONE               ON           CACHE BOOL      "Use TrustZone")
 set(TFM_PARTITION_PROTECTED_STORAGE        ON           CACHE BOOL      "Disable Protected Storage partition")
 set(TFM_PARTITION_INITIAL_ATTESTATION      ON           CACHE BOOL      "Disable Initial Attestation partition")
+# Keep FWU partition so NS can psa_fwu_query(0) the running S firmware version
+# (and query(1) for NS) from BL2 shared data. Download/install is not used:
+# NS writes W25Q32; BL2 reads NOR and erases the download slot after a
+# successful overwrite so later boots skip hashing leftover images.
 set(PLATFORM_HAS_FIRMWARE_UPDATE_SUPPORT   ON           CACHE BOOL      "Wheter the platform has firmware update support")
-################################## FIRMWARE_UPDATE #############################################################
 set(TFM_PARTITION_FIRMWARE_UPDATE          ON           CACHE BOOL      "Enable firmware update partition")
+set(TFM_FWU_QUERY_ONLY                     ON           CACHE BOOL      "Keep psa_fwu_query; reject PSA start/write/install")
 set(TFM_FWU_BOOTLOADER_LIB                 "mcuboot"    CACHE STRING    "Bootloader configure file for Firmware Update partition")
 set(TFM_CONFIG_FWU_MAX_WRITE_SIZE          1024         CACHE STRING    "The maximum permitted size for block in psa_fwu_write, in bytes.")
 set(TFM_CONFIG_FWU_MAX_MANIFEST_SIZE       0            CACHE STRING    "The maximum permitted size for manifest in psa_fwu_start(), in bytes.")
 set(FWU_DEVICE_CONFIG_FILE                 ""           CACHE STRING    "The device configuration file for Firmware Update partition")
-set(DMCUBOOT_UPGRADE_STRATEGY              SWAP_USING_MOVE)
+set(TEST_NS_FWU                            OFF          CACHE BOOL      "Whether to build NS regression FWU tests")
+set(TEST_S_FWU                             OFF          CACHE BOOL      "Whether to build S regression FWU tests")
+# Let BL2 treat a signed image in the NOR slot as a candidate even without trailer MAGIC.
+set(MCUBOOT_IMAGE_ACCESS_HOOKS             ON           CACHE BOOL      "Enable MCUboot image access hooks")
 set(DEFAULT_MCUBOOT_FLASH_MAP             ON            CACHE BOOL     "Whether to use the default flash map defined by TF-M project")

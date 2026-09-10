@@ -1,0 +1,13 @@
+本仓库各工程编译笔记索引（分支 stm32H573P256-SPIFLASH）
+
+完整 TF-M 编译 / 烧录 / 布局 / 升级：
+	./tfm编译笔记.txt
+
+各工程自己的编译步骤：
+	trusted-firmware-m/编译笔记.txt     SPE + BL2（请用根目录 ./buildtfm.sh）
+	tf-m-tests/编译笔记.txt             NS 回归测试（依赖 SPE 导出 api_ns）
+	tfmmakeproject/编译笔记.txt         makefile 裸机 NS
+	tfmcubeideproject/编译笔记.txt      CubeIDE NS（覆盖 spe/api_ns 后编译）
+
+Windows 只烧不编：
+	windows-tfm-tools/本目录工具使用说明.txt

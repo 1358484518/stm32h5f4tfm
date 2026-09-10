@@ -10,7 +10,7 @@ set(TEST_NS_ATTESTATION        ON     CACHE BOOL "Whether to build NS regression
 set(TEST_NS_CRYPTO             ON     CACHE BOOL "Whether to build NS regression Crypto tests")
 set(TEST_NS_FLIH_IRQ           OFF    CACHE BOOL "Whether to build NS regression First-Level Interrupt Handling tests")
 set(TEST_NS_FPU                OFF    CACHE BOOL "Whether to build NS regression FPU tests")
-set(TEST_NS_FWU                ON     CACHE BOOL "Whether to build NS regression FWU tests")
+set(TEST_NS_FWU                OFF    CACHE BOOL "Whether to build NS regression FWU tests")
 set(TEST_NS_IPC                OFF    CACHE BOOL "Whether to build NS regression IPC tests")
 set(TEST_NS_ITS                ON     CACHE BOOL "Whether to build NS regression ITS tests")
 set(TEST_NS_MANAGE_NSID        OFF    CACHE BOOL "Whether to build NS regression NSID management tests")

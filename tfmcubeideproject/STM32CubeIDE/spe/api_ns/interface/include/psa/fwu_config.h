@@ -38,6 +38,6 @@
 /* Whether TRIAL component state is supported or not. This is device specific
  * configuration.
  */
-#define FWU_SUPPORT_TRIAL_STATE
+/* #undef FWU_SUPPORT_TRIAL_STATE */
 
 #endif /* __FWU_CONFIG_H__ */

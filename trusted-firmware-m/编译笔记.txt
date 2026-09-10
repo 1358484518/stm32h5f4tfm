@@ -1,0 +1,44 @@
+trusted-firmware-m 编译笔记（分支 stm32H573P256-SPIFLASH）
+
+本目录是 TF-M SPE / BL2 源码树，平台 stm/stm32h573i_dk，签名 EC-P256。
+不要在本目录单独 git clone 上游 TF-M；与仓库根目录的 tf-m-tests 配套使用。
+完整说明见仓库根目录 tfm编译笔记.txt。
+
+1.工具链
+	ARM GNU Toolchain 14.3.1（arm-none-eabi-gcc）
+	export PATH=/opt/arm-gnu-toolchain-14.3.rel1-x86_64-arm-none-eabi/bin:$PATH
+
+2.推荐编译（在仓库根目录）
+	./buildtfm.sh test
+	./buildtfm.sh prod
+	增量：./buildtfm.sh test --no-clean
+	不要手动 rm -rf build_s；脚本会清产物并保留 .deps-cache。
+
+	本目录 cmake 手工编 SPE 仅供对照：
+	cd trusted-firmware-m
+	source ../.venv/bin/activate
+	cmake -S ../tf-m-tests/tests_reg/spe -B build_s -GNinja \
+		-DTFM_PLATFORM=stm/stm32h573i_dk \
+		-DTFM_TOOLCHAIN_FILE=$PWD/toolchain_GNUARM.cmake \
+		-DCONFIG_TFM_SOURCE_PATH=$PWD \
+		-DCONFIG_TFM_ENABLE_FP=ON -DCONFIG_TFM_FP_ARCH=fpv5-sp-d16 \
+		-DCONFIG_TFM_FLOAT_ABI=hard -DTEST_S=ON -DTEST_NS=ON
+	ninja -C build_s install -j$(nproc)
+
+3.产物
+	build_s/bin/bl2.hex、tfm_s_signed.bin（512 KB，烧 0x0C038000）
+	build_s/api_ns/          整份覆盖到 makefile / CubeIDE
+	build_ns/ 由 tf-m-tests 侧 cmake 生成，见 ../tf-m-tests/编译笔记.txt
+
+4.本分支布局（源码：include/flash_layout.h）
+	S 执行  内部 Bank1 0x0C038000，512 KB
+	NS 执行 内部 Bank2 0x0C100000 / 0x08100000，1 MB
+	S 下载  W25Q32 0x100000，512 KB（命令偏移，非 XIP）
+	NS 下载 W25Q32 0x180000，1 MB
+	MCUBOOT_UPGRADE_STRATEGY=OVERWRITE_ONLY
+	MCUBOOT_DOWNGRADE_PREVENTION=ON
+	TFM_FWU_QUERY_ONLY：保留 psa_fwu_query，屏蔽 start/write/install
+
+5.烧录
+	仓库根目录 ./flash_stm32h573.sh 只烧内部 primary（BL2/S/NS）。
+	改布局或换密钥后必须回归 + 重烧 BL2 + S + NS。

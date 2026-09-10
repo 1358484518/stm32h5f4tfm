@@ -50,6 +50,9 @@
 #include "tfm_hal_device_header.h"
 #include "Driver_Flash.h"
 #include "region_defs.h"
+#ifdef EXTERNAL_FLASH
+#include "flash_map/flash_map.h"
+#endif
 #include "low_level_rng.h"
 #ifdef MCUBOOT_EXT_LOADER
 #include "bootutil/crypto/sha256.h"
@@ -100,6 +103,28 @@ extern ARM_DRIVER_FLASH FLASH_DEV_NAME_3;
 #ifdef FLASH_DEV_NAME_SCRATCH
 extern ARM_DRIVER_FLASH FLASH_DEV_NAME_SCRATCH;
 #endif /* FLASH_DEV_NAME_SCRATCH */
+
+#if defined(EXTERNAL_FLASH)
+#include "bootutil/bootutil_log.h"
+
+int flash_device_base(uint8_t fd_id, uintptr_t *ret)
+{
+    switch (fd_id) {
+    case FLASH_DEVICE_ID:
+        *ret = FLASH_DEVICE_BASE;
+        break;
+    case SPI_FLASH_DEV_ID:
+        *ret = SPI_FLASH_BASE_ADDRESS;
+        break;
+    default:
+        BOOT_LOG_ERR("invalid flash ID %d; expected %d",
+                     fd_id, FLASH_DEVICE_ID);
+        *ret = (uintptr_t)-1;
+        return -1;
+    }
+    return 0;
+}
+#endif /* EXTERNAL_FLASH */
 
 #if defined(MCUBOOT_DOUBLE_SIGN_VERIF)
 /* Global variables to memorize images validation status */
@@ -670,19 +695,18 @@ int32_t boot_platform_init(void)
     }
 #endif /* FLASH_DEV_NAME */
 #ifdef FLASH_DEV_NAME_2
-    if (FLASH_DEV_NAME_2.Initialize(NULL) != ARM_DRIVER_OK)
-    {
-        BOOT_LOG_ERR("Error while initializing Flash Interface");
-        Error_Handler();
+    /* Match prints [INF] inside the driver; mismatch already [ERR]. */
+    if (FLASH_DEV_NAME_2.Initialize(NULL) != ARM_DRIVER_OK) {
+        BOOT_LOG_ERR("SPI NOR init failed; continue with internal primary");
     }
 #endif /* FLASH_DEV_NAME_2 */
-#ifdef FLASH_DEV_NAME_3
+#if defined(FLASH_DEV_NAME_3) && !defined(FLASH_DEV_NAME_2)
     if (FLASH_DEV_NAME_3.Initialize(NULL) != ARM_DRIVER_OK)
     {
-        BOOT_LOG_ERR("Error while initializing Flash Interface");
+        BOOT_LOG_ERR("Error while initializing SPI Flash Interface");
         Error_Handler();
     }
-#endif /* FLASH_DEV_NAME_3 */
+#endif /* FLASH_DEV_NAME_3 && !FLASH_DEV_NAME_2 */
 #ifdef FLASH_DEV_NAME_SCRATCH
     if (FLASH_DEV_NAME_SCRATCH.Initialize(NULL) != ARM_DRIVER_OK)
     {

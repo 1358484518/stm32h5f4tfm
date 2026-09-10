@@ -53,6 +53,19 @@
 #define FLASH0_PAGE_SIZE 0x2000
 #define FLASH0_PROG_UNIT 0x10
 #define FLASH0_ERASED_VAL 0xff
+
+/* External W25Q32 on SPI1 (4-wire): SCK=PA5, MISO=PA6, MOSI=PA7, CS=PB2 */
+#define SPI1_FLASH_SCK_PORT                    GPIOA
+#define SPI1_FLASH_SCK_PIN                     GPIO_PIN_5
+#define SPI1_FLASH_SCK_AF                      GPIO_AF5_SPI1
+#define SPI1_FLASH_MISO_PORT                   GPIOA
+#define SPI1_FLASH_MISO_PIN                    GPIO_PIN_6
+#define SPI1_FLASH_MISO_AF                     GPIO_AF5_SPI1
+#define SPI1_FLASH_MOSI_PORT                   GPIOA
+#define SPI1_FLASH_MOSI_PIN                    GPIO_PIN_7
+#define SPI1_FLASH_MOSI_AF                     GPIO_AF5_SPI1
+#define SPI1_FLASH_CS_PORT                     GPIOB
+#define SPI1_FLASH_CS_PIN                      GPIO_PIN_2
 #endif /* __BOARD_H__ */
 
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

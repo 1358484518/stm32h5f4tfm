@@ -8,12 +8,77 @@
 |------|----------|------|
 | `master` | **RSA-3072** | 默认主线 |
 | `stm32h573p256` | **EC-P256** | 仅改 MCUboot 镜像签名算法与配套密钥 |
+| `stm32H573P256-SPIFLASH` | **EC-P256** | 基于 `stm32h573p256`：NS 执行槽 1 MB，升级槽在外部 W25Q32 |
 
-本文档所在分支为 **`stm32h573p256`**。
+本文档所在分支为 **`stm32H573P256-SPIFLASH`**。
 
-### 相对 `master` 改了什么
+### 相对 `stm32h573p256` 改了什么（本分支）
 
-本支线相对 `master` **只围绕签名换成 EC-P256**，Flash 布局 / 槽位等不变。主要包括：
+内部 Flash 仍 2 MB（Bank1 `0x00000–0xFFFFF`，Bank2 `0x100000–0x1FFFFF`）。升级策略 **overwrite-only**。S/NS **下载槽**在 SPI1 外接 **W25Q32**（4 MB，非 XIP），从 `0x100000` 起：S 下载 **512 KB**，NS 下载 **1 MB**。MCUboot 要求同一镜像的主槽和下载槽等大，因此内部 S 执行槽也是 512 KB（镜像填充；BL2 地址不变）。**NS 执行槽放在整个 Bank2**，不再跨 1 MB 银行边界。
+
+| 内容 | 位置 |
+|------|------|
+| S 执行 | 内部 Bank1 `0x0C038000`，512 KB |
+| NS 执行 | 内部 Bank2 `0x0C100000` / `0x08100000`，1 MB |
+| Bank1 空隙 | `0x0C0B8000–0x0C0FFFFF`（288 KB，SECWM1 保持 Secure） |
+| S 下载 | W25Q32 `0x100000`，512 KB（命令偏移，不是片上 Bank2） |
+| NS 下载 | W25Q32 `0x180000`，1 MB |
+| 引脚 | SCK=PA5, MISO=PA6, MOSI=PA7, CS=PB2 |
+
+TrustZone 片上 Flash 的 S/NS 分界用 **FLASH SECWM**（H5 没有 GTZC-MPCWM 管内部 Flash）：
+
+| 项 | 值 |
+|----|----|
+| SECWM1（Bank1） | STRT=0 END=127（整 bank Secure，含 S 后 288 KB） |
+| SECWM2（Bank2） | STRT=127 END=0（整 bank NS） |
+| SAU NS Flash | `0x08100000` … `0x081FFFFF`（随 `FLASH_AREA_1` / `FLASH_AREA_END_OFFSET`） |
+| GTZC TZSC | SPI1 = NSEC+NPRIV；SRAM1 NS / SRAM2 S 不变 |
+
+回归脚本会先把两 bank 写成全 Secure；DEV 模式下 BL2（`TFM_ENABLE_SET_OB`）按上面把 Bank2 改成全 NS。改布局后必须 **回归 + 重烧**。
+
+外部窗口 **`0x100000-0x280000`**。BL2 / HDP / WRP 不变（scratch 48 KB 仍占位但不参与升级）。
+
+升级路径：
+
+1. NS 用 `w25q32_init` / `erase_4k` / `write` 把已签名的 `tfm_s_signed.bin`、`tfm_ns_signed.bin` 写到 W25Q32 `0x100000` / `0x180000`（先擦后写）。
+2. 调用 `psa_fwu_request_reboot()` 或复位。BL2 **只读** NOR（不擦、不写外部 Flash）。
+3. 签名正确、**版本不低于**当前内部主槽（`major.minor.revision`，不含 build），且哈希不同 → BL2 覆盖内部执行槽。
+4. 签名错误、版本更低、或哈希与当前运行映像相同 → 不升级，继续从内部主槽启动。
+
+签名时请抬版本（NS 默认 `0.0.0`，一直不改则版本相等，哈希不同仍会覆盖）。security counter 也不能比片上的小。
+
+**PSA 查询 S 固件版本保留。** NS 用 `psa_fwu_query(FWU_COMPONENT_ID_SECURE)`（component `0`）读当前运行的 S 版本（BL2 写入共享区，不是去读 NOR）。NS 版本用 component `1`。`psa_fwu_start` / `write` / `install` 返回 `PSA_ERROR_NOT_SUPPORTED`。CubeProgrammer / `./flash_stm32h573.sh` 仍只烧内部 primary（BL2/S/NS）。
+
+```c
+psa_fwu_component_info_t info;
+psa_status_t st = psa_fwu_query(FWU_COMPONENT_ID_SECURE, &info); /* 0 = S */
+if (st == PSA_SUCCESS) {
+    /* info.version = major.minor.patch[+build]，例如 2.3.0+0 */
+}
+```
+
+### 从旧 CubeIDE 工程迁过来
+
+把本分支编出来的 SPE 导出 **整份覆盖** 过去就行，`.cproject`、应用代码、链接脚本模板都不用改：
+
+```text
+trusted-firmware-m/build_s/api_ns/  →  tfmcubeideproject/STM32CubeIDE/spe/api_ns/
+makefile 工程同理 →  tfmmakeproject/api_ns/
+```
+
+覆盖后重新编译。用下面几项确认这份 `api_ns` 是对的：
+
+| 看哪里 | 对了是 |
+|--------|--------|
+| `flash_layout.h` | `FLASH_S_PARTITION_SIZE=0x80000`，`FLASH_NS_PARTITION_SIZE=0x100000` |
+| `spe/out/appli_ns.pp.ld` 的 FLASH ORIGIN | `0x08100400` |
+| 签完的 NS 大小、烧录地址 | **1 MB**，`0x0C100000`（旧值 `0x0C088000` 是错的） |
+| `spe/api_ns/interface/lib/s_veneers.o` | 必须和板上 `tfm_s` **同一轮** SPE（只换 NS 会 NSC 跑飞） |
+| `TFM_UPDATE.sh` / `TFM_BIN2HEX.sh` | `slot0=0xc038000`，`slot1=0xc100000` |
+
+### 相对 `master` 改了什么（签名，继承自 `stm32h573p256`）
+
+本支线相对 `master` **签名换成 EC-P256**。主要包括：
 
 1. **TF-M BL2**：`stm32h573i_dk/config.cmake` 设 `MCUBOOT_SIGNATURE_TYPE=EC-P256`（公钥编进 BL2）
 2. **TF-M SPE 签名**：默认密钥改为 `root-EC-P256.pem` / `root-EC-P256_1.pem`；`buildtfm.sh` 带 `SIG=` stamp 并 `-UMCUBOOT_KEY_S/NS`
@@ -186,7 +251,7 @@ imgtool verify trusted-firmware-m/build_ns/bin/tfm_ns_signed.bin
 仓库根目录 `./flash_stm32h573.sh`：先写 option bytes（含全片擦除），再烧 **BL2 + S + NS**。需已安装 `STM32_Programmer_CLI`，板子用 ST-Link。
 
 ```bash
-git checkout stm32h573p256
+git checkout stm32H573P256-SPIFLASH
 ./buildtfm.sh test          # 或 prod
 ./flash_stm32h573.sh        # 一键：回归 + 烧录
 # ./flash_stm32h573.sh download     # 只烧，不擦片
@@ -198,21 +263,26 @@ git checkout stm32h573p256
 |------|------|----------|
 | BL2（含 OTP 区） | `0x0C00E000`（`bl2.hex` 另含 `0x0C028000` OTP） | `…/api_ns/bin/bl2.hex`（优先）或 `bl2.bin` |
 | S | `0x0C038000` | `…/api_ns/bin/tfm_s_signed.bin` |
-| NS | `0x0C088000` | `trusted-firmware-m/build_ns/bin/tfm_ns_signed.bin` |
+| NS | `0x0C100000` | `trusted-firmware-m/build_ns/bin/tfm_ns_signed.bin` |
 
 可用环境变量 `TFM_NS_BIN=` 指定其它已签名 NS。`BOOT_UBE=0xB4`（OEM-iRoT）。串口 **115200**。
 
 若串口已是 `sig_type: EC-P256` 且 primary `magic=good`，仍报 `Image in the primary slot is not valid`：多半是 OTP 里 ROTPK 不对——请 `git pull` 后重新 `./buildtfm.sh test`（或使用已修补的 `bl2.hex`），再 `./flash_stm32h573.sh` 做一次回归+烧录。
 
-Windows 一键：`windows-tfm-tools\tfm_update.bat`（会调 `regression.bat`）。
+Windows 一键：`windows-tfm-tools\tfm_update.bat`（会调 `regression.bat`）。预置镜像是 **S 512 KB + NS 1 MB**，脚本优先烧 `tfm_s_signed` 和 `tfm_ns_signed`。拼接的 `tfm_s_ns_signed` 没有 Bank1 空隙，NS 会落到错误偏移，不能单独当完整镜像烧。
 
 
 
 ## 文档
 
 
-- [TF-M 编译笔记](./tfmwork/tfm编译笔记.txt) — 编译环境搭建、编译命令与踩坑记录
-- 注意：如果编译不通过可以删除 .venv 重新创建py环境。
+- [编译笔记索引](./编译笔记.txt) — 各工程笔记入口
+- [TF-M 编译笔记](./tfm编译笔记.txt) — 编译环境、一键脚本、Flash 布局、烧录与 SPI 升级
+- [SPE / BL2](./trusted-firmware-m/编译笔记.txt)
+- [NS 回归测试](./tf-m-tests/编译笔记.txt)
+- [makefile NS](./tfmmakeproject/编译笔记.txt)
+- [CubeIDE NS](./tfmcubeideproject/编译笔记.txt)
+- 注意：如果编译不通过可以删除仓库根目录 `.venv` 后重新 `./buildtfm.sh`。
 
 ## 硬件平台
 
@@ -232,7 +302,7 @@ Windows 一键：`windows-tfm-tools\tfm_update.bat`（会调 `regression.bat`）
 
 - 增加 tfmcubeideproject 非安全侧工程可以使用stm32cubeide开发，这是基于make工程 tfmmakeproject 移植而来。
 
-- 增加 tfmcubeideproject.7z 非安全侧工程可以使用stm32cubeide开发，包含.o链接，因为git会忽略链接文件，所以压缩上传。本分支（`stm32h573p256`）压缩包内 `sign_kit`/`spe` 密钥与样例签名镜像已改为 **EC-P256**（与树内工程一致）；`master` 上仍为 RSA-3072。
+- 增加 tfmcubeideproject.7z 非安全侧工程可以使用stm32cubeide开发。从旧工程迁过来见上文「从旧 CubeIDE 工程迁过来」。本分支密钥为 **EC-P256**（`master` 仍是 RSA-3072）。
 
 - 增加 windows-tfm-tools 该工具是windows系统的使用的回归脚本和烧录工具。
 

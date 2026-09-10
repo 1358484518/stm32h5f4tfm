@@ -1,0 +1,53 @@
+tfmmakeproject 编译笔记（分支 stm32H573P256-SPIFLASH）
+
+本目录是 makefile 裸机 NS 工程：内部晶振 PLL 240 MHz，硬件浮点 FPv5-SP-D16，
+正式用法关闭 NS 测试套件。签名 EC-P256，升级策略 overwrite-only。
+完整 TF-M / 布局说明见仓库根目录 tfm编译笔记.txt。
+
+1.前提
+	ARM GNU Toolchain 14.3.1 在 PATH 中。
+	api_ns/ 必须是当前板上 SPE 的整份导出（含 s_veneers.o 与 image_signing）。
+	覆盖方法：
+	仓库根目录编完 SPE 后：
+	cp -a ../trusted-firmware-m/build_s/api_ns/.  api_ns/
+	核对 api_ns/flash_layout.h：
+	FLASH_S_PARTITION_SIZE=0x80000
+	FLASH_NS_PARTITION_SIZE=0x100000
+
+2.编译
+	cd tfmmakeproject
+	make
+	可选：
+	make SPE=/path/to/build_s/api_ns
+	make TOOLCHAIN_DIR=/opt/arm-gnu-toolchain-14.3.rel1-x86_64-arm-none-eabi/bin
+	make python-deps          # 缺 imgtool 依赖时
+	make clean
+
+	CPU/ABI 必须与 SPE 一致：cortex-m33+nodsp，hard float，fpv5-sp-d16。
+
+3.产物
+	out/tfm_ns.axf
+	out/tfm_ns.bin
+	out/tfm_ns_signed.bin     # 1 MB，烧 0x0C100000
+	链接脚本预处理结果 out/appli_ns.pp.ld 的 FLASH ORIGIN 应为 0x08100400。
+	nm out/tfm_ns.axf | grep tfm_psa_call_veneer
+	该地址必须落在当前 SPE 的 NSC 区（与板上 tfm_s 同一轮）。
+
+	签名参数在 Makefile 里：
+	--version 0.0.0
+	-s 1
+	-d "(0, 0.0.0+0)"
+	--overwrite-only
+	--pad（槽大小由 api_ns/image_signing/layout_files/signing_layout_ns.o 决定，1 MB）
+	改 NS 版本时改 --version / -s，并与仓库根目录 versions/ 对齐。
+
+4.烧录
+	只烧内部 NS primary：
+	仓库根目录：
+	TFM_NS_BIN=$PWD/tfmmakeproject/out/tfm_ns_signed.bin ./flash_stm32h573.sh download
+	或 CubeProgrammer 写 0x0C100000。
+	BL2 与 S 仍用 SPE 产物。只换 NS 不要换另一轮 SPE 的 veneers。
+
+5.外部升级
+	把 out/tfm_ns_signed.bin 写到 W25Q32 0x180000（先擦后写），复位后由 BL2 覆盖内部 NS。
+	版本低于内部主槽会被拒绝；同版本但哈希不同仍会覆盖。

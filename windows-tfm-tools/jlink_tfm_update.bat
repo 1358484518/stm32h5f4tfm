@@ -6,11 +6,11 @@ rem  * J-Link programs the 0x08000000 flash window. Hex files that use the
 rem  * secure alias 0x0Cxxxxxx are remapped (0x0C - 0x04000000 = 0x08).
 rem  * Hex files are converted with jlink_hex_ns_alias.py (Python).
 rem  *
-rem  * Prefer .bin:
+rem  * Prefer separate .bin (NS is entire Bank2, not packed after S):
 rem  *   tfm_s_signed.bin       0x08038000
-rem  *   tfm_s_ns_signed.bin    0x08038000  (S+NS, skip extra NS)
-rem  *   tfm_ns_signed.bin      0x08088000
+rem  *   tfm_ns_signed.bin      0x08100000
 rem  *   bl2.bin                0x0800E000
+rem  *   tfm_s_ns_signed.bin    fallback only; concatenated NS has the wrong offset
 rem  *
 rem  * SPDX-License-Identifier: BSD-3-Clause
 rem  ****************************************************************************
@@ -19,7 +19,6 @@ setlocal EnableExtensions EnableDelayedExpansion
 set "EXIT_CODE=0"
 set "FAILED_STEP="
 set "FLASHED=0"
-set "SKIP_NS=0"
 set "SCRIPT_REV=cube-jlink-20260825f"
 set "SN_ARG="
 
@@ -33,7 +32,7 @@ if defined SN_ARG set "sn_option=sn=%SN_ARG%"
 rem NS flash alias (J-Link). Secure alias is NS + 0x04000000.
 set "ADDR_BL2=0x0800E000"
 set "ADDR_S=0x08038000"
-set "ADDR_NS=0x08088000"
+set "ADDR_NS=0x08100000"
 
 echo.
 echo ============================================================
@@ -141,51 +140,46 @@ echo [4] Download
 echo.
 
 call :find_file tfm_s_signed.bin
-if not errorlevel 1 (
-    call :flash_bin tfm_s_signed.bin "%FILE%" %ADDR_S% "S signed"
-    if errorlevel 1 goto :finish
-    goto :after_s
-)
+if errorlevel 1 goto :j_s_ns_bin
+call :flash_bin "!FILE!" %ADDR_S% S-signed
+if errorlevel 1 goto :finish
+goto :after_s
 
+:j_s_ns_bin
 call :find_file tfm_s_ns_signed.bin
-if not errorlevel 1 (
-    call :flash_bin tfm_s_ns_signed.bin "%FILE%" %ADDR_S% "S+NS signed"
-    if errorlevel 1 goto :finish
-    set "SKIP_NS=1"
-    goto :after_s
-)
+if errorlevel 1 goto :j_s_ns_hex
+echo [warn] tfm_s_ns_signed.bin has no Bank1 gap; still flash tfm_ns_signed.bin if present
+call :flash_bin "!FILE!" %ADDR_S% S-NS-signed-fallback
+if errorlevel 1 goto :finish
+goto :after_s
 
+:j_s_ns_hex
 call :find_file tfm_s_ns_signed.hex
-if not errorlevel 1 (
-    call :flash_hex tfm_s_ns_signed.hex "%FILE%" "S+NS signed"
-    if errorlevel 1 goto :finish
-    set "SKIP_NS=1"
-    goto :after_s
-)
+if errorlevel 1 goto :j_no_s
+echo [warn] tfm_s_ns_signed.hex has no Bank1 gap; still flash tfm_ns_signed.bin if present
+call :flash_hex "!FILE!" S-NS-signed-fallback
+if errorlevel 1 goto :finish
+goto :after_s
+:j_no_s
 echo [info] no S / S+NS image
 :after_s
 
-if "%SKIP_NS%"=="1" (
-    echo [info] skip tfm_ns_signed.bin, already in concatenated S+NS
-) else (
-    call :find_file tfm_ns_signed.bin
-    if not errorlevel 1 (
-        call :flash_bin tfm_ns_signed.bin "%FILE%" %ADDR_NS% "NS signed"
-        if errorlevel 1 goto :finish
-    )
-)
+call :find_file tfm_ns_signed.bin
+if errorlevel 1 goto :j_after_ns
+call :flash_bin "!FILE!" %ADDR_NS% NS-signed
+if errorlevel 1 goto :finish
+:j_after_ns
 
 call :find_file bl2.bin
-if not errorlevel 1 (
-    call :flash_bin bl2.bin "%FILE%" %ADDR_BL2% "BL2"
-    if errorlevel 1 goto :finish
-    goto :after_bl2
-)
+if errorlevel 1 goto :j_bl2_hex
+call :flash_bin "!FILE!" %ADDR_BL2% BL2
+if errorlevel 1 goto :finish
+goto :after_bl2
+:j_bl2_hex
 call :find_file bl2.hex
-if not errorlevel 1 (
-    call :flash_hex bl2.hex "%FILE%" "BL2"
-    if errorlevel 1 goto :finish
-)
+if errorlevel 1 goto :after_bl2
+call :flash_hex "!FILE!" BL2
+if errorlevel 1 goto :finish
 :after_bl2
 
 if "%FLASHED%"=="0" (
@@ -303,41 +297,59 @@ if not errorlevel 1 (
 exit /b 0
 
 :flash_hex
-set "STEP_NAME=%~1"
-set "STEP_PATH=%~2"
-set "STEP_DESC=%~3"
+set "STEP_PATH=%~1"
+set "STEP_DESC=%~2"
+set "STEP_NAME=%~nx1"
 call :remap_hex "%STEP_NAME%" "%STEP_PATH%"
 if errorlevel 1 exit /b 1
+for %%I in ("%HEX_BIN%") do set "HEX_NAME=%%~nxI"
 echo ------------------------------------------------------------
 echo DOWNLOAD  %STEP_DESC%  [%STEP_NAME%]
 echo FILE: %HEX_BIN%
 echo ADDR: %HEX_LOAD%   ^(must be 0x08..., never 0x0C...^)
-echo CMD:  STM32_Programmer_CLI %connect% -d "%HEX_BIN%" %HEX_LOAD%
+echo CMD:  STM32_Programmer_CLI %connect% -d !HEX_NAME! %HEX_LOAD%
 echo ------------------------------------------------------------
-STM32_Programmer_CLI %connect% -d "%HEX_BIN%" %HEX_LOAD% > "%TEMP%\tfm_jlink_dl.txt" 2>&1
-set "DLRC=%ERRORLEVEL%"
+pushd "%TEMP%"
+STM32_Programmer_CLI %connect% -d !HEX_NAME! %HEX_LOAD% > "%TEMP%\tfm_jlink_dl.txt" 2>&1
+set "DLRC=!ERRORLEVEL!"
+popd
 call :check_download
 exit /b %ERRORLEVEL%
 
 :flash_bin
-set "STEP_NAME=%~1"
-set "STEP_PATH=%~2"
-set "STEP_ADDR=%~3"
-set "STEP_DESC=%~4"
+set "STEP_PATH=%~1"
+set "STEP_ADDR=%~2"
+set "STEP_DESC=%~3"
+set "STEP_NAME=%~nx1"
+if not exist "%STEP_PATH%" (
+    echo [FAIL] missing %STEP_PATH%
+    set "FAILED_STEP=missing %STEP_NAME%"
+    set "EXIT_CODE=1"
+    exit /b 1
+)
 echo ------------------------------------------------------------
 echo DOWNLOAD  %STEP_DESC%  [%STEP_NAME%]
 echo FILE: %STEP_PATH%
 echo ADDR: %STEP_ADDR%
-echo CMD:  STM32_Programmer_CLI %connect% -d "%STEP_PATH%" %STEP_ADDR%
+echo CMD:  STM32_Programmer_CLI %connect% -d %STEP_NAME% %STEP_ADDR%
+echo        cwd %~dp1
 echo ------------------------------------------------------------
-STM32_Programmer_CLI %connect% -d "%STEP_PATH%" %STEP_ADDR% > "%TEMP%\tfm_jlink_dl.txt" 2>&1
-set "DLRC=%ERRORLEVEL%"
+pushd "%~dp1"
+if errorlevel 1 (
+    echo [FAIL] cannot cd to %~dp1
+    set "FAILED_STEP=cd %STEP_NAME%"
+    set "EXIT_CODE=1"
+    exit /b 1
+)
+STM32_Programmer_CLI %connect% -d %STEP_NAME% %STEP_ADDR% > "%TEMP%\tfm_jlink_dl.txt" 2>&1
+set "DLRC=!ERRORLEVEL!"
+popd
 call :check_download
 exit /b %ERRORLEVEL%
 
 :check_download
 type "%TEMP%\tfm_jlink_dl.txt"
-findstr /c:"0x0C038000" /c:"0x0C00E000" /c:"0x0C088000" "%TEMP%\tfm_jlink_dl.txt" >nul
+findstr /c:"0x0C038000" /c:"0x0C00E000" /c:"0x0C0B8000" /c:"0x0C100000" "%TEMP%\tfm_jlink_dl.txt" >nul
 if not errorlevel 1 (
     echo.
     echo [FAIL] CubeProgrammer still used 0x0C alias. This is the old hex path.

@@ -305,6 +305,7 @@ const struct sau_cfg_t region_sau_init_cfg[] = {
 #endif /* FLOW_CONTROL */
   },
   /* Region 1: Allows non secure access to flash NS images slots for secure flash driver */
+  /* Range is NS_IMAGE_PRIMARY .. FLASH_AREA_END (H573: Bank2 0x08100000-0x081FFFFF). */
   /* Secure HAL flash driver uses non secure flash address to perform access to non secure flash area */
   {
     1,
@@ -758,6 +759,15 @@ void LL_SECU_CheckStaticProtections(void)
   {
     end = PAGE_MAX_NUMBER_IN_BANK;
   }
+#if defined(FLASH_B_SIZE)
+  else if (NS_IMAGE_PRIMARY_PARTITION_OFFSET >= FLASH_B_SIZE)
+  {
+    /* NS primary is entirely in Bank2: keep the rest of Bank1 Secure so
+     * SECWM does not split S/NS inside Bank1 (H573 flash S/NS is SECWM,
+     * not GTZC-MPCWM). */
+    end = PAGE_MAX_NUMBER_IN_BANK;
+  }
+#endif
   if ((start != flash_option_bytes_bank1.WMSecStartSector)
       || (end != flash_option_bytes_bank1.WMSecEndSector))
   {

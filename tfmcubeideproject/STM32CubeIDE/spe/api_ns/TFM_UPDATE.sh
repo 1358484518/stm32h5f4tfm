@@ -32,9 +32,9 @@ PATH="/C/Program Files/STMicroelectronics/STM32Cube/STM32CubeProgrammer/bin/":$P
 stm32programmercli="STM32_Programmer_CLI"
 # part ot be updated according to flash_layout.h
 slot0=0xc038000
-slot1=0xc088000
-slot2=0xc118000
-slot3=0xc168000
+slot1=0xc100000
+slot2=0x100000
+slot3=0x180000
 its=0xc034000
 sst=0xc030000
 scratch=0xc000000
@@ -42,7 +42,7 @@ nvcounter=0xc028000
 boot=0xc00e000
 nvmcnt=0xc00c000
 prov=0x0
-unused=0xc1f8000
+unused=0xc200000
 encrypted=0x0
 #select external flash according to slot2 value
 u5=0x70000000
@@ -62,8 +62,8 @@ fi
 if [ "$slot2" == $l5 ]; then
 external_loader="-el $cubedir/ExternalLoader/MX25LM51245G_STM32L562E-DK.stldr"
 fi
-connect_no_reset="-c port=SWD "$sn_option" mode=UR $external_loader"
-connect="-c port=SWD "$sn_option" mode=UR $external_loader"
+connect_no_reset="-c port=SWD ap=1 "$sn_option" mode=UR $external_loader"
+connect="-c port=SWD ap=1 "$sn_option" mode=UR $external_loader"
 
 echo "Write TFM_Appli Secure"
 # part ot be updated according to flash_layout.h

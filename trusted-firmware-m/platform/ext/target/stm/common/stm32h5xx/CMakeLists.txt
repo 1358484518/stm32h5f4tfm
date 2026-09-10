@@ -59,6 +59,7 @@ target_sources(platform_s
         ${CMAKE_CURRENT_SOURCE_DIR}/secure/low_level_device.c
         ${STM_COMMON_DIR}/hal/CMSIS_Driver/low_level_flash.c
         ${STM_COMMON_DIR}/hal/CMSIS_Driver/low_level_com.c
+        ${STM_COMMON_DIR}/hal/CMSIS_Driver/low_level_spi_flash.c
         ${CMAKE_CURRENT_SOURCE_DIR}/hal/Src/stm32h5xx_hal.c
         ${CMAKE_CURRENT_SOURCE_DIR}/hal/Src/stm32h5xx_hal_flash.c
         ${CMAKE_CURRENT_SOURCE_DIR}/hal/Src/stm32h5xx_hal_flash_ex.c
@@ -152,6 +153,7 @@ if(BL2)
             ${CMAKE_CURRENT_SOURCE_DIR}/hal/Src/stm32h5xx_hal_rtc_ex.c
             ${CMAKE_CURRENT_SOURCE_DIR}/hal/Src/stm32h5xx_hal_icache.c
             ${STM_COMMON_DIR}/hal/Native_Driver/low_level_rng.c
+            ${STM_COMMON_DIR}/hal/CMSIS_Driver/low_level_spi_flash.c
     )
 
     # Add sources TF-PSA-Crypto for BL2
@@ -167,6 +169,7 @@ if(BL2)
         PRIVATE
             ${TF_PSA_CRYPTO_PATH}/utilities
             ${TF_PSA_CRYPTO_PATH}/drivers/builtin/include
+            ${STM_COMMON_DIR}/hal/CMSIS_Driver
     )
 
     # for BL2 Crypto: provide mbedtls_psa_external_get_random()
@@ -178,6 +181,12 @@ if(BL2)
     target_compile_options(platform_bl2
         PUBLIC
             ${COMPILER_CMSE_FLAG}
+    )
+
+    # Distinguish this translation unit from platform_s, which also sees -DBL2.
+    target_compile_definitions(platform_bl2
+        PRIVATE
+            TFM_SPI_FLASH_IN_BL2
     )
 
     # GNU ld and IAR does not deal well with strong functions in static libraries
@@ -280,9 +289,15 @@ set(CONTENT_FOR_BL2_PREPROCESSING
     "\tRE_BL2_WRP_START = (FLASH_AREA_BL2_OFFSET),\n"
     "\tRE_BL2_WRP_END = (FLASH_AREA_BL2_NOHDP_OFFSET+FLASH_AREA_BL2_NOHDP_SIZE-0x1),\n"
     "\tRE_BL2_HDP_END = (FLASH_AREA_BL2_NOHDP_OFFSET-0x1),\n"
+    "#if defined(EXTERNAL_FLASH)\n"
+    "\tRE_IMAGE_FLASH_SECURE_UPDATE = (SPI_FLASH_BASE_ADDRESS+FLASH_AREA_2_OFFSET),\n"
+    "\tRE_IMAGE_FLASH_NON_SECURE_UPDATE = (SPI_FLASH_BASE_ADDRESS+FLASH_AREA_3_OFFSET),\n"
+    "\tRE_IMAGE_FLASH_UNUSED = (FLASH_BASE_ADDRESS+FLASH_AREA_1_OFFSET+FLASH_AREA_1_SIZE),\n"
+    "#else\n"
     "\tRE_IMAGE_FLASH_SECURE_UPDATE = (FLASH_BASE_ADDRESS+FLASH_AREA_2_OFFSET),\n"
     "\tRE_IMAGE_FLASH_NON_SECURE_UPDATE = (FLASH_BASE_ADDRESS+FLASH_AREA_3_OFFSET),\n"
     "\tRE_IMAGE_FLASH_UNUSED = (FLASH_BASE_ADDRESS+FLASH_AREA_3_OFFSET+FLASH_AREA_3_SIZE),\n"
+    "#endif\n"
     "\tRE_IMAGE_FLASH_SCRATCH = (FLASH_BASE_ADDRESS+FLASH_AREA_SCRATCH_OFFSET),\n"
     "#if defined(FLASH_OTP_NV_COUNTERS_AREA_OFFSET)\n"
     "\tRE_IMAGE_FLASH_NV_COUNTERS = (FLASH_BASE_ADDRESS+FLASH_OTP_NV_COUNTERS_AREA_OFFSET),\n"

@@ -15,4 +15,7 @@
 /* Use external RNG to provide entropy */
 #define CRYPTO_EXT_RNG                         1
 
+/* ../ns_app/mbedtls-4.1.1/library/ssl_tls13_generic.c:1621 0x2005a788: psa_export_public_key() returned -141  */
+#define CRYPTO_IOVEC_BUFFER_SIZE  20480
+
 #endif /* __CONFIG_TFM_TARGET_H__ */

@@ -23,20 +23,48 @@
  * some of the values are redefined here with different names, these are marked
  * with comment.
  */
+/* External W25Q32 (4 MB) on SPI1: download slots only (not XIP).
+ *
+ * Firmware window starts at 0x100000: S download 512 KB then NS download 1 MB
+ * (0x100000-0x280000). 0x000000-0x0FFFFF is left for other data.
+ * MCUboot requires primary and secondary slots of an image to be the same
+ * size, so the internal S execute slot is also 512 KB (image is padded).
+ * Internal NS execute is the whole of Bank2 (0x100000, 1 MB) so it does not
+ * cross the dual-bank boundary. NS programs the NOR directly (w25q32_*).
+ * BL2 reads the NOR; after a successful overwrite it erases that download
+ * slot so the next boot does not hash leftover S/NS images. CubeProgrammer
+ * still burns BL2/S/NS primary in internal flash. psa_fwu_query() still
+ * reports S/NS versions; PSA start/write/install is disabled.
+ */
+#define EXTERNAL_FLASH
+#define SPI_FLASH_TOTAL_SIZE            (0x400000)   /* W25Q32 4 MBytes */
+#define SPI_FLASH_BASE_ADDRESS          (0x00000000) /* command-mode offsets */
+#define SPI_FLASH_SECTOR_SIZE           (0x1000)     /* 4 KB */
+#define SPI_FLASH_PAGE_SIZE             (0x100)      /* 256 B */
+
  /* Flash layout for stm32h573i_dk with BL2 (multiple image boot):
  *
- * 0x0000_0000 SCRATCH (48 KB)
+ * Internal 2 MB:
+ * 0x0000_0000 SCRATCH (48 KB)  reserved (overwrite-only, unused by MCUboot)
  * 0x0000_C000 BL2 - counters(16 KB)
  * 0x0001_0000 BL2 - MCUBoot (96 KB)
  * 0x0002_8000 OTP Write Protect (16 KB)
  * 0x0002_C000 NV counters area (16 KB)
  * 0x0003_0000 Secure Storage Area (16 KB)
  * 0x0003_4000 Internal Trusted Storage Area (16 KB)
- * 0x0003_8000 Secure image     primary slot (320 KB)
- * 0x0008_8000 Non-secure image primary slot (576 KB)
- * 0x0011_8000 Secure image     secondary slot (320 KB)
- * 0x0016_8000 Non-secure image secondary slot (576 KB)
- * 0x001f_8000 Non-secure free data (32 KB)
+ * 0x0003_8000 Secure image     primary slot (512 KB)  [Bank1]
+ * 0x000B_8000 unused Bank1 gap (288 KB, SECWM1 keeps it Secure)
+ * 0x0010_0000 Non-secure image primary slot (1024 KB) [entire Bank2]
+ *
+ * NS execute is Bank2-only so it does not cross the 1 MB flash bank at 0x100000.
+ * Internal S/NS split is FLASH SECWM (not GTZC-MPCWM):
+ *   Bank1 SECWM STRT=0 END=127  (fully Secure)
+ *   Bank2 SECWM STRT=127 END=0  (fully NS)
+ * SAU NS flash follows FLASH_AREA_1: 0x08100000 .. 0x081FFFFF
+ *
+ * External W25Q32 (command-mode offsets, not CPU flash):
+ * 0x0010_0000 Secure image     secondary slot (512 KB)
+ * 0x0018_0000 Non-secure image secondary slot (1024 KB)
  *
  * Bl2 binary is written at 0x1_0000:
  * it contains bl2_counter init value, OTP write protect, NV counters area init.
@@ -139,8 +167,8 @@
 #error "FLASH_ITS_AREA_OFFSET not aligned on FLASH_AREA_IMAGE_SECTOR_SIZE"
 #endif /*  (FLASH_ITS_AREA_OFFSET % FLASH_AREA_IMAGE_SECTOR_SIZE) != 0 */
 
-#define FLASH_S_PARTITION_SIZE          (0x50000) /* 320 KB for S partition */
-#define FLASH_NS_PARTITION_SIZE         (0x90000) /* 576 KB for NS partition */
+#define FLASH_S_PARTITION_SIZE          (0x80000) /* 512 KB for S partition */
+#define FLASH_NS_PARTITION_SIZE         (0x100000) /* 1024 KB for NS partition */
 
 #define FLASH_PARTITION_SIZE            (FLASH_S_PARTITION_SIZE+FLASH_NS_PARTITION_SIZE)
 
@@ -162,38 +190,92 @@
 #endif /*  (FLASH_AREA_0_OFFSET  % FLASH_AREA_IMAGE_SECTOR_SIZE) != 0 */
 #define FLASH_AREA_0_SIZE               (FLASH_S_PARTITION_SIZE)
 
-/* Non-secure image primary slot */
+/* Non-secure image primary slot: start of Bank2 (do not follow S into Bank1). */
 #define FLASH_AREA_1_ID                 (FLASH_AREA_0_ID + 1)
 #define FLASH_AREA_1_DEVICE_ID          (FLASH_AREA_0_DEVICE_ID)
-#define FLASH_AREA_1_OFFSET             (FLASH_AREA_0_OFFSET + FLASH_AREA_0_SIZE)
+#define FLASH_AREA_1_OFFSET             (FLASH_B_SIZE)
 /* Control Non-secure image primary slot */
 #if (FLASH_AREA_1_OFFSET  % FLASH_AREA_IMAGE_SECTOR_SIZE) != 0
 #error "FLASH_AREA_1_OFFSET  not aligned on FLASH_AREA_IMAGE_SECTOR_SIZE"
 #endif /* (FLASH_AREA_1_OFFSET  % FLASH_AREA_IMAGE_SECTOR_SIZE) != 0  */
 #define FLASH_AREA_1_SIZE               (FLASH_NS_PARTITION_SIZE)
+#if (FLASH_AREA_0_OFFSET + FLASH_AREA_0_SIZE) > FLASH_B_SIZE
+#error "S primary slot crosses Bank1/Bank2"
+#endif
+#if (FLASH_AREA_1_OFFSET / FLASH_B_SIZE) != ((FLASH_AREA_1_OFFSET + FLASH_AREA_1_SIZE - 1) / FLASH_B_SIZE)
+#error "NS primary slot crosses Bank1/Bank2"
+#endif
+#if (FLASH_AREA_1_OFFSET + FLASH_AREA_1_SIZE) > FLASH_TOTAL_SIZE
+#error "NS primary slot overflows internal flash"
+#endif
 
-/* Secure image secondary slot */
+/* Secure image secondary slot (external W25Q32) */
 #define FLASH_AREA_2_ID                 (FLASH_AREA_1_ID + 1)
 #define FLASH_AREA_2_DEVICE_ID          (FLASH_AREA_1_DEVICE_ID)
+#if defined(EXTERNAL_FLASH)
+#define FLASH_AREA_2_OFFSET             (0x100000)
+#else
 #define FLASH_AREA_2_OFFSET             (FLASH_AREA_1_OFFSET + FLASH_AREA_1_SIZE)
+#endif
 /* Control  Secure image secondary slot */
 #if (FLASH_AREA_2_OFFSET  % FLASH_AREA_IMAGE_SECTOR_SIZE) != 0
 #error "FLASH_AREA_2_OFFSET  not aligned on FLASH_AREA_IMAGE_SECTOR_SIZE"
 #endif /*   (FLASH_AREA_2_OFFSET  % FLASH_AREA_IMAGE_SECTOR_SIZE) != 0 */
+#if defined(EXTERNAL_FLASH)
+#if (FLASH_AREA_2_OFFSET % SPI_FLASH_SECTOR_SIZE) != 0
+#error "FLASH_AREA_2_OFFSET not aligned on SPI_FLASH_SECTOR_SIZE"
+#endif
+#endif
 #define FLASH_AREA_2_SIZE               (FLASH_S_PARTITION_SIZE)
 
-/* Non-secure image secondary slot */
+/* Non-secure image secondary slot (external W25Q32) */
 #define FLASH_AREA_3_ID                 (FLASH_AREA_2_ID + 1)
 #define FLASH_AREA_3_DEVICE_ID          (FLASH_AREA_2_DEVICE_ID)
+#if defined(EXTERNAL_FLASH)
 #define FLASH_AREA_3_OFFSET             (FLASH_AREA_2_OFFSET + FLASH_AREA_2_SIZE)
+#else
+#define FLASH_AREA_3_OFFSET             (FLASH_AREA_2_OFFSET + FLASH_AREA_2_SIZE)
+#endif
 #if (FLASH_AREA_3_OFFSET  % FLASH_AREA_IMAGE_SECTOR_SIZE) != 0
 #error "FLASH_AREA_3_OFFSET  not aligned on FLASH_AREA_IMAGE_SECTOR_SIZE"
 #endif /*  (FLASH_AREA_3_OFFSET  % FLASH_AREA_IMAGE_SECTOR_SIZE) != 0 */
+#if defined(EXTERNAL_FLASH)
+#if (FLASH_AREA_3_OFFSET % SPI_FLASH_SECTOR_SIZE) != 0
+#error "FLASH_AREA_3_OFFSET not aligned on SPI_FLASH_SECTOR_SIZE"
+#endif
+#if ((FLASH_AREA_3_OFFSET + FLASH_NS_PARTITION_SIZE) > SPI_FLASH_TOTAL_SIZE)
+#error "NS secondary slot overflows W25Q32"
+#endif
+#if ((FLASH_AREA_2_OFFSET + FLASH_AREA_2_SIZE + FLASH_AREA_3_SIZE) > SPI_FLASH_TOTAL_SIZE)
+#error "S+NS secondary slots overflow W25Q32"
+#endif
+#endif
 /*Control Non-secure image secondary slot */
 #define FLASH_AREA_3_SIZE               (FLASH_NS_PARTITION_SIZE)
+#if defined(EXTERNAL_FLASH)
+/* Internal flash used by SAU / NS execute ends after NS primary */
+#define FLASH_AREA_END_OFFSET           (FLASH_AREA_1_OFFSET + FLASH_AREA_1_SIZE)
+#else
 #define FLASH_AREA_END_OFFSET           (FLASH_AREA_3_OFFSET + FLASH_AREA_3_SIZE)
+#endif
 #define FLASH_AREA_SCRATCH_ID           (FLASH_AREA_3_ID + 1)
 #define FLASH_AREA_SCRATCH_DEVICE_ID    (FLASH_AREA_3_DEVICE_ID)
+
+#if defined(EXTERNAL_FLASH)
+/* flash_map.h defines FLASH_DEVICE_ID as 100 after including this header. */
+#define SPI_FLASH_DEV_ID                (FLASH_DEVICE_ID + 1)
+#define FLASH_DEVICE_ID_2               (SPI_FLASH_DEV_ID)
+#define FLASH_DEVICE_ID_3               (SPI_FLASH_DEV_ID)
+#define SPI_FLASH_DEV_NAME              TFM_Driver_SPI_FLASH0
+#define FLASH_DEV_NAME_2                SPI_FLASH_DEV_NAME
+#define FLASH_DEV_NAME_3                SPI_FLASH_DEV_NAME
+#define FLASH_DRIVER_LIST               {&TFM_Driver_SPI_FLASH0, &TFM_Driver_FLASH0}
+/* Offsets inside W25Q32 (command-mode, not CPU-mapped). */
+#define SPI_FLASH_S_UPDATE_OFFSET       (FLASH_AREA_2_OFFSET)
+#define SPI_FLASH_S_UPDATE_SIZE         (FLASH_AREA_2_SIZE)
+#define SPI_FLASH_NS_UPDATE_OFFSET      (FLASH_AREA_3_OFFSET)
+#define SPI_FLASH_NS_UPDATE_SIZE        (FLASH_AREA_3_SIZE)
+#endif /* EXTERNAL_FLASH */
 
 
 /*
@@ -201,9 +283,16 @@
  */
 #define MCUBOOT_STATUS_MAX_ENTRIES         ((FLASH_MAX_PARTITION_SIZE) / \
                                             FLASH_AREA_SCRATCH_SIZE)
-/* Maximum number of image sectors supported by the bootloader. */
+/* Maximum number of image sectors supported by the bootloader.
+ * External NOR uses 4 KB sectors; size the table for that.
+ */
+#if defined(EXTERNAL_FLASH)
+#define MCUBOOT_MAX_IMG_SECTORS           ((FLASH_MAX_PARTITION_SIZE) / \
+                                           SPI_FLASH_SECTOR_SIZE)
+#else
 #define MCUBOOT_MAX_IMG_SECTORS           ((FLASH_MAX_PARTITION_SIZE) / \
                                            FLASH_AREA_IMAGE_SECTOR_SIZE)
+#endif
 
 #define SECURE_IMAGE_OFFSET             (0x0)
 #define SECURE_IMAGE_MAX_SIZE           FLASH_S_PARTITION_SIZE
