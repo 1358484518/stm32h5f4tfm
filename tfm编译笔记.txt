@@ -159,7 +159,7 @@ SPI 0x100000 ≠ CPU NS 执行地址 0x0C100000。
 	NS 用 w25q32_init / erase_4k / write 把已签名镜像写到 NOR（先擦后写）：
 	S 下载：tfm_s_signed.bin → W25Q32 0x100000（512 KB）
 	NS 下载：tfm_ns_signed.bin → W25Q32 0x180000（1 MB）
-	然后 psa_fwu_request_reboot() 或复位。BL2 只读 NOR（不擦、不写外部 Flash）。
+	然后 psa_fwu_request_reboot() 或复位。BL2 读 NOR；覆盖内部主槽成功后擦除该下载槽，下次启动不再整槽验签。
 	psa_fwu_query 仍可查 S/NS 版本；psa_fwu_start / write / install 返回 PSA_ERROR_NOT_SUPPORTED。
 
 	BL2 升级条件（同时满足才覆盖内部主槽）：

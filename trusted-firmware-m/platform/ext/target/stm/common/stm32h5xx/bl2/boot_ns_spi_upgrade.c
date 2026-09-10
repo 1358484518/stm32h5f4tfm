@@ -3,9 +3,9 @@
  *
  * SPDX-License-Identifier: BSD-3-Clause
  *
- * NS writes signed images to W25Q32. BL2 only reads NOR. Upgrade when the
- * secondary signature is valid, version is not lower than primary, and the
- * image hash differs from primary.
+ * NS writes signed images to W25Q32. BL2 reads NOR and, after a successful
+ * overwrite (or when secondary already matches primary), erases that
+ * download slot so the next boot does not hash a leftover image.
  */
 
 #include <string.h>
@@ -15,6 +15,7 @@
 #include "bootutil/bootutil_log.h"
 #include "flash_map/flash_map.h"
 #include "sysflash/sysflash.h"
+#include "low_level_spi_flash.h"
 
 #define SLOT_SHA256_LEN  32U
 
@@ -50,6 +51,31 @@ static int read_slot_sha256(const struct flash_area *fap, uint8_t *sha)
     return flash_area_read(fap, off, sha, SLOT_SHA256_LEN);
 }
 
+static void erase_spi_secondary(int img_index)
+{
+    const struct flash_area *secondary = NULL;
+    int32_t rc;
+
+    if (flash_area_open(FLASH_AREA_IMAGE_SECONDARY(img_index),
+                        &secondary) != 0) {
+        BOOT_LOG_ERR("Image %d: SPI download open for erase failed", img_index);
+        return;
+    }
+
+    BOOT_LOG_INF("Image %d: erasing SPI download 0x%x+0x%x",
+                 img_index,
+                 (unsigned)secondary->fa_off,
+                 (unsigned)secondary->fa_size);
+    rc = w25q32_erase_range(secondary->fa_off, secondary->fa_size);
+    flash_area_close(secondary);
+    if (rc != ARM_DRIVER_OK) {
+        BOOT_LOG_ERR("Image %d: SPI download erase failed (%d)",
+                     img_index, (int)rc);
+        return;
+    }
+    BOOT_LOG_INF("Image %d: SPI download erased", img_index);
+}
+
 int boot_read_image_header_hook(int img_index, int slot,
                                 struct image_header *img_head)
 {
@@ -77,9 +103,12 @@ int boot_read_swap_state_primary_slot_hook(int image_index,
 int boot_copy_region_post_hook(int img_index, const struct flash_area *area,
                                size_t size)
 {
-    (void)img_index;
     (void)area;
     (void)size;
+    /* Primary already holds the new image. Drop the SPI copy so later boots
+     * do not re-validate a leftover secondary.
+     */
+    erase_spi_secondary(img_index);
     return 0;
 }
 
@@ -112,6 +141,7 @@ int boot_perform_update_hook(int img_index, struct image_header *img_head,
     if (memcmp(sha_sec, sha_pri, SLOT_SHA256_LEN) == 0) {
         BOOT_LOG_INF("Image %d: secondary matches primary, skip overwrite",
                      img_index);
+        erase_spi_secondary(img_index);
         return 0;
     }
 

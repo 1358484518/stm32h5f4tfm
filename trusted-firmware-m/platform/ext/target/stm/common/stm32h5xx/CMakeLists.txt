@@ -169,6 +169,7 @@ if(BL2)
         PRIVATE
             ${TF_PSA_CRYPTO_PATH}/utilities
             ${TF_PSA_CRYPTO_PATH}/drivers/builtin/include
+            ${STM_COMMON_DIR}/hal/CMSIS_Driver
     )
 
     # for BL2 Crypto: provide mbedtls_psa_external_get_random()

@@ -40,7 +40,8 @@ set(TFM_PARTITION_PROTECTED_STORAGE        ON           CACHE BOOL      "Disable
 set(TFM_PARTITION_INITIAL_ATTESTATION      ON           CACHE BOOL      "Disable Initial Attestation partition")
 # Keep FWU partition so NS can psa_fwu_query(0) the running S firmware version
 # (and query(1) for NS) from BL2 shared data. Download/install is not used:
-# NS writes W25Q32, BL2 only reads NOR.
+# NS writes W25Q32; BL2 reads NOR and erases the download slot after a
+# successful overwrite so later boots skip hashing leftover images.
 set(PLATFORM_HAS_FIRMWARE_UPDATE_SUPPORT   ON           CACHE BOOL      "Wheter the platform has firmware update support")
 set(TFM_PARTITION_FIRMWARE_UPDATE          ON           CACHE BOOL      "Enable firmware update partition")
 set(TFM_FWU_QUERY_ONLY                     ON           CACHE BOOL      "Keep psa_fwu_query; reject PSA start/write/install")

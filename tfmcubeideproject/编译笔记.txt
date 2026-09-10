@@ -47,5 +47,5 @@ tfmcubeideproject 编译笔记（分支 stm32H573P256-SPIFLASH）
 	不要只烧拼接的 tfm_s_ns_signed（没有 Bank1 空隙）。
 
 5.外部升级
-	把 tfm_ns_signed.bin 写到 W25Q32 0x180000，复位；BL2 只读 NOR。
+	把 tfm_ns_signed.bin 写到 W25Q32 0x180000，复位；BL2 覆盖成功后擦除该下载槽。
 	版本低于内部主槽会被拒绝。

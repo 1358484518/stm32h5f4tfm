@@ -21,13 +21,16 @@
 #define W25_CMD_READ_DATA           0x03U
 #define W25_CMD_PAGE_PROGRAM        0x02U
 #define W25_CMD_SECTOR_ERASE_4K     0x20U
+#define W25_CMD_BLOCK_ERASE_64K     0xD8U
 #define W25_CMD_JEDEC_ID            0x9FU
 #define W25_STATUS_WIP              0x01U
 #define W25_JEDEC_MANU              0xEFU
 #define W25_JEDEC_TYPE              0x40U
 #define W25_JEDEC_CAP               0x16U
+#define W25_BLOCK_64K               0x10000U
 
-#define SPI_WIP_TIMEOUT             2000000U
+/* 64 KB erase can take up to ~2 s; bit-bang status polls are cheap. */
+#define SPI_WIP_TIMEOUT             30000000U
 #define W25_CMD_RELEASE_DPD         0xABU
 #define W25_CMD_ENABLE_RESET        0x66U
 #define W25_CMD_RESET               0x99U
@@ -253,7 +256,6 @@ static int w25_cmd(const uint8_t *cmd, uint32_t cmd_len,
     return rc;
 }
 
-#ifndef TFM_SPI_FLASH_IN_BL2
 static int w25_wait_ready(void)
 {
     uint8_t cmd = W25_CMD_READ_STATUS;
@@ -277,7 +279,6 @@ static int w25_write_enable(void)
 
     return w25_cmd(&cmd, 1U, NULL, 0U, NULL, 0U);
 }
-#endif /* !TFM_SPI_FLASH_IN_BL2 */
 
 static void w25_wakeup_reset(void)
 {
@@ -438,6 +439,7 @@ static int w25_page_program(uint32_t addr, const uint8_t *data, uint32_t len)
     cs_high();
     return w25_wait_ready();
 }
+#endif /* !TFM_SPI_FLASH_IN_BL2 */
 
 static int is_slot_range(uint32_t addr, uint32_t len)
 {
@@ -459,7 +461,6 @@ static int is_slot_range(uint32_t addr, uint32_t len)
     }
     return 1;
 }
-#endif /* !TFM_SPI_FLASH_IN_BL2 */
 
 static ARM_DRIVER_VERSION Flash_GetVersion(void)
 {
@@ -544,18 +545,10 @@ static int32_t Flash_ReadData(uint32_t addr, void *data, uint32_t cnt)
 #if defined(TFM_SPI_FLASH_IN_BL2)
 static int32_t Flash_ProgramData(uint32_t addr, const void *data, uint32_t cnt)
 {
-    /* BL2 never programs W25Q32. Return success so MCUboot trailer writes
-     * and post-upgrade secondary erase are ignored.
-     */
+    /* BL2 never programs W25Q32. Trailer MAGIC is overlaid on read. */
     ARG_UNUSED(addr);
     ARG_UNUSED(data);
     ARG_UNUSED(cnt);
-    return ARM_DRIVER_OK;
-}
-
-static int32_t Flash_EraseSector(uint32_t addr)
-{
-    ARG_UNUSED(addr);
     return ARM_DRIVER_OK;
 }
 #else
@@ -591,15 +584,16 @@ static int32_t Flash_ProgramData(uint32_t addr, const void *data, uint32_t cnt)
     SPI_FLASH0_STATUS.busy = 0;
     return (int32_t)cnt;
 }
+#endif /* TFM_SPI_FLASH_IN_BL2 */
 
-static int32_t Flash_EraseSector(uint32_t addr)
+static int32_t w25_erase_cmd(uint32_t addr, uint8_t cmd_id, uint32_t len)
 {
     uint8_t cmd[4];
 
-    if ((spi_inited == 0U) || ((addr % SPI_FLASH_SECTOR_SIZE) != 0U)) {
+    if ((spi_inited == 0U) || ((addr % len) != 0U)) {
         return ARM_DRIVER_ERROR_PARAMETER;
     }
-    if (!is_slot_range(addr, SPI_FLASH_SECTOR_SIZE)) {
+    if (!is_slot_range(addr, len)) {
         return ARM_DRIVER_ERROR_PARAMETER;
     }
 
@@ -610,7 +604,7 @@ static int32_t Flash_EraseSector(uint32_t addr)
         return ARM_DRIVER_ERROR;
     }
 
-    cmd[0] = W25_CMD_SECTOR_ERASE_4K;
+    cmd[0] = cmd_id;
     cmd[1] = (uint8_t)(addr >> 16);
     cmd[2] = (uint8_t)(addr >> 8);
     cmd[3] = (uint8_t)addr;
@@ -627,7 +621,11 @@ static int32_t Flash_EraseSector(uint32_t addr)
     SPI_FLASH0_STATUS.busy = 0;
     return ARM_DRIVER_OK;
 }
-#endif /* TFM_SPI_FLASH_IN_BL2 */
+
+static int32_t Flash_EraseSector(uint32_t addr)
+{
+    return w25_erase_cmd(addr, W25_CMD_SECTOR_ERASE_4K, SPI_FLASH_SECTOR_SIZE);
+}
 
 static int32_t Flash_EraseChip(void)
 {
@@ -680,6 +678,39 @@ int32_t w25q32_write(uint32_t addr, const void *buf, uint32_t len)
 int32_t w25q32_erase_4k(uint32_t addr)
 {
     return Flash_EraseSector(addr);
+}
+
+int32_t w25q32_erase_range(uint32_t addr, uint32_t len)
+{
+    int32_t rc;
+
+    if ((len == 0U) || ((addr % SPI_FLASH_SECTOR_SIZE) != 0U) ||
+        ((len % SPI_FLASH_SECTOR_SIZE) != 0U)) {
+        return ARM_DRIVER_ERROR_PARAMETER;
+    }
+    if (!is_slot_range(addr, len)) {
+        return ARM_DRIVER_ERROR_PARAMETER;
+    }
+
+    while (len != 0U) {
+        if (((addr % W25_BLOCK_64K) == 0U) && (len >= W25_BLOCK_64K)) {
+            rc = w25_erase_cmd(addr, W25_CMD_BLOCK_ERASE_64K, W25_BLOCK_64K);
+            if (rc != ARM_DRIVER_OK) {
+                return rc;
+            }
+            addr += W25_BLOCK_64K;
+            len -= W25_BLOCK_64K;
+        } else {
+            rc = Flash_EraseSector(addr);
+            if (rc != ARM_DRIVER_OK) {
+                return rc;
+            }
+            addr += SPI_FLASH_SECTOR_SIZE;
+            len -= SPI_FLASH_SECTOR_SIZE;
+        }
+    }
+
+    return ARM_DRIVER_OK;
 }
 
 int32_t w25q32_read_jedec_id(uint8_t id[3])
