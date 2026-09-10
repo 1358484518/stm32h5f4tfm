@@ -30,6 +30,7 @@
 #include "psa/crypto.h"
 #include "psa/error.h"
 #include "psa/internal_trusted_storage.h"
+#include "psa/protected_storage.h"
 #include "psa/update.h"
 
 static int g_fail;
@@ -121,6 +122,54 @@ static void test_its(void)
     check("psa_its_remove", status);
 }
 
+static void test_ps(void)
+{
+    const psa_storage_uid_t uid = 0x0000000000001002ULL;
+    static const uint8_t payload[] = "ns-ps";
+    uint8_t readback[16];
+    size_t read_len = 0;
+    struct psa_storage_info_t info;
+    psa_status_t status;
+
+    LOG_MSG("PSA PS\r\n");
+    (void)psa_ps_remove(uid);
+
+    /* Empty UID must return -140 (PSA_ERROR_DOES_NOT_EXIST). That is
+     * not a SPE failure: get_info before the first set is defined this way.
+     */
+    memset(&info, 0, sizeof(info));
+    status = psa_ps_get_info(uid, &info);
+    if (status == PSA_ERROR_DOES_NOT_EXIST) {
+        LOG_MSG("  [PASS] psa_ps_get_info empty uid status=-140\r\n");
+    } else {
+        check("psa_ps_get_info empty uid", status);
+    }
+
+    status = psa_ps_set(uid, sizeof(payload), payload, PSA_STORAGE_FLAG_NONE);
+    check("psa_ps_set", status);
+
+    memset(&info, 0, sizeof(info));
+    status = psa_ps_get_info(uid, &info);
+    check("psa_ps_get_info", status);
+    if ((status == PSA_SUCCESS) && (info.size != sizeof(payload))) {
+        LOG_MSG("  [FAIL] PS info size mismatch\r\n");
+        g_fail++;
+    }
+
+    memset(readback, 0, sizeof(readback));
+    status = psa_ps_get(uid, 0, sizeof(readback), readback, &read_len);
+    check("psa_ps_get", status);
+    if ((status == PSA_SUCCESS) &&
+        ((read_len != sizeof(payload)) ||
+         (memcmp(readback, payload, sizeof(payload)) != 0))) {
+        LOG_MSG("  [FAIL] PS payload mismatch\r\n");
+        g_fail++;
+    }
+
+    status = psa_ps_remove(uid);
+    check("psa_ps_remove", status);
+}
+
 static void log_fw_version(const char *label, const psa_fwu_component_info_t *info)
 {
     /* imgtool version: major.minor.revision[+build] */
@@ -183,6 +232,7 @@ int main(void)
 
     test_crypto();
     test_its();
+    test_ps();
     test_fwu_query();
 
     if (g_fail == 0) {
