@@ -16,8 +16,8 @@
 ```bash
 imgtool keygen -k keys/image_s_signing_private_key.pem  -t ecdsa-p256
 imgtool keygen -k keys/image_ns_signing_private_key.pem -t ecdsa-p256
-imgtool getpub -k keys/image_s_signing_private_key.pem  > keys/image_s_signing_public_key.pem
-imgtool getpub -k keys/image_ns_signing_private_key.pem > keys/image_ns_signing_public_key.pem
+imgtool getpub -k keys/image_s_signing_private_key.pem  -e pem > keys/image_s_signing_public_key.pem
+imgtool getpub -k keys/image_ns_signing_private_key.pem -e pem > keys/image_ns_signing_public_key.pem
 ```
 
 然后：
@@ -32,8 +32,12 @@ imgtool getpub -k keys/image_ns_signing_private_key.pem > keys/image_ns_signing_
 2. 把两把私钥同步到 BL2：
    - `trusted-firmware-m/bl2/ext/mcuboot/root-EC-P256.pem`
    - `trusted-firmware-m/bl2/ext/mcuboot/root-EC-P256_1.pem`
-3. 按新公钥自动更新 OTP ROTPK（`otp_rotpk_hashes.inc`）
+3. OTP ROTPK（`otp_rotpk_hashes.inc`，编进 BL2）：S/NS **各自**优先用本目录公钥  
+   `image_s_signing_public_key.pem` / `image_ns_signing_public_key.pem`（须是  
+   `-----BEGIN PUBLIC KEY-----`，`imgtool getpub -e pem`）。某一侧没有公钥则仍用该侧私钥算哈希。
 4. 某目标目录不存在只告警，不中断编译；本目录为空则用仓库默认 dummy 密钥
+
+只把量产公钥放进本目录、私钥留在签名服务器也可以：BL2 会用这两把公钥的哈希；本地 `*_signed.bin` 仍可能是 dummy 私钥签的，烧录请用服务器签过的包。
 
 ## 烧录
 
