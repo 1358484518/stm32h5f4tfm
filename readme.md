@@ -192,8 +192,8 @@ MCUBOOT_S_IMAGE_MIN_VER=0.0.0+0
 ```bash
 imgtool keygen -k keys/image_s_signing_private_key.pem  -t ecdsa-p256
 imgtool keygen -k keys/image_ns_signing_private_key.pem -t ecdsa-p256
-imgtool getpub -k keys/image_s_signing_private_key.pem  > keys/image_s_signing_public_key.pem
-imgtool getpub -k keys/image_ns_signing_private_key.pem > keys/image_ns_signing_public_key.pem
+imgtool getpub -k keys/image_s_signing_private_key.pem  -e pem > keys/image_s_signing_public_key.pem
+imgtool getpub -k keys/image_ns_signing_private_key.pem -e pem > keys/image_ns_signing_public_key.pem
 
 rm -rf trusted-firmware-m/build_s trusted-firmware-m/build_ns
 ./buildtfm.sh test
@@ -202,7 +202,7 @@ rm -rf trusted-firmware-m/build_s trusted-firmware-m/build_ns
 `./buildtfm.sh` 会：
 
 1. 用 `keys/` 覆盖各工程里所有同名 `image_*_signing_*.pem`，以及 BL2 的 `root-EC-P256.pem` / `root-EC-P256_1.pem`
-2. 按新私钥自动同步 OTP ROTPK（`otp_rotpk_hashes.inc` 等）
+2. OTP ROTPK（`otp_rotpk_hashes.inc`）：某一侧若有 `keys/image_*_signing_public_key.pem` 则用该公钥哈希编进 BL2，否则仍用该侧私钥（`root-EC-P256*.pem`）计算
 3. 某目标**目录不存在**只告警，**不中断编译**；`keys/` 为空则继续用仓库默认 dummy 密钥
 
 `keys/*.pem` 已 gitignore，勿把量产私钥提交进仓库。说明见 `keys/README.md`。
@@ -221,12 +221,12 @@ rm -rf trusted-firmware-m/build_s trusted-firmware-m/build_ns
 ```bash
 imgtool keygen -k keys/image_s_signing_private_key.pem  -t ecdsa-p256
 imgtool keygen -k keys/image_ns_signing_private_key.pem -t ecdsa-p256
-imgtool getpub -k keys/image_s_signing_private_key.pem  > keys/image_s_signing_public_key.pem
-imgtool getpub -k keys/image_ns_signing_private_key.pem > keys/image_ns_signing_public_key.pem
+imgtool getpub -k keys/image_s_signing_private_key.pem  -e pem > keys/image_s_signing_public_key.pem
+imgtool getpub -k keys/image_ns_signing_private_key.pem -e pem > keys/image_ns_signing_public_key.pem
 ./buildtfm.sh test
 ```
 
-编译会覆盖各工程同名 pem、BL2 的 `root-EC-P256*.pem`，并同步 OTP ROTPK。换密钥后须回归擦片并重烧 **BL2 + S + NS**。详见 `keys/README.md`。
+编译会覆盖各工程同名 pem、BL2 的 `root-EC-P256*.pem`。OTP ROTPK 优先用 `keys/` 里已有的公钥 pem，没有公钥的一侧仍从私钥计算。换密钥后须回归擦片并重烧 **BL2 + S + NS**。详见 `keys/README.md`。
 
 ### versions/（S / NS 镜像版本）
 
