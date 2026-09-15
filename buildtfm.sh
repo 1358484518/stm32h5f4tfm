@@ -158,11 +158,14 @@ sync_user_signing_keys() {
     bash "${sync_sh}" "${WORK_ROOT}" "${SIG_TYPE}" || true
 }
 
-# 根据当前签名私钥同步 STM OTP 表里的 bl2_rotpk_*（及 provisioning.c dummy 哈希）。
-# 换 root-EC-P256*.pem / root-RSA-*.pem 后，下次 ./buildtfm.sh 会自动改 OTP，无需手改。
+# 同步 STM OTP 表里的 bl2_rotpk_*（及 provisioning.c dummy 哈希）。
+# 优先 keys/image_{s,ns}_signing_public_key.pem（S/NS 各自独立）；没有公钥则沿用
+# root-EC/RSA*.pem 私钥（或 MCUBOOT_KEY_S/NS）。下次 ./buildtfm.sh 自动改 OTP。
 sync_stm_otp_rotpk() {
     local sync_py="${WORK_ROOT}/scripts/sync_stm_otp_rotpk.py"
     local key_s key_ns
+    local pub_s="${WORK_ROOT}/keys/image_s_signing_public_key.pem"
+    local pub_ns="${WORK_ROOT}/keys/image_ns_signing_public_key.pem"
     if [[ ! -f "${sync_py}" ]]; then
         echo "警告: 缺少 ${sync_py}，跳过 OTP ROTPK 同步"
         return 0
@@ -191,6 +194,8 @@ sync_stm_otp_rotpk() {
     esac
     [[ -n "${MCUBOOT_KEY_S:-}" ]] && key_s="${MCUBOOT_KEY_S}"
     [[ -n "${MCUBOOT_KEY_NS:-}" ]] && key_ns="${MCUBOOT_KEY_NS}"
+    [[ -f "${pub_s}" ]] && key_s="${pub_s}"
+    [[ -f "${pub_ns}" ]] && key_ns="${pub_ns}"
     "${PYTHON}" "${sync_py}" \
         --tfm-root "${TFM_ROOT}" \
         --sig-type "${SIG_TYPE}" \
