@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: BSD-3-Clause
 """
-Sync STM flash-OTP ROTPK hashes from MCUboot signing private keys.
+Sync STM flash-OTP ROTPK hashes from MCUboot signing keys.
+
+--key-s / --key-ns may be a public PEM (-----BEGIN PUBLIC KEY-----) or a
+private PEM; public keys are hashed directly, private keys are reduced to
+the matching public key first.
 
 Updates:
   - platform/.../hal/provision/otp_rotpk_hashes.inc  (included by otp_provision.c)
@@ -28,13 +32,25 @@ except ImportError as exc:  # pragma: no cover
     raise SystemExit(2) from exc
 
 
-def load_private_key(path: Path):
+def load_public_key(path: Path):
+    """Load a PEM public key, or extract the public key from a PEM private key."""
     data = path.read_bytes()
-    return serialization.load_pem_private_key(data, password=None, backend=default_backend())
+    try:
+        return serialization.load_pem_public_key(data, backend=default_backend())
+    except ValueError:
+        pass
+    try:
+        priv = serialization.load_pem_private_key(
+            data, password=None, backend=default_backend()
+        )
+    except ValueError as exc:
+        raise SystemExit(
+            f"{path} 不是 PEM 公钥或私钥（imgtool 请用: imgtool getpub -e pem）"
+        ) from exc
+    return priv.public_key()
 
 
-def pubkey_hash_bytes(priv, sig_type: str) -> bytes:
-    pub = priv.public_key()
+def pubkey_hash_bytes(pub, sig_type: str) -> bytes:
     if sig_type.startswith("EC-P"):
         der = pub.public_bytes(
             serialization.Encoding.DER,
@@ -194,12 +210,18 @@ def main() -> int:
     if not key_ns.is_file():
         raise SystemExit(f"缺少 NS 密钥: {key_ns}")
 
-    k0 = load_private_key(key_s)
-    k1 = load_private_key(key_ns)
-    if sig.startswith("EC-P") and not isinstance(k0.public_key(), ec.EllipticCurvePublicKey):
-        raise SystemExit(f"{key_s} 不是 EC 密钥，但 SIG={sig}")
-    if sig.startswith("RSA-") and not isinstance(k0.public_key(), rsa.RSAPublicKey):
-        raise SystemExit(f"{key_s} 不是 RSA 密钥，但 SIG={sig}")
+    k0 = load_public_key(key_s)
+    k1 = load_public_key(key_ns)
+    if sig.startswith("EC-P"):
+        if not isinstance(k0, ec.EllipticCurvePublicKey):
+            raise SystemExit(f"{key_s} 不是 EC 密钥，但 SIG={sig}")
+        if not isinstance(k1, ec.EllipticCurvePublicKey):
+            raise SystemExit(f"{key_ns} 不是 EC 密钥，但 SIG={sig}")
+    elif sig.startswith("RSA-"):
+        if not isinstance(k0, rsa.RSAPublicKey):
+            raise SystemExit(f"{key_s} 不是 RSA 密钥，但 SIG={sig}")
+        if not isinstance(k1, rsa.RSAPublicKey):
+            raise SystemExit(f"{key_ns} 不是 RSA 密钥，但 SIG={sig}")
 
     h0 = pubkey_hash_bytes(k0, sig)
     h1 = pubkey_hash_bytes(k1, sig)
