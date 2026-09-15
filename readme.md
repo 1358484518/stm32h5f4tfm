@@ -9,10 +9,29 @@
 | `master` | **RSA-3072** | 默认主线 |
 | `stm32h573p256` | **EC-P256** | 仅改 MCUboot 镜像签名算法与配套密钥 |
 | `stm32H573P256-SPIFLASH` | **EC-P256** | 基于 `stm32h573p256`：NS 执行槽 1 MB，升级槽在外部 W25Q32 |
+| `stm32H573P256-SPIFLASH-bl2-public-key` | **EC-P256** | 基于 `stm32H573P256-SPIFLASH`：BL2 OTP ROTPK 可只用 `keys/` 公钥 |
 
-本文档所在分支为 **`stm32H573P256-SPIFLASH`**。
+本文档所在分支为 **`stm32H573P256-SPIFLASH-bl2-public-key`**。
 
-### 相对 `stm32h573p256` 改了什么（本分支）
+### 相对 `stm32H573P256-SPIFLASH` 改了什么（本分支）
+
+Flash 布局、升级路径、签名算法与 `stm32H573P256-SPIFLASH` 相同。只改 **编 BL2 时 OTP 里 ROTPK 哈希从哪来**：
+
+`./buildtfm.sh` 在 cmake 之前仍调用 `scripts/sync_stm_otp_rotpk.py`。S / NS **各自独立**：
+
+| 条件 | 该侧 ROTPK 来源 |
+|------|-----------------|
+| 存在 `keys/image_s_signing_public_key.pem` | 用该 **公钥** 算哈希 → `bl2_rotpk_0` |
+| 存在 `keys/image_ns_signing_public_key.pem` | 用该 **公钥** 算哈希 → `bl2_rotpk_1` |
+| 某一侧没有对应公钥 pem | 该侧仍用原来的私钥：`root-EC-P256.pem` / `root-EC-P256_1.pem`（或 `MCUBOOT_KEY_S/NS`） |
+
+公钥须是 `-----BEGIN PUBLIC KEY-----`（`imgtool getpub -e pem`）。可以只放 S、只放 NS，或两个都放。
+
+未改本地签名：没有量产私钥时，编出来的 `*_signed.bin` 仍可能是 dummy 钥签的。未签名 `tfm_s.bin` / `tfm_ns.bin` 可交给签名服务器，服务器私钥必须与放进 `keys/` 的公钥成对。换 ROTPK 后须 **回归并重烧 BL2 + 已签名 S/NS**。
+
+`scripts/sync_stm_otp_rotpk.py` 现同时接受公钥 pem 和私钥 pem（公钥直接哈希，私钥先抽出公钥再哈希；算法仍是 EC-P256 的 SHA-256 + SPKI DER）。
+
+### 相对 `stm32h573p256` 改了什么（`stm32H573P256-SPIFLASH`）
 
 内部 Flash 仍 2 MB（Bank1 `0x00000–0xFFFFF`，Bank2 `0x100000–0x1FFFFF`）。升级策略 **overwrite-only**。S/NS **下载槽**在 SPI1 外接 **W25Q32**（4 MB，非 XIP），从 `0x100000` 起：S 下载 **512 KB**，NS 下载 **1 MB**。MCUboot 要求同一镜像的主槽和下载槽等大，因此内部 S 执行槽也是 512 KB（镜像填充；BL2 地址不变）。**NS 执行槽放在整个 Bank2**，不再跨 1 MB 银行边界。
 
